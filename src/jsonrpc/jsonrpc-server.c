@@ -283,6 +283,7 @@ json_node *jsonrpc_server_call_remote(jsonrpc_server *server, const char *method
             } else {
                 fprintf(stderr, "%s: warning: method \"%s\" not found\n",
                         __func__, member_method->value);
+                json_node_unref(response_node);
             }
         } else {
             fprintf(stderr, "%s: warning: received invalid response object: %s\n", __func__, verification_failed_why);
