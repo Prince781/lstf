@@ -20,7 +20,7 @@ json_parser *json_parser_create_from_stream(FILE *stream, bool close_stream)
     }
 
     parser->scanner = json_scanner_create_from_stream(stream, close_stream);
-    parser->messages = ptr_list_new(free);
+    parser->messages = ptr_list_new(NULL, free);
 
     return parser;
 }

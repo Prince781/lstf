@@ -1,5 +1,6 @@
 #pragma once
 
+#include "data-structures/collection.h"
 #include "iterator.h"
 #include <stdbool.h>
 
@@ -20,22 +21,21 @@ typedef struct _ptr_list_node ptr_list_node;
  */
 #define ptr_list_node_get_data(node, type) (*(type *)node)
 
-typedef void (*ptr_list_data_free_func)(void *);
-typedef bool (*ptr_list_data_equality_func)(const void *pointer1, const void *pointer2);
-
 struct _ptr_list {
     ptr_list_node *head;
     ptr_list_node *tail;
     int length;
-    ptr_list_data_free_func data_free_func;
+    collection_item_ref_func data_ref_func;
+    collection_item_unref_func data_unref_func;
 };
 typedef struct _ptr_list ptr_list;
 
-ptr_list *ptr_list_new(ptr_list_data_free_func data_free_func);
+ptr_list *ptr_list_new(collection_item_ref_func   data_ref_func,
+                       collection_item_unref_func data_unref_func);
 
 ptr_list_node *ptr_list_append(ptr_list *list, void *pointer);
 
-ptr_list_node *ptr_list_find(ptr_list *list, const void *pointer, ptr_list_data_equality_func comparator);
+ptr_list_node *ptr_list_find(ptr_list *list, const void *pointer, collection_item_equality_func comparator);
 
 void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node);
 

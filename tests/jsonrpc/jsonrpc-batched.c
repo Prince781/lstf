@@ -63,9 +63,10 @@ int main(int argc, char *argv[]) {
         json_node *methodB_parameters = iterator_get_item(it);
         json_node *status_obj = json_object_new();
         json_object_set_member(status_obj, "method", json_string_new("test/methodB"));
-        json_object_set_member(status_obj, "parameters-received", methodB_parameters);
+        json_object_set_member(status_obj, "method-b-parameters", methodB_parameters);
         jsonrpc_server_notify_remote(server, "postStatus", status_obj);
     }
+    ptr_list_destroy(methodB_results);
     jsonrpc_server_destroy(server);
 
     return methods_invoked == 3 ? 0 : 1;

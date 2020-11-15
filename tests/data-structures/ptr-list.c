@@ -12,7 +12,7 @@ int *int_new(int value) {
 
 int main(void) {
     int retval = 0;
-    ptr_list *list = ptr_list_new(free);
+    ptr_list *list = ptr_list_new(NULL, free);
     int i = 0;
 
     for (i = 0; i < 1024*1024; i++)

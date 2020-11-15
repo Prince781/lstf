@@ -1,11 +1,13 @@
 #include "ptr-list.h"
+#include "data-structures/collection.h"
 #include "iterator.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
-ptr_list *ptr_list_new(ptr_list_data_free_func data_free_func)
+ptr_list *ptr_list_new(collection_item_ref_func   data_ref_func,
+                       collection_item_unref_func data_unref_func)
 {
     ptr_list *list = calloc(1, sizeof *list);
 
@@ -13,7 +15,8 @@ ptr_list *ptr_list_new(ptr_list_data_free_func data_free_func)
         perror("could not allocate pointer list");
         abort();
     }
-    list->data_free_func = data_free_func;
+    list->data_ref_func = data_ref_func;
+    list->data_unref_func = data_unref_func;
 
     return list;
 }
@@ -26,7 +29,7 @@ ptr_list_node *ptr_list_append(ptr_list *list, void *pointer)
         perror("could not allocate pointer node");
         abort();
     }
-    node->data = pointer;
+    node->data = list->data_ref_func ? list->data_ref_func(pointer) : pointer;
 
     if (list->head == list->tail && !list->head) {
         list->head = node;
@@ -43,7 +46,7 @@ ptr_list_node *ptr_list_append(ptr_list *list, void *pointer)
     return node;
 }
 
-ptr_list_node *ptr_list_find(ptr_list *list, const void *pointer, ptr_list_data_equality_func comparator)
+ptr_list_node *ptr_list_find(ptr_list *list, const void *pointer, collection_item_equality_func comparator)
 {
     for (iterator it = ptr_list_iterator_create(list);
             it.has_next;
@@ -72,8 +75,8 @@ void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node)
 
     node->next = NULL;
     node->prev = NULL;
-    if (list->data_free_func) {
-        list->data_free_func(node->data);
+    if (list->data_unref_func) {
+        list->data_unref_func(node->data);
         data = NULL;
     }
     node->data = NULL;

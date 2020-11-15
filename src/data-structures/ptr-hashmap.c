@@ -33,7 +33,7 @@ ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
         abort();
     }
 
-    map->buckets_list = ptr_list_new(free);
+    map->buckets_list = ptr_list_new(NULL, free);
     map->num_bucket_places = 8;
     map->buckets = calloc(map->num_bucket_places, sizeof *map->buckets);
 
@@ -55,7 +55,7 @@ ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
 static void
 ptr_hashmap_resize_to_length(ptr_hashmap *map, unsigned new_num_bucket_places)
 {
-    ptr_list *new_buckets_list = ptr_list_new(free);
+    ptr_list *new_buckets_list = ptr_list_new(NULL, free);
     ptr_hashmap_bucket **new_buckets = calloc(new_num_bucket_places, sizeof *new_buckets);
 
     if (!new_buckets) {
@@ -80,7 +80,7 @@ ptr_hashmap_resize_to_length(ptr_hashmap *map, unsigned new_num_bucket_places)
                     perror("failed to create bucket for hashmap");
                     abort();
                 }
-                new_bucket->entries_list = ptr_list_new(NULL);
+                new_bucket->entries_list = ptr_list_new(NULL, NULL);
                 new_bucket->node_in_buckets_list = ptr_list_append(new_buckets_list, new_bucket);
                 new_buckets[hash] = new_bucket;
             }
@@ -117,7 +117,7 @@ ptr_hashmap_entry *ptr_hashmap_insert(ptr_hashmap *map, void *new_key, void *new
 
         if (!(bucket = map->buckets[hash])) {
             bucket = calloc(1, sizeof *bucket);
-            bucket->entries_list = ptr_list_new(NULL);
+            bucket->entries_list = ptr_list_new(NULL, NULL);
             bucket->node_in_buckets_list = ptr_list_append(map->buckets_list, bucket);
             map->buckets[hash] = bucket;
         }

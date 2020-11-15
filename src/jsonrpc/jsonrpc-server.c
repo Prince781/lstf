@@ -53,7 +53,8 @@ jsonrpc_server *jsonrpc_server_create(FILE *input_stream, bool close_input,
             NULL,
             (collection_item_unref_func) closure_destroy);
 
-    server->received_requests = ptr_list_new((ptr_list_data_free_func)json_node_unref);
+    server->received_requests = ptr_list_new((collection_item_ref_func) json_node_ref,
+                                             (collection_item_unref_func) json_node_unref);
 
     return server;
 }
@@ -337,14 +338,15 @@ ptr_list *jsonrpc_server_wait_for_notification(jsonrpc_server *server, const cha
 
         ptr_list_node *query_result = ptr_list_find(server->received_requests, 
                                                     query_json, 
-                                                    (ptr_list_data_equality_func)jsonrpc_json_object_method_property_comparator);
+                                                    (collection_item_equality_func)jsonrpc_json_object_method_property_comparator);
 
         if (query_result) {
             json_node *result_parameters = json_object_get_member(ptr_list_node_get_data(query_result, json_node *), "params");
             if (!received_params)
-                received_params = ptr_list_new((ptr_list_data_free_func) json_node_unref);
+                received_params = ptr_list_new((collection_item_ref_func) json_node_ref,
+                                               (collection_item_unref_func) json_node_unref);
             if (result_parameters)
-                ptr_list_append(received_params, json_node_ref(result_parameters));
+                ptr_list_append(received_params, result_parameters);
             else
                 ptr_list_append(received_params, json_null_new());
             ptr_list_remove_link(server->received_requests, query_result);
@@ -377,13 +379,14 @@ ptr_list *jsonrpc_server_wait_for_notification(jsonrpc_server *server, const cha
 
                             if (ptr_hashmap_get(server->reply_handlers, member_method->value) || 
                                     ptr_hashmap_get(server->notif_handlers, member_method->value)) {
-                                ptr_list_append(server->received_requests, json_node_ref(element));
+                                ptr_list_append(server->received_requests, element);
                             } else if (strcmp(member_method->value, method) == 0) {
                                 json_node *result_parameters = json_object_get_member(element, "params");
                                 if (!received_params)
-                                    received_params = ptr_list_new((ptr_list_data_free_func) json_node_unref);
+                                    received_params = ptr_list_new((collection_item_ref_func) json_node_ref,
+                                                                   (collection_item_unref_func) json_node_unref);
                                 if (result_parameters)
-                                    ptr_list_append(received_params, json_node_ref(result_parameters));
+                                    ptr_list_append(received_params, result_parameters);
                                 else
                                     ptr_list_append(received_params, json_null_new());
                             } else {
@@ -411,9 +414,10 @@ ptr_list *jsonrpc_server_wait_for_notification(jsonrpc_server *server, const cha
         if (received_node) {
             json_node *result_parameters = json_object_get_member(received_node, "params");
             if (!received_params)
-                received_params = ptr_list_new((ptr_list_data_free_func) json_node_unref);
+                received_params = ptr_list_new((collection_item_ref_func) json_node_ref,
+                                               (collection_item_unref_func) json_node_unref);
             if (result_parameters)
-                ptr_list_append(received_params, json_node_ref(result_parameters));
+                ptr_list_append(received_params, result_parameters);
             else
                 ptr_list_append(received_params, json_null_new());
         }
@@ -449,7 +453,7 @@ int jsonrpc_server_process_incoming_messages(jsonrpc_server *server)
                         if (ptr_hashmap_get(server->reply_handlers, member_method->value) || 
                                 ptr_hashmap_get(server->notif_handlers, member_method->value)) {
                             have_valid_requests = true;
-                            ptr_list_append(server->received_requests, json_node_ref(element));
+                            ptr_list_append(server->received_requests, element);
                         }
                     }
                 }
