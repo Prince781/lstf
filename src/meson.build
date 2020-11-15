@@ -54,7 +54,7 @@ compiler_lib = static_library('compiler',
     'compiler/lstf-parser.c',
     'compiler/lstf-report.c',
     'compiler/lstf-scanner.c',
-    'lstf-file.c'
+    'compiler/lstf-file.c'
   ],
   c_args: c_args,
 )

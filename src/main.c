@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "compiler/lstf-scanner.h"
-#include "lstf-file.h"
+#include "compiler/lstf-file.h"
 
 static void
 print_usage(const char *progname)

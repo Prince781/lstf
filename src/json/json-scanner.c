@@ -2,7 +2,6 @@
 #include "compiler/lstf-sourceloc.h"
 #include "data-structures/string-builder.h"
 #include "json/json-parser.h"
-#include "lstf-file.h"
 #include <stdarg.h>
 #include <ctype.h>
 #include <stdarg.h>

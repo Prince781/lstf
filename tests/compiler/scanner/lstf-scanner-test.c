@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "compiler/lstf-scanner.h"
-#include "lstf-file.h"
+#include "compiler/lstf-file.h"
 
 int main(int argc, char *argv[])
 {
