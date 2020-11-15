@@ -1,0 +1,6 @@
+*.o
+*.exe
+*.so
+*.a
+*.idx
+.clangd

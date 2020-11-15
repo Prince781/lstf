@@ -1,0 +1,5 @@
+[
+    {"jsonrpc": "2.0", "method": "test/methodA", "id": 1, "params": [1, 2]},
+    {"jsonrpc": "2.0", "method": "test/methodB"},
+    {"jsonrpc": "2.0", "method": "test/methodC", "id": 2, "params": 1.3e-2}
+]

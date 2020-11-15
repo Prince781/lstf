@@ -1,0 +1,69 @@
+#pragma once
+
+#include "collection.h"
+#include "data-structures/iterator.h"
+#include "ptr-list.h"
+#include <stdbool.h>
+
+struct _ptr_hashmap_bucket;
+typedef struct _ptr_hashmap_bucket ptr_hashmap_bucket;
+
+struct _ptr_hashmap_entry {
+    void *key;
+    void *value;
+    ptr_list_node *node_in_bucket_entries_list;
+};
+typedef struct _ptr_hashmap_entry ptr_hashmap_entry;
+
+struct _ptr_hashmap {
+    /**
+     * Each element is a ptr_hashmap_bucket
+     */
+    ptr_list *buckets_list;
+
+    ptr_hashmap_bucket **buckets;
+    unsigned num_bucket_places;
+
+    /**
+     * Total number of elements when you flatten the buckets.
+     */
+    unsigned num_elements;
+
+    collection_item_hash_func key_hash_func;
+    collection_item_ref_func key_ref_func;
+    collection_item_unref_func key_unref_func;
+    collection_item_equality_func key_equality_func;
+    collection_item_ref_func value_ref_func;
+    collection_item_unref_func value_unref_func;
+};
+typedef struct _ptr_hashmap ptr_hashmap;
+
+ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
+                             collection_item_ref_func       key_ref_func,
+                             collection_item_unref_func     key_unref_func,
+                             collection_item_equality_func  key_equality_func,
+                             collection_item_ref_func       value_ref_func,
+                             collection_item_unref_func     value_unref_func);
+
+/**
+ * Updates with a new entry for (new_key, new_value). [new_key] and [new_value]
+ * may need to be non-null in case key_ref_func and/or value_ref_func are not NULL.
+ */
+ptr_hashmap_entry *ptr_hashmap_insert(ptr_hashmap *map, void *new_key, void *new_value);
+
+ptr_hashmap_entry *ptr_hashmap_get(const ptr_hashmap *map, const void *key);
+
+/**
+ * Deletes the entry matching key. [key] must be non-const since it will be
+ * modified if key_unref_func is not NULL.
+ */
+void ptr_hashmap_delete(ptr_hashmap *map, void *key);
+
+bool ptr_hashmap_is_empty(const ptr_hashmap *map);
+
+/**
+ * Returns an iterator on the entries of the hash map.
+ */
+iterator ptr_hashmap_iterator_create(ptr_hashmap *map);
+
+void ptr_hashmap_destroy(ptr_hashmap *map);

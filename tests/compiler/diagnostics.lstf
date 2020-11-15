@@ -1,0 +1,22 @@
+server_path = '/usr/bin/vala-language-server'
+project_files = [ 'constructor-example.vala', 'destructor-example.vala' ]
+
+// diagnostics()
+
+{
+    diagnostics: [
+        ...,
+        {
+            range: {
+                start: { line: 3, character: 5 },
+                end: { line: 3, character: 16 }
+            },
+            severity: DiagnosticSeverity.Error
+        },
+        ...
+    ]
+} <- await diagnostics("destructor-example.vala")
+
+{
+    diagnostics: [...]
+} <- await diagnostics("constructor-example.vala")
