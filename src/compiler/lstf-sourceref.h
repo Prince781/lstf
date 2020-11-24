@@ -11,3 +11,5 @@ struct _lstf_sourceref {
 typedef struct _lstf_sourceref lstf_sourceref;
 
 #define lstf_sourceref_at_location(file, begin) (lstf_sourceref){file, begin, begin}
+
+char *lstf_sourceref_get_string(lstf_sourceloc begin, lstf_sourceloc end);

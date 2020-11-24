@@ -38,5 +38,5 @@ project_files = [ 'constructor-example.vala' ]
         start: { line: 2, character: 5 },
         end: { line: 2, character: 16 }
     }
-} <- hover(2, 10)
+} <=> hover(2, 10)
 

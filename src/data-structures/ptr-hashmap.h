@@ -63,6 +63,7 @@ bool ptr_hashmap_is_empty(const ptr_hashmap *map);
 
 /**
  * Returns an iterator on the entries of the hash map.
+ * Cast the result of `iterator_get_item()` to `(ptr_hashmap_entry *)`.
  */
 iterator ptr_hashmap_iterator_create(ptr_hashmap *map);
 

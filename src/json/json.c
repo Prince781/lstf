@@ -58,11 +58,8 @@ void json_node_unref(json_node *node)
     if (!node)
         return;
     assert(node->floating || node->refcount > 0);
-    if (node->floating) {
+    if (node->floating || --node->refcount == 0)
         json_node_destroy(node);
-    } else if (--node->refcount == 0) {
-        json_node_destroy(node);
-    }
 }
 
 static char *json_string_escape(const char *unescaped)

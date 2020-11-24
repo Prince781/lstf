@@ -1,4 +1,5 @@
 #include "lstf-scanner.h"
+#include "compiler/lstf-sourceloc.h"
 #include "lstf-report.h"
 #include "lstf-sourceref.h"
 #include "lstf-file.h"
@@ -7,6 +8,78 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <string.h>
+#include <assert.h>
+
+const char *lstf_token_to_string(lstf_token token)
+{
+    switch (token) {
+        case lstf_token_assignment:
+            return "`='";
+        case lstf_token_closebrace:
+            return "`}'";
+        case lstf_token_closebracket:
+            return "`]'";
+        case lstf_token_closeparen:
+            return "`)'";
+        case lstf_token_colon:
+            return "`:'";
+        case lstf_token_comma:
+            return "`,'";
+        case lstf_token_comment:
+            return "comment";
+        case lstf_token_double:
+            return "double";
+        case lstf_token_ellipsis:
+            return "`...'";
+        case lstf_token_eof:
+            return "end-of-file";
+        case lstf_token_equals:
+            return "`=='";
+        case lstf_token_identifier:
+            return "identifier";
+        case lstf_token_integer:
+            return "integer";
+        case lstf_token_keyword_await:
+            return "`await'";
+        case lstf_token_keyword_const:
+            return "`const'";
+        case lstf_token_keyword_false:
+            return "`false'";
+        case lstf_token_keyword_for:
+            return "`for'";
+        case lstf_token_keyword_let:
+            return "`let'";
+        case lstf_token_keyword_null:
+            return "`null'";
+        case lstf_token_keyword_of:
+            return "`of'";
+        case lstf_token_keyword_true:
+            return "`true'";
+        case lstf_token_equivalent:
+            return "`<=>'";
+        case lstf_token_openbrace:
+            return "`{'";
+        case lstf_token_openbracket:
+            return "`['";
+        case lstf_token_openparen:
+            return "`('";
+        case lstf_token_period:
+            return "`.'";
+        case lstf_token_questionmark:
+            return "`?'";
+        case lstf_token_semicolon:
+            return "`;'";
+        case lstf_token_string:
+            return "string";
+        case lstf_token_error:
+        default:
+            break;
+    }
+
+    fprintf(stderr, "%s: unexpected LSTF token %d\n",
+            __func__, token);
+    abort();
+}
 
 lstf_scanner *lstf_scanner_create(const lstf_file *script)
 {
@@ -18,7 +91,7 @@ lstf_scanner *lstf_scanner_create(const lstf_file *script)
     }
 
     lstf_sourceloc current = { 1, 1, script->content };
-    int token_bufsize = 0;
+    unsigned token_bufsize = 0;
     while (true) {
         lstf_sourceloc begin = current;
         lstf_token current_token = lstf_token_error;
@@ -89,6 +162,11 @@ lstf_scanner *lstf_scanner_create(const lstf_file *script)
             current_token = lstf_token_period;
             current.pos++;
             current.column++;
+            if (*current.pos == '.' && *(current.pos + 1) == '.') {
+                current_token = lstf_token_ellipsis;
+                current.pos += 2;
+                current.column += 2;
+            }
             break;
         case '=':
             current_token = lstf_token_assignment;
@@ -101,10 +179,10 @@ lstf_scanner *lstf_scanner_create(const lstf_file *script)
             }
             break;
         case '<':
-            if (*(current.pos + 1) == '-') {
-                current_token = lstf_token_leftarrow;
-                current.pos += 2;
-                current.column += 2;
+            if (*(current.pos + 1) == '=' && *(current.pos + 2) == '>') {
+                current.pos += 3;
+                current.column += 3;
+                current_token = lstf_token_equivalent;   // TODO: support arithmetic ops
             } else {
                 lstf_report_error(&lstf_sourceref_at_location(script, begin), "TODO: support comparison ops");
                 current.pos++;
@@ -268,6 +346,8 @@ lstf_scanner *lstf_scanner_create(const lstf_file *script)
                     current_token = lstf_token_keyword_of;
                 else if (strncmp(begin.pos, "const", current.pos - begin.pos) == 0)
                     current_token = lstf_token_keyword_const;
+                else if (strncmp(begin.pos, "await", current.pos - begin.pos) == 0)
+                    current_token = lstf_token_keyword_await;
             } else {
                 lstf_report_error(&lstf_sourceref_at_location(script, begin), "unexpected token `%c'", *current.pos);
                 current.pos++;
@@ -288,7 +368,7 @@ lstf_scanner *lstf_scanner_create(const lstf_file *script)
         if (!(current_token == lstf_token_error || current_token == lstf_token_comment)) {
             if (scanner->num_tokens >= token_bufsize) {
                 if (token_bufsize == 0)
-                    token_bufsize = 4096;
+                    token_bufsize = 64;
                 else
                     token_bufsize *= 2;
 
@@ -319,6 +399,55 @@ lstf_scanner *lstf_scanner_create(const lstf_file *script)
     }
 
     return scanner;
+}
+
+lstf_token lstf_scanner_next(lstf_scanner *scanner)
+{
+    assert(scanner->current_token_idx + 1 < scanner->num_tokens);
+
+    return scanner->tokens[++scanner->current_token_idx];
+}
+
+lstf_token lstf_scanner_peek_next(const lstf_scanner *scanner)
+{
+    assert(scanner->current_token_idx + 1 < scanner->num_tokens);
+
+    return scanner->tokens[scanner->current_token_idx + 1];
+}
+
+lstf_token lstf_scanner_current(const lstf_scanner *scanner)
+{
+    assert(scanner->current_token_idx < scanner->num_tokens);
+
+    return scanner->tokens[scanner->current_token_idx];
+}
+
+char *lstf_scanner_get_current_string(const lstf_scanner *scanner) {
+    assert(scanner->current_token_idx < scanner->num_tokens);
+
+    return lstf_sourceref_get_string(scanner->token_beginnings[scanner->current_token_idx], 
+            scanner->token_endings[scanner->current_token_idx]);
+}
+
+lstf_token lstf_scanner_rewind(lstf_scanner *scanner, unsigned position)
+{
+    assert(position < scanner->num_tokens);
+
+    return scanner->tokens[scanner->current_token_idx = position];
+}
+
+lstf_sourceloc lstf_scanner_get_location(const lstf_scanner *scanner)
+{
+    assert(scanner->current_token_idx < scanner->num_tokens);
+
+    return scanner->token_beginnings[scanner->current_token_idx];
+}
+
+lstf_sourceloc lstf_scanner_get_prev_end_location(const lstf_scanner *scanner)
+{
+    assert(scanner->current_token_idx > 0);
+
+    return scanner->token_endings[scanner->current_token_idx - 1];
 }
 
 void lstf_scanner_destroy(lstf_scanner *scanner)

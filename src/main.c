@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "compiler/lstf-parser.h"
 #include "compiler/lstf-scanner.h"
 #include "compiler/lstf-file.h"
 
@@ -16,9 +17,11 @@ int main(int argc, char *argv[])
         return 1;
     }
     lstf_file *script = lstf_file_load(argv[1]);
-    printf("loaded %s. scanning ...\n", argv[1]);
-    lstf_scanner *scanner = lstf_scanner_create(script);
-    printf("done scanning.\n");
-    lstf_scanner_destroy(scanner);
+    printf("loaded %s. scanning and parsing ...\n", argv[1]);
+    lstf_parser *parser = lstf_parser_create(script);
+    lstf_parser_parse(parser);
+    printf("done scanning and parsing.\n");
+    lstf_parser_destroy(parser);
+    lstf_file_unload(script);
     return 0;
 }

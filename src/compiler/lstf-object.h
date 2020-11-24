@@ -1,0 +1,34 @@
+#pragma once
+
+#include "lstf-codenode.h"
+#include "lstf-sourceref.h"
+#include "lstf-expression.h"
+#include "data-structures/ptr-hashmap.h"
+
+struct _lstf_objectproperty {
+    lstf_symbol parent_struct;
+    bool is_nullable;
+    lstf_expression *value;
+};
+typedef struct _lstf_objectproperty lstf_objectproperty;
+
+lstf_objectproperty *lstf_objectproperty_new(const lstf_sourceref *source_reference,
+                                             char                 *name,
+                                             bool                  is_nullable,
+                                             lstf_expression      *value);
+
+struct _lstf_object {
+    lstf_expression parent_struct;
+
+    /**
+     * list of `(lstf_object_property *)`
+     */
+    ptr_list *members_list;
+
+    bool is_pattern;
+};
+typedef struct _lstf_object lstf_object;
+
+lstf_object *lstf_object_new(const lstf_sourceref *source_reference, bool is_pattern);
+
+void lstf_object_add_property(lstf_object *object, lstf_objectproperty *property);

@@ -1,5 +1,9 @@
 #pragma once
-#include <stdio.h>
+
+#include "data-structures/ptr-list.h"
+
+struct _lstf_block;
+typedef struct _lstf_block lstf_block;
 
 struct _lstf_file {
     /**
@@ -11,6 +15,8 @@ struct _lstf_file {
      * File content
      */
     char *content;
+
+    lstf_block *main_block;
 };
 typedef struct _lstf_file lstf_file;
 

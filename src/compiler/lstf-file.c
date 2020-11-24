@@ -1,4 +1,9 @@
 #include "lstf-file.h"
+#include "lstf-block.h"
+#include "lstf-codenode.h"
+#include "data-structures/collection.h"
+#include "data-structures/ptr-list.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -21,9 +26,9 @@ lstf_file *lstf_file_load(const char *filename)
     while (!feof(stream) && !ferror(stream)) {
         if (content_length >= buffer_size) {
             if (buffer_size == 0)
-                buffer_size = 1024 * 1024;
+                buffer_size = 1024;
             else
-                buffer_size *= 2;
+                buffer_size = buffer_size + buffer_size / 2;
             char *new_content = realloc(content, buffer_size);
             if (!new_content) {
                 perror("could not expand file buffer");
@@ -31,7 +36,7 @@ lstf_file *lstf_file_load(const char *filename)
             }
             content = new_content;
         }
-        content_length += fread(content, 1, buffer_size - content_length, stream);
+        content_length += fread(content + content_length, 1, buffer_size - content_length, stream);
     }
 
     if (ferror(stream)) {
@@ -39,6 +44,7 @@ lstf_file *lstf_file_load(const char *filename)
         free(content);
         free(file->filename);
         free(file);
+        return NULL;
     }
 
     file->content = content;
@@ -47,12 +53,17 @@ lstf_file *lstf_file_load(const char *filename)
 
     fclose(stream);
 
+    file->main_block = lstf_block_new();
+
     return file;
 }
 
 void lstf_file_unload(lstf_file *file)
 {
     free(file->content);
+    file->content = NULL;
     free(file->filename);
+    file->filename = NULL;
+    lstf_codenode_unref(file->main_block);
     free(file);
 }

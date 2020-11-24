@@ -1,0 +1,17 @@
+<array_expression> -> '[' [<expression> [',' <expression> ...]] ']'
+<assignment_statement> -> [let] identifier '=' <expression> ';'
+<await_expression> -> await <expression>
+<element_access_expression> -> <expression> '[' [<expression> [<expression> ...]] ']'
+<ellipsis_expression> -> '...'
+<expression> -> <simple_name> | <literal_expression> | <array_expression> | <object_expression> | <ellipsis_expression> | <method_call_expression> | <element_access_expression>
+<expression_statement> -> <statement_expression> ';'
+<literal_expression> -> string | integer | double | boolean | null
+<member_access_expression> -> (<expression> '.' | epsilon) <simple_name>
+<method_call_expression> -> <expression> '(' [<expression> [',' <expression> ...]] ')'
+<object_expression> -> '{' [<object_property> [',' <object_property> ...]] '}'
+<object_property> -> (<literal_expression> | identifier) ['?'] ':' <expression>
+<pattern_test_statement> -> <expression> '<=>' <expression>
+<simple_name> -> identifier
+<statement> -> <assignment_statement> | <expression_statement> | <pattern_test_statement>
+<statement_expression> -> <method_call_expression> | <await_expression>
+<statement_list> -> [<statement> [<statement> ...]]

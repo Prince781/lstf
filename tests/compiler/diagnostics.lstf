@@ -1,7 +1,12 @@
-server_path = '/usr/bin/vala-language-server'
-project_files = [ 'constructor-example.vala', 'destructor-example.vala' ]
+server_path = '/usr/bin/vala-language-server';
+project_files = [ 'constructor-example.vala', 'destructor-example.vala' ];
+
+let array = [1, 2, 3];
 
 // diagnostics()
+
+// The use of await is optional, but forces the method calls
+// to be serialized.
 
 {
     diagnostics: [
@@ -15,8 +20,8 @@ project_files = [ 'constructor-example.vala', 'destructor-example.vala' ]
         },
         ...
     ]
-} <- await diagnostics("destructor-example.vala")
+} <=> await diagnostics("destructor-example.vala");
 
 {
     diagnostics: [...]
-} <- await diagnostics("constructor-example.vala")
+} <=> await diagnostics("constructor-example.vala");

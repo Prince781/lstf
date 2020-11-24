@@ -51,10 +51,29 @@ jsonrpc = declare_dependency(
 
 compiler_lib = static_library('compiler',
   [
+    'compiler/lstf-array.c',
+    'compiler/lstf-assignment.c',
+    'compiler/lstf-block.c',
+    'compiler/lstf-codenode.c',
+    'compiler/lstf-datatype.c',
+    'compiler/lstf-elementaccess.c',
+    'compiler/lstf-ellipsis.c',
+    'compiler/lstf-expression.c',
+    'compiler/lstf-expressionstatement.c',
+    'compiler/lstf-file.c',
+    'compiler/lstf-literal.c',
+    'compiler/lstf-memberaccess.c',
+    'compiler/lstf-methodcall.c',
+    'compiler/lstf-object.c',
     'compiler/lstf-parser.c',
+    'compiler/lstf-parsererror.c',
+    'compiler/lstf-patterntest.c',
     'compiler/lstf-report.c',
     'compiler/lstf-scanner.c',
-    'compiler/lstf-file.c'
+    'compiler/lstf-sourceref.c',
+    'compiler/lstf-statement.c',
+    'compiler/lstf-symbol.c',
+    'compiler/lstf-variable.c'
   ],
   c_args: c_args,
 )
