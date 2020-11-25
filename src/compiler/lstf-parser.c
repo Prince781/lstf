@@ -412,7 +412,8 @@ lstf_parser_parse_await_expression(lstf_parser *parser, lstf_parsererror **error
     } else {
         *error = lstf_parsererror_new(
                 &(lstf_sourceref){parser->file, begin, lstf_scanner_get_prev_end_location(parser->scanner)},
-                "expected method call");
+                "expected method call for %s expression",
+                lstf_token_to_string(lstf_token_keyword_await));
         lstf_codenode_unref(expr);
         return NULL;
     }
@@ -802,8 +803,9 @@ lstf_parser_parse_statement_list(lstf_parser *parser)
             // attempt to recover
             bool possible_stmt_start = false;
             while (!possible_stmt_start && lstf_scanner_current(parser->scanner) != lstf_token_eof) {
-                switch (lstf_scanner_next(parser->scanner)) {
+                switch (lstf_scanner_current(parser->scanner)) {
                 case lstf_token_keyword_let:
+                case lstf_token_keyword_await:
                 // currently unsupported:
                 case lstf_token_keyword_for:
                 case lstf_token_keyword_const:
@@ -820,6 +822,9 @@ lstf_parser_parse_statement_list(lstf_parser *parser)
                 default:
                     break;
                 }
+
+                if (!possible_stmt_start)
+                    lstf_scanner_next(parser->scanner);
             }
         }
     }

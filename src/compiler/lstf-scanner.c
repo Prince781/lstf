@@ -278,7 +278,8 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                 current.column++;
             }
             if (*current.pos != *begin.pos) {
-                lstf_report_error(&lstf_sourceref_at_location(script, begin), "unterminated string");
+                lstf_report_error((&(lstf_sourceref){script, begin, current}), "unterminated string");
+                lstf_report_info(&lstf_sourceref_at_location(script, begin), "unterminated string begins here");
                 current_token = lstf_token_error;
                 scanner->num_errors++;
             } else {
