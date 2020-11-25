@@ -211,12 +211,8 @@ static iterator ptr_hashmap_iterator_iterate(iterator it)
         bucket = ptr_list_node_get_data(buckets_list_node, ptr_hashmap_bucket *);
     } else {
         buckets_list_node = buckets_list_node->next;
-        if (buckets_list_node) {
-            bucket = ptr_list_node_get_data(buckets_list_node, ptr_hashmap_bucket *);
-            entry_node = bucket->entries_list->head;
-        } else {
-            entry_node = entry_node->next;
-        }
+        bucket = ptr_list_node_get_data(buckets_list_node, ptr_hashmap_bucket *);
+        entry_node = bucket->entries_list->head;
     }
 
     return (iterator) {

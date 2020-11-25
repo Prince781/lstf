@@ -110,23 +110,23 @@ static void json_node_build_string(const json_node *node, bool pretty, int tabul
         string_appendf(sb, "null");
         break;
     case json_node_type_integer:
-        string_appendf(sb, "%"PRId64, ((json_integer *)node)->value); 
+        string_appendf(sb, "%"PRId64, ((const json_integer *)node)->value); 
         break;
     case json_node_type_double:
-        string_appendf(sb, "%lf", ((json_double *)node)->value); 
+        string_appendf(sb, "%lf", ((const json_double *)node)->value); 
         break;
     case json_node_type_boolean:
-        string_appendf(sb, "%s",((json_boolean *)node)->value ? "true" : "false"); 
+        string_appendf(sb, "%s",((const json_boolean *)node)->value ? "true" : "false"); 
         break;
     case json_node_type_string:
     {
-        char *escaped = json_string_escape(((json_string *)node)->value);
+        char *escaped = json_string_escape(((const json_string *)node)->value);
         string_appendf(sb, "\"%s\"", escaped); 
         free(escaped);
     }   break;
     case json_node_type_array:
     {
-        json_array *array = (json_array *)node;
+        const json_array *array = (const json_array *)node;
         string_appendf(sb, "["); 
         for (int i = 0; i < array->num_elements; i++) {
             if (pretty) {
@@ -147,7 +147,7 @@ static void json_node_build_string(const json_node *node, bool pretty, int tabul
     }   break;
     case json_node_type_object:
     {
-        json_object *object = (json_object *)node;
+        const json_object *object = (const json_object *)node;
         string_appendf(sb, "{");
         for (iterator it = ptr_hashmap_iterator_create(object->members);
                 it.has_next;
@@ -197,17 +197,17 @@ bool json_node_equal_to(const json_node *node1, const json_node *node2)
     case json_node_type_null:
         return true;
     case json_node_type_integer:
-        return ((json_integer *)node1)->value == ((json_integer *)node2)->value;
+        return ((const json_integer *)node1)->value == ((const json_integer *)node2)->value;
     case json_node_type_double:
-        return ((json_double *)node1)->value == ((json_double *)node2)->value;
+        return ((const json_double *)node1)->value == ((const json_double *)node2)->value;
     case json_node_type_boolean:
-        return ((json_boolean *)node1)->value == ((json_boolean *)node2)->value;
+        return ((const json_boolean *)node1)->value == ((const json_boolean *)node2)->value;
     case json_node_type_string:
-        return strcmp(((json_string *)node1)->value, ((json_string *)node2)->value) == 0;
+        return strcmp(((const json_string *)node1)->value, ((const json_string *)node2)->value) == 0;
     case json_node_type_array:
     {
-        json_array *array1 = (json_array *)node1;
-        json_array *array2 = (json_array *)node2;
+        const json_array *array1 = (const json_array *)node1;
+        const json_array *array2 = (const json_array *)node2;
 
         if (array1->num_elements != array2->num_elements)
             return false;
@@ -220,8 +220,8 @@ bool json_node_equal_to(const json_node *node1, const json_node *node2)
     }
     case json_node_type_object:
     {
-        json_object *object1 = (json_object *)node1;
-        json_object *object2 = (json_object *)node2;
+        const json_object *object1 = (const json_object *)node1;
+        const json_object *object2 = (const json_object *)node2;
 
         if (object1->members->num_elements != object2->members->num_elements)
             return false;
@@ -411,7 +411,7 @@ json_node *json_object_get_member(const json_node *node, const char *member_name
 {
     assert(node->node_type == json_node_type_object);
 
-    json_object *object = (json_object *)node;
+    const json_object *object = (const json_object *)node;
     char *canonicalized_member_name = json_member_name_canonicalize(member_name);
 
     if (!canonicalized_member_name) {

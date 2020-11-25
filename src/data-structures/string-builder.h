@@ -12,7 +12,8 @@ typedef struct _string string;
 
 string *string_new(void);
 
-string *string_append_va(string *sb, const char *format, va_list args);
+string *string_append_va(string *sb, const char *format, va_list args)
+    __attribute__((format (printf, 2, 0)));
 
 string *string_appendf(string *sb, const char *format, ...)
     __attribute__ ((format (printf, 2, 3)));

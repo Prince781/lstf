@@ -1,7 +1,7 @@
 project('lstf', 'c',
   version: '0.0.1',
   license: 'GPLv3+',
-  default_options: ['c_std=c11'])
+  default_options: ['c_std=c11', 'buildtype=debugoptimized'])
 
 cc = meson.get_compiler('c')
 
@@ -16,12 +16,15 @@ c_args = cc.get_supported_arguments([
   '-Wextra',
   '-Wpedantic',
   '-Wshadow',
-# '-Wconversion',
   '-Wno-cast-function-type',
   '-Wformat=2',
   '-Wformat-truncation=2',
+  '-Wformat-overflow=2',
   '-Wnull-dereference',
-  '-fdelete-null-pointer-checks',
+  '-Wstrict-aliasing=3',
+  '-Wcast-align=strict',
+  '-Wcast-qual',
+  '-Wuninitialized',
 ])
 
 subdir('src')

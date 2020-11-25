@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
     int retval = 0;
     string *loaded_json = string_new();
     char buffer[1024] = { '\0' };
-    int read_amt = 0;
+    size_t read_amt = 0;
 
     while ((read_amt = fread(buffer, 1, sizeof buffer - 1, json_file_to_compare_to)) > 0) {
         buffer[read_amt] = '\0';

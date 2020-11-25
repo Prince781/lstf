@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     if (retval != 0) {
         char *serialized_pretty = json_node_to_string(array, true);
         char *serialized2 = parsed_node != NULL ? json_node_to_string(parsed_node, true) : NULL;
-        printf("%s\n---compared to what was read:---\n%s", serialized_pretty, serialized2);
+        printf("%s\n---compared to what was read:---\n%s", serialized_pretty, serialized2 ? serialized2 : "(null)");
         free(serialized_pretty);
         free(serialized2);
     }

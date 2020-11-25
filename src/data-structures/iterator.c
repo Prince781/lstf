@@ -24,5 +24,5 @@ void *iterator_get_item(iterator it)
 {
     assert(it.has_next && "get_item() on ended iterator");
 
-    return it.get_item ? it.get_item(it) : it.data;
+    return it.get_item ? it.get_item(it) : it.data[0];
 }

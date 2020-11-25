@@ -663,12 +663,11 @@ lstf_parser_parse_statement_expression(lstf_parser *parser, lstf_parsererror **e
         }
     }
 
-    if (*error) {
+    if (!expression || *error) {
         if (expression)
             lstf_codenode_unref(expression);
         return NULL;
     }
-
 
     if (expression->expr_type != lstf_expression_type_methodcall) {
         *error = lstf_parsererror_new(&expression->parent_struct.source_reference,

@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
     }
     lstf_file *script = lstf_file_load(argv[1]);
     lstf_scanner *scanner = lstf_scanner_create(script);
-    int num_errors = scanner->num_errors;
+    unsigned num_errors = scanner->num_errors;
     lstf_scanner_destroy(scanner);
     lstf_file_unload(script);
     return num_errors ? 1 : 0;

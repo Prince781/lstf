@@ -30,8 +30,8 @@ struct _json_scanner {
     json_token last_token;
     char *last_token_buffer;
     lstf_sourceloc last_token_begin;
-    int last_token_length;
-    int last_token_buffer_size;
+    unsigned last_token_length;
+    unsigned last_token_buffer_size;
     FILE *stream;
     char *filename;
     bool close_stream;

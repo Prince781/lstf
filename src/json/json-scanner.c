@@ -57,7 +57,7 @@ static char *get_filename_from_fd(int fd)
 {
     string *path_sb = string_new();
     char resolved_path[PATH_MAX] = { '\0' };
-    int ret = 0;
+    ssize_t ret = 0;
 
     string_appendf(path_sb, "/proc/self/fd/%d", fd); 
     ret = readlink(path_sb->buffer, resolved_path, sizeof resolved_path);
