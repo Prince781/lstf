@@ -49,7 +49,7 @@ struct _lstf_scanner {
 };
 typedef struct _lstf_scanner lstf_scanner;
 
-lstf_scanner *lstf_scanner_create(const lstf_file *script);
+lstf_scanner *lstf_scanner_create(lstf_file *script);
 
 /**
  * Advance the token pointer and returns next token. Returns error if there are no tokens.

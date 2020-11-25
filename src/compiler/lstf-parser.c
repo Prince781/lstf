@@ -57,7 +57,10 @@ lstf_parser_expect_token(lstf_parser *parser, lstf_token token, lstf_parsererror
 {
     if (!lstf_parser_accept_token(parser, token)) {
         lstf_sourceloc after_end = lstf_scanner_get_prev_end_location(parser->scanner);
-        after_end.column++;
+        if (*after_end.pos) {
+            after_end.pos++;
+            after_end.column++;
+        }
         *error = lstf_parsererror_new(
                 &lstf_sourceref_at_location(parser->file, after_end),
                 "expected %s", lstf_token_to_string(token));

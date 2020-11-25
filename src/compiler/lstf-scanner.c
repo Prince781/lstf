@@ -81,7 +81,7 @@ const char *lstf_token_to_string(lstf_token token)
     abort();
 }
 
-lstf_scanner *lstf_scanner_create(const lstf_file *script)
+lstf_scanner *lstf_scanner_create(lstf_file *script)
 {
     lstf_scanner *scanner = calloc(1, sizeof *scanner);
 
@@ -397,6 +397,8 @@ lstf_scanner *lstf_scanner_create(const lstf_file *script)
         if (current_token == lstf_token_eof)
             break;
     }
+
+    script->total_lines = current.line;
 
     return scanner;
 }
