@@ -25,6 +25,7 @@ c_args = cc.get_supported_arguments([
   '-Wcast-align=strict',
   '-Wcast-qual',
   '-Wuninitialized',
+  '-flto',
 ])
 
 subdir('src')

@@ -1,5 +1,5 @@
 <array_expression> -> '[' [<expression> [',' <expression> ...]] ']'
-<assignment_statement> -> [let] identifier '=' <expression> ';'
+<assignment_statement> -> (let identifier | <member_access_expression> | <element_access_expression>) '=' <expression> ';'
 <await_expression> -> await <expression>
 <element_access_expression> -> <expression> '[' [<expression> [<expression> ...]] ']'
 <ellipsis_expression> -> '...'

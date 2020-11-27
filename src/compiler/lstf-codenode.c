@@ -2,6 +2,16 @@
 #include <assert.h>
 #include <stdlib.h>
 
+void lstf_codenode_accept(void *node, lstf_codevisitor *visitor)
+{
+    ((lstf_codenode *)node)->codenode_vtable->accept(node, visitor);
+}
+
+void lstf_codenode_accept_children(void *node, lstf_codevisitor *visitor)
+{
+    ((lstf_codenode *)node)->codenode_vtable->accept_children(node, visitor);
+}
+
 void *lstf_codenode_ref(void *node)
 {
     if (node) {
@@ -21,7 +31,7 @@ static void lstf_codenode_destroy(lstf_codenode *node)
     if (!node)
         return;
     assert(node->floating || node->refcount == 0);
-    node->dtor_func(node);
+    node->codenode_vtable->destructor(node);
     free(node);
 }
 
@@ -35,15 +45,19 @@ void lstf_codenode_unref(void *node)
         lstf_codenode_destroy(code_node);
 }
 
-void lstf_codenode_construct(lstf_codenode          *node, 
-                             lstf_codenode_type      type,
-                             const lstf_sourceref   *source_reference,
-                             lstf_codenode_dtor_func dtor_func)
+void lstf_codenode_construct(lstf_codenode              *node, 
+                             const lstf_codenode_vtable *vtable,
+                             lstf_codenode_type          type,
+                             const lstf_sourceref       *source_reference)
 {
-    assert(dtor_func && "base class destructor must be provided");
+    assert(vtable && "base class vtable must be provided");
+    assert(vtable->accept && "base class must be able to accept a code visitor");
+    assert(vtable->accept_children && "base class must be able to accept a code visitor for its children");
+    assert(vtable->destructor && "base class destructor must be provided");
+
+    node->codenode_vtable = vtable;
     node->codenode_type = type;
     if (source_reference)
         node->source_reference = *source_reference;
     node->floating = true;
-    node->dtor_func = dtor_func;
 }

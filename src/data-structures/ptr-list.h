@@ -24,7 +24,7 @@ typedef struct _ptr_list_node ptr_list_node;
 struct _ptr_list {
     ptr_list_node *head;
     ptr_list_node *tail;
-    int length;
+    unsigned length;
     collection_item_ref_func data_ref_func;
     collection_item_unref_func data_unref_func;
 };

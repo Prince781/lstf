@@ -3,12 +3,18 @@
 #include "lstf-report.h"
 #include "lstf-sourceref.h"
 #include "lstf-file.h"
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
+
+static inline size_t max(size_t a, size_t b)
+{
+    return a > b ? a : b;
+}
 
 const char *lstf_token_to_string(lstf_token token)
 {
@@ -279,7 +285,7 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
             }
             if (*current.pos != *begin.pos) {
                 lstf_report_error((&(lstf_sourceref){script, begin, current}), "unterminated string");
-                lstf_report_info(&lstf_sourceref_at_location(script, begin), "unterminated string begins here");
+                lstf_report_note(&lstf_sourceref_at_location(script, begin), "unterminated string begins here");
                 current_token = lstf_token_error;
                 scanner->num_errors++;
             } else {
@@ -333,21 +339,21 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current.pos++;
                     current.column++;
                 }
-                if (strncmp(begin.pos, "true", current.pos - begin.pos) == 0)
+                if (strncmp(begin.pos, "true", max(sizeof "true" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_true;
-                else if (strncmp(begin.pos, "false", current.pos - begin.pos) == 0)
+                else if (strncmp(begin.pos, "false", max(sizeof "false" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_false;
-                else if (strncmp(begin.pos, "null", current.pos - begin.pos) == 0)
+                else if (strncmp(begin.pos, "null", max(sizeof "null" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_null;
-                else if (strncmp(begin.pos, "let", current.pos - begin.pos) == 0)
+                else if (strncmp(begin.pos, "let", max(sizeof "let" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_let;
-                else if (strncmp(begin.pos, "for", current.pos - begin.pos) == 0)
+                else if (strncmp(begin.pos, "for", max(sizeof "for" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_for;
-                else if (strncmp(begin.pos, "of", current.pos - begin.pos) == 0)
+                else if (strncmp(begin.pos, "of", max(sizeof "of" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_of;
-                else if (strncmp(begin.pos, "const", current.pos - begin.pos) == 0)
+                else if (strncmp(begin.pos, "const", max(sizeof "const" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_const;
-                else if (strncmp(begin.pos, "await", current.pos - begin.pos) == 0)
+                else if (strncmp(begin.pos, "await", max(sizeof "await" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_await;
             } else {
                 lstf_report_error(&lstf_sourceref_at_location(script, begin), "unexpected token `%c'", *current.pos);

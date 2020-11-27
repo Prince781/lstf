@@ -9,8 +9,8 @@ static const char *lstf_report_domain_to_string(lstf_report_domain domain)
     switch (domain) {
         case lstf_report_domain_error:
             return "error";
-        case lstf_report_domain_info:
-            return "info";
+        case lstf_report_domain_note:
+            return "note";
         case lstf_report_domain_warning:
             return "warning";
     }
@@ -67,7 +67,7 @@ void lstf_report(const lstf_sourceref *source_ref, lstf_report_domain domain, co
             case lstf_report_domain_error:
                 color_begin = "\x1b[31m";   // ANSI red
                 break;
-            case lstf_report_domain_info:
+            case lstf_report_domain_note:
                 color_begin = "\x1b[36m";   // ANSI cyan
                 break;
             case lstf_report_domain_warning:

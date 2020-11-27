@@ -3,6 +3,7 @@
 #include "lstf-statement.h"
 #include "lstf-sourceref.h"
 #include "lstf-codenode.h"
+#include "lstf-scope.h"
 #include "data-structures/ptr-list.h"
 
 struct _lstf_block {
@@ -12,7 +13,12 @@ struct _lstf_block {
      * list of `(lstf_statement *)` objects
      */
     ptr_list *statement_list;
+
+    lstf_scope *scope;
 };
+/**
+ * An executable series of statements within a scope.
+ */
 typedef struct _lstf_block lstf_block;
 
 lstf_block *lstf_block_new(void);

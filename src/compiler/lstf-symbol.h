@@ -2,6 +2,7 @@
 
 #include "lstf-sourceref.h"
 #include "lstf-codenode.h"
+#include <stddef.h>
 
 enum _lstf_symbol_type {
     lstf_symbol_type_variable,
@@ -18,10 +19,19 @@ struct _lstf_symbol {
 };
 typedef struct _lstf_symbol lstf_symbol;
 
-void lstf_symbol_construct(lstf_symbol              *symbol,
-                           const lstf_sourceref     *source_reference,
-                           lstf_codenode_dtor_func   dtor_func,
-                           lstf_symbol_type          symbol_type,
-                           char                     *name);
+static inline lstf_symbol *lstf_symbol_cast(void *node)
+{
+    lstf_codenode *code_node = node;
+
+    if (code_node && code_node->codenode_type == lstf_codenode_type_symbol)
+        return (lstf_symbol *)code_node;
+    return NULL;
+}
+
+void lstf_symbol_construct(lstf_symbol                *symbol,
+                           const lstf_codenode_vtable *vtable,
+                           const lstf_sourceref       *source_reference,
+                           lstf_symbol_type            symbol_type,
+                           char                       *name);
 
 void lstf_symbol_destruct(lstf_codenode *code_node);

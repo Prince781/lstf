@@ -84,13 +84,15 @@ lstf_parser_parse_simple_name(lstf_parser *parser, lstf_parsererror **error)
     char *member_name = lstf_scanner_get_current_string(parser->scanner);
     lstf_parser_accept_token(parser, lstf_token_identifier);
 
-    return lstf_memberaccess_new(&(lstf_sourceref) {
+    lstf_expression *expr = lstf_memberaccess_new(&(lstf_sourceref) {
                 parser->file,
                 begin,
                 lstf_scanner_get_prev_end_location(parser->scanner)
             },
             NULL,
             member_name);
+    free(member_name);
+    return expr;
 }
 
 static lstf_expression *
@@ -112,13 +114,15 @@ lstf_parser_parse_member_access_expression(lstf_parser       *parser,
     char *member_name = lstf_scanner_get_current_string(parser->scanner);
     lstf_scanner_next(parser->scanner);
 
-    return lstf_memberaccess_new(&(lstf_sourceref) {
+    lstf_expression *expr = lstf_memberaccess_new(&(lstf_sourceref) {
                 parser->file,
                 begin,
                 lstf_scanner_get_prev_end_location(parser->scanner)
             },
             inner,
             member_name);
+    free(member_name);
+    return expr;
 }
 
 static bool
@@ -218,7 +222,6 @@ lstf_parser_parse_object_expression(lstf_parser *parser, lstf_parsererror **erro
             (collection_item_unref_func) lstf_codenode_unref);
 
     bool is_pattern = false;
-
     while (true) {
         lstf_sourceloc member_begin = lstf_scanner_get_location(parser->scanner);
 
@@ -300,6 +303,7 @@ lstf_parser_parse_object_expression(lstf_parser *parser, lstf_parsererror **erro
 
     for (iterator it = ptr_list_iterator_create(members); it.has_next; it = iterator_next(it))
         lstf_object_add_property(object, iterator_get_item(it));
+    ptr_list_destroy(members);
 
     return (lstf_expression *) object;
 }
@@ -510,6 +514,7 @@ lstf_parser_parse_assignment_statement(lstf_parser *parser, lstf_parsererror **e
 {
     lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     bool is_declaration = lstf_parser_accept_token(parser, lstf_token_keyword_let);
+    lstf_sourceloc var_begin = lstf_scanner_get_location(parser->scanner);
 
     char *variable_name = lstf_scanner_get_current_string(parser->scanner);
 
@@ -518,25 +523,50 @@ lstf_parser_parse_assignment_statement(lstf_parser *parser, lstf_parsererror **e
         return NULL;
     }
 
-    lstf_variable *variable = lstf_variable_new(&(lstf_sourceref) {
+    lstf_expression *lhs = lstf_memberaccess_new(&(lstf_sourceref) {
                 parser->file,
-                begin,
+                var_begin,
                 lstf_scanner_get_prev_end_location(parser->scanner)
-            }, variable_name);
+            }, NULL, variable_name);
+    free(variable_name);
+    variable_name = NULL;
+
+    if (!is_declaration) {
+        for (lstf_expression *next_expr = lhs; next_expr; ) {
+            lhs = next_expr;
+            next_expr = NULL;
+
+            switch (lstf_scanner_current(parser->scanner)) {
+            case lstf_token_period:
+                next_expr = lstf_parser_parse_member_access_expression(parser, var_begin, lhs, error);
+                break;
+            case lstf_token_openbracket:
+                next_expr = lstf_parser_parse_element_access_expression(parser, var_begin, lhs, error);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    if (*error) {
+        lstf_codenode_unref(lhs);
+        return NULL;
+    }
 
     if (!lstf_parser_expect_token(parser, lstf_token_assignment, error)) {
-        lstf_codenode_unref(variable);
+        lstf_codenode_unref(lhs);
         return NULL;
     }
 
     lstf_expression *expression = lstf_parser_parse_expression(parser, error);
     if (!expression) {
-        lstf_codenode_unref(variable);
+        lstf_codenode_unref(lhs);
         return NULL;
     }
 
     if (!lstf_parser_expect_token(parser, lstf_token_semicolon, error)) {
-        lstf_codenode_unref(variable);
+        lstf_codenode_unref(lhs);
         lstf_codenode_unref(expression);
         return NULL;
     }
@@ -544,7 +574,7 @@ lstf_parser_parse_assignment_statement(lstf_parser *parser, lstf_parsererror **e
     return lstf_assignment_new(
             &(lstf_sourceref) { parser->file, begin, lstf_scanner_get_prev_end_location(parser->scanner) }, 
             is_declaration, 
-            variable,
+            lhs,
             expression);
 }
 
@@ -738,6 +768,7 @@ lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error)
         return lstf_parser_parse_assignment_statement(parser, error);
     case lstf_token_identifier:
     {
+        const unsigned saved_token_idx = parser->scanner->current_token_idx;
         lstf_token next_token = lstf_scanner_peek_next(parser->scanner);
 
         if (next_token == lstf_token_eof) {
@@ -747,6 +778,15 @@ lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error)
                     "expected statement, got %s", lstf_token_to_string(next_token)); 
             return NULL;
         }
+
+        while (!(next_token == lstf_token_assignment || next_token == lstf_token_equivalent ||
+                    next_token == lstf_token_semicolon || next_token == lstf_token_keyword_let ||
+                    next_token == lstf_token_keyword_await || next_token == lstf_token_keyword_const ||
+                    next_token == lstf_token_keyword_for || next_token == lstf_token_eof)) {
+            next_token = lstf_scanner_next(parser->scanner);
+        }
+
+        lstf_scanner_rewind(parser->scanner, saved_token_idx);
 
         if (next_token == lstf_token_assignment)
             return lstf_parser_parse_assignment_statement(parser, error);

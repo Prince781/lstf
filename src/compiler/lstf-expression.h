@@ -1,8 +1,10 @@
 #pragma once
 
+#include "lstf-datatype.h"
+#include "lstf-symbol.h"
 #include "lstf-codenode.h"
 #include "lstf-sourceref.h"
-#include "lstf-datatype.h"
+#include <stddef.h>
 
 enum _lstf_expression_type {
     lstf_expression_type_array,
@@ -18,7 +20,7 @@ typedef enum _lstf_expression_type lstf_expression_type;
 const char *lstf_expression_type_to_string(lstf_expression_type expr_type);
 
 /**
- * Abstract class
+ * Abstract struct
  */
 struct _lstf_expression {
     lstf_codenode parent_struct;
@@ -29,13 +31,29 @@ struct _lstf_expression {
     lstf_expression_type expr_type;
 
     /**
-     * The type of the result of evaluating this expression.
+     * (weak ref) The symbol this expression refers to
      */
-    // lstf_datatype value_type;
+    lstf_symbol *symbol_reference;
+
+    /**
+     * Statically-determined value type (created by semantic analyzer)
+     */
+    lstf_datatype *value_type;
 };
 typedef struct _lstf_expression lstf_expression;
 
-void lstf_expression_construct(lstf_expression          *expr,
-                               const lstf_sourceref     *source_reference,
-                               lstf_codenode_dtor_func   dtor_func,
-                               lstf_expression_type      expr_type);
+static inline lstf_expression *lstf_expression_cast(void *node)
+{
+    lstf_codenode *code_node = node;
+
+    if (code_node && code_node->codenode_type == lstf_codenode_type_expression)
+        return (lstf_expression *)code_node;
+    return NULL;
+}
+
+void lstf_expression_construct(lstf_expression            *expr,
+                               const lstf_codenode_vtable *vtable,
+                               const lstf_sourceref       *source_reference,
+                               lstf_expression_type        expr_type);
+
+void lstf_expression_destruct(lstf_codenode *node);

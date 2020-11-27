@@ -2,16 +2,16 @@
 #include "compiler/lstf-codenode.h"
 #include <stdlib.h>
 
-void lstf_symbol_construct(lstf_symbol              *symbol,
-                           const lstf_sourceref     *source_reference,
-                           lstf_codenode_dtor_func   dtor_func,
-                           lstf_symbol_type          symbol_type,
-                           char                     *name)
+void lstf_symbol_construct(lstf_symbol                *symbol,
+                           const lstf_codenode_vtable *vtable,
+                           const lstf_sourceref       *source_reference,
+                           lstf_symbol_type            symbol_type,
+                           char                       *name)
 {
     lstf_codenode_construct((lstf_codenode *)symbol,
+            vtable,
             lstf_codenode_type_symbol,
-            source_reference, 
-            dtor_func);
+            source_reference);
 
     symbol->symbol_type = symbol_type;
     symbol->name = name;

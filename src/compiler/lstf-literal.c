@@ -1,9 +1,22 @@
 #include "lstf-literal.h"
+#include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-expression.h"
 #include <stdlib.h>
 
-void lstf_literal_destruct(lstf_codenode *code_node)
+static void lstf_literal_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
+{
+    lstf_codevisitor_visit_literal(visitor, (lstf_literal *)code_node);
+    lstf_codevisitor_visit_expression(visitor, lstf_expression_cast(code_node));
+}
+
+static void lstf_literal_accept_children(lstf_codenode *code_node, lstf_codevisitor *visitor)
+{
+    (void)code_node;
+    (void)visitor;
+}
+
+static void lstf_literal_destruct(lstf_codenode *code_node)
 {
     lstf_literal *lit = (lstf_literal *)code_node;
 
@@ -13,6 +26,12 @@ void lstf_literal_destruct(lstf_codenode *code_node)
     }
 }
 
+static const lstf_codenode_vtable literal_vtable = {
+    lstf_literal_accept,
+    lstf_literal_accept_children,
+    lstf_literal_destruct
+};
+
 lstf_expression *lstf_literal_new(const lstf_sourceref *source_reference,
                                   lstf_literal_type     literal_type,
                                   lstf_literal_value    literal_value)
@@ -20,8 +39,8 @@ lstf_expression *lstf_literal_new(const lstf_sourceref *source_reference,
     lstf_literal *lit = calloc(1, sizeof *lit);
 
     lstf_expression_construct((lstf_expression *)lit,
+            &literal_vtable,
             source_reference,
-            lstf_literal_destruct,
             lstf_expression_type_literal);
 
     lit->literal_type = literal_type;

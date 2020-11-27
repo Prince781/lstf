@@ -1,0 +1,4 @@
+let variable = {
+    hello: 3
+};
+let variable = 2;

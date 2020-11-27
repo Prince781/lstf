@@ -1,0 +1,6 @@
+let odd = 3
+let even = 2
+let obj = {
+    abc: 1,
+    xyz: "asdoij"
+}

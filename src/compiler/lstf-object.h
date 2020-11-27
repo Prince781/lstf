@@ -1,8 +1,10 @@
 #pragma once
 
+#include "data-structures/iterator.h"
 #include "lstf-codenode.h"
 #include "lstf-sourceref.h"
 #include "lstf-expression.h"
+#include "lstf-symbol.h"
 #include "data-structures/ptr-hashmap.h"
 
 struct _lstf_objectproperty {
@@ -13,7 +15,7 @@ struct _lstf_objectproperty {
 typedef struct _lstf_objectproperty lstf_objectproperty;
 
 lstf_objectproperty *lstf_objectproperty_new(const lstf_sourceref *source_reference,
-                                             char                 *name,
+                                             const char           *name,
                                              bool                  is_nullable,
                                              lstf_expression      *value);
 
@@ -32,3 +34,8 @@ typedef struct _lstf_object lstf_object;
 lstf_object *lstf_object_new(const lstf_sourceref *source_reference, bool is_pattern);
 
 void lstf_object_add_property(lstf_object *object, lstf_objectproperty *property);
+
+/**
+ * Each element is `lstf_objectproperty *`
+ */
+iterator lstf_object_iterator_create(lstf_object *object);

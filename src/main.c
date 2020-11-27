@@ -2,6 +2,7 @@
 #include "compiler/lstf-parser.h"
 #include "compiler/lstf-scanner.h"
 #include "compiler/lstf-file.h"
+#include "compiler/lstf-symbolresolver.h"
 
 static void
 print_usage(const char *progname)
@@ -20,8 +21,13 @@ int main(int argc, char *argv[])
     printf("loaded %s. scanning and parsing ...\n", argv[1]);
     lstf_parser *parser = lstf_parser_create(script);
     lstf_parser_parse(parser);
-    printf("done scanning and parsing.\n");
+    printf("...done scanning and parsing.\n");
     lstf_parser_destroy(parser);
+    printf("performing symbol resolution ...\n");
+    lstf_symbolresolver *resolver = lstf_symbolresolver_new(script);
+    lstf_symbolresolver_resolve(resolver);
+    lstf_symbolresolver_destroy(resolver);
+    printf("...done resolving symbols\n");
     lstf_file_unload(script);
     return 0;
 }

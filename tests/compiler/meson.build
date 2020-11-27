@@ -1,1 +1,2 @@
 subdir('scanner')
+subdir('parser')

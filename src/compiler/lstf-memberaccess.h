@@ -13,4 +13,4 @@ typedef struct _lstf_memberaccess lstf_memberaccess;
 
 lstf_expression *lstf_memberaccess_new(const lstf_sourceref *source_reference,
                                        lstf_expression *inner,
-                                       char *member_name);
+                                       const char *member_name);
