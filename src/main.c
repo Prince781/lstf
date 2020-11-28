@@ -1,5 +1,8 @@
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 #include "compiler/lstf-parser.h"
+#include "compiler/lstf-report.h"
 #include "compiler/lstf-scanner.h"
 #include "compiler/lstf-file.h"
 #include "compiler/lstf-symbolresolver.h"
@@ -12,12 +15,16 @@ print_usage(const char *progname)
 
 int main(int argc, char *argv[])
 {
-    printf("lstf version 0.0.1\n");
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
     }
     lstf_file *script = lstf_file_load(argv[1]);
+    if (!script) {
+        lstf_report_error(NULL, "%s: %s", argv[1], strerror(errno));
+        fprintf(stderr, "compilation terminated.\n");
+        return 1;
+    }
     printf("loaded %s. scanning and parsing ...\n", argv[1]);
     lstf_parser *parser = lstf_parser_create(script);
     lstf_parser_parse(parser);
