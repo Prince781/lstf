@@ -6,6 +6,7 @@
 #include "compiler/lstf-scanner.h"
 #include "compiler/lstf-file.h"
 #include "compiler/lstf-symbolresolver.h"
+#include "compiler/lstf-semanticanalyzer.h"
 
 static void
 print_usage(const char *progname)
@@ -25,16 +26,30 @@ int main(int argc, char *argv[])
         fprintf(stderr, "compilation terminated.\n");
         return 1;
     }
-    printf("loaded %s. scanning and parsing ...\n", argv[1]);
+
     lstf_parser *parser = lstf_parser_create(script);
-    lstf_parser_parse(parser);
-    printf("...done scanning and parsing.\n");
-    lstf_parser_destroy(parser);
-    printf("performing symbol resolution ...\n");
     lstf_symbolresolver *resolver = lstf_symbolresolver_new(script);
-    lstf_symbolresolver_resolve(resolver);
+    lstf_semanticanalyzer *analyzer = lstf_semanticanalyzer_new(script);
+
+    lstf_parser_parse(parser);
+    if (parser->scanner->num_errors + parser->num_errors == 0) {
+        lstf_symbolresolver_resolve(resolver);
+        if (resolver->num_errors == 0) {
+            lstf_semanticanalyzer_analyze(analyzer);
+            if (analyzer->num_errors == 0) {
+            } else {
+                fprintf(stderr, "%u error(s) generated.\n", analyzer->num_errors);
+            }
+        } else {
+            fprintf(stderr, "%u error(s) generated.\n", resolver->num_errors);
+        }
+    } else {
+        fprintf(stderr, "%u error(s) generated.\n", parser->scanner->num_errors + parser->num_errors);
+    }
+
+    lstf_parser_destroy(parser);
     lstf_symbolresolver_destroy(resolver);
-    printf("...done resolving symbols\n");
+    lstf_semanticanalyzer_destroy(analyzer);
     lstf_file_unload(script);
     return 0;
 }

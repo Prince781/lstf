@@ -32,6 +32,12 @@ static void lstf_block_accept_children(lstf_codenode *code_node, lstf_codevisito
         case lstf_statement_type_patterntest:
             lstf_codevisitor_visit_pattern_test(visitor, (lstf_patterntest *)stmt);
             break;
+        case lstf_statement_type_declaration:
+            lstf_codevisitor_visit_declaration(visitor, (lstf_declaration *)stmt);
+            break;
+        case lstf_statement_type_return:
+            lstf_codevisitor_visit_return_statement(visitor, (lstf_returnstatement *)stmt);
+            break;
         }
     }
 }

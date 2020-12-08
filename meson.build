@@ -20,12 +20,10 @@ c_args = cc.get_supported_arguments([
   '-Wformat=2',
   '-Wformat-truncation=2',
   '-Wformat-overflow=2',
-  '-Wnull-dereference',
   '-Wstrict-aliasing=3',
   '-Wcast-align=strict',
   '-Wcast-qual',
-  '-Wuninitialized',
-  '-flto',
+  '-Wuninitialized'
 ])
 
 subdir('src')

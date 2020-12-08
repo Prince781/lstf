@@ -1,6 +1,9 @@
 #include "lstf-scope.h"
+#include "compiler/lstf-function.h"
+#include "compiler/lstf-typesymbol.h"
 #include "lstf-codenode.h"
 #include "lstf-symbol.h"
+#include "lstf-block.h"
 #include "data-structures/ptr-hashmap.h"
 #include "util.h"
 #include <assert.h>
@@ -25,7 +28,6 @@ static void lstf_scope_destruct(lstf_codenode *node)
 
     ptr_hashmap_destroy(scope->symbol_table);
     scope->symbol_table = NULL;
-    scope->owner = NULL;
 }
 
 static lstf_codenode_vtable scope_vtable = {
@@ -40,15 +42,16 @@ lstf_scope *lstf_scope_new(lstf_codenode *owner)
 
     assert((owner->codenode_type == lstf_codenode_type_block ||
                 (owner->codenode_type == lstf_codenode_type_symbol &&
-                 ((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_function)) && 
-            "scope owner must be block or function");
+                 (((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_function ||
+                  ((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_typesymbol))) && 
+            "scope owner must be block, function, or type symbol");
 
     lstf_codenode_construct((lstf_codenode *)scope, 
             &scope_vtable,
             lstf_codenode_type_scope,
             &owner->source_reference);
     
-    scope->owner = owner;
+    lstf_codenode_set_parent(scope, owner);
     scope->symbol_table = ptr_hashmap_new((collection_item_hash_func) strhash, 
             (collection_item_ref_func) strdup, 
             free,
@@ -66,7 +69,36 @@ void lstf_scope_add_symbol(lstf_scope *scope, lstf_symbol *symbol)
 
 lstf_symbol *lstf_scope_get_symbol(lstf_scope *scope, const char *name)
 {
-    ptr_hashmap_entry *entry = ptr_hashmap_get(scope->symbol_table, name);
+    const ptr_hashmap_entry *entry = ptr_hashmap_get(scope->symbol_table, name);
 
     return entry ? entry->value : NULL;
+}
+
+lstf_symbol *lstf_scope_lookup(lstf_scope *scope, const char *name)
+{
+    lstf_symbol *found_symbol = lstf_scope_get_symbol(scope, name);
+
+    if (found_symbol)
+        return found_symbol;
+
+    lstf_codenode *owner = ((lstf_codenode *)scope)->parent_node;
+    lstf_codenode *owner_parent_node = owner->parent_node;
+
+    while (owner_parent_node) {
+        lstf_block *owner_parent_block = lstf_block_cast(owner_parent_node);
+        if (owner_parent_block)
+            return lstf_scope_lookup(owner_parent_block->scope, name);
+
+        lstf_function *owner_parent_function = lstf_function_cast(owner_parent_node);
+        if (owner_parent_function)
+            return lstf_scope_lookup(owner_parent_function->scope, name);
+
+        lstf_typesymbol *owner_parent_typesymbol = lstf_typesymbol_cast(owner_parent_node);
+        if (owner_parent_typesymbol)
+            return lstf_scope_lookup(owner_parent_typesymbol->scope, name);
+
+        owner_parent_node = owner_parent_node->parent_node;
+    }
+
+    return NULL;
 }

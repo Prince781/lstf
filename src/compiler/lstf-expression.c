@@ -1,4 +1,5 @@
 #include "lstf-expression.h"
+#include "lstf-datatype.h"
 #include "lstf-codenode.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,5 +41,18 @@ void lstf_expression_construct(lstf_expression            *expr,
 
 void lstf_expression_destruct(lstf_codenode *node)
 {
-    lstf_codenode_unref(lstf_expression_cast(node)->value_type);
+    lstf_codenode_unref(((lstf_expression *)node)->value_type);
+}
+
+void lstf_expression_set_value_type(lstf_expression *expression, lstf_datatype *data_type)
+{
+    lstf_codenode_unref(expression->value_type);
+
+    if (((lstf_codenode *)data_type)->parent_node) {
+        expression->value_type = lstf_codenode_ref(lstf_datatype_copy(data_type));
+    } else {
+        expression->value_type = lstf_codenode_ref(data_type);
+    }
+
+    lstf_codenode_set_parent(expression->value_type, expression);
 }

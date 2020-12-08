@@ -29,6 +29,7 @@ static void lstf_array_destruct(lstf_codenode *code_node)
 
     ptr_list_destroy(array->expression_list);
     array->expression_list = NULL;
+    lstf_expression_destruct(code_node);
 }
 
 static const lstf_codenode_vtable array_vtable = {

@@ -47,7 +47,8 @@ lstf_objectproperty_new(const lstf_sourceref *source_reference,
             &objectproperty_vtable,
             source_reference,
             lstf_symbol_type_objectproperty,
-            strdup(name));
+            strdup(name),
+            false);
 
     prop->is_nullable = is_nullable;
     prop->value = lstf_codenode_ref(value);
@@ -76,6 +77,7 @@ static void lstf_object_destruct(lstf_codenode *code_node)
 
     ptr_list_destroy(object->members_list);
     object->members_list = NULL;
+    lstf_expression_destruct(code_node);
 }
 
 static const lstf_codenode_vtable object_vtable = {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-statement.h"
 #include "lstf-variable.h"
 #include "lstf-sourceref.h"
 #include "lstf-file.h"
@@ -24,7 +25,11 @@ struct _lstf_function {
      */
     lstf_block *block;
 
-    bool is_builtin;
+    /**
+     * Whether this is an instance method. If it is, then
+     * this function must be a child of a `lstf_typesymbol`
+     */
+    bool is_instance;
 
     /**
      * If true, then calls to this function can use the `await` keyword.
@@ -44,8 +49,15 @@ static inline lstf_function *lstf_function_cast(void *node)
 }
 
 lstf_symbol *lstf_function_new(const lstf_sourceref *source_reference, 
-                               char                 *name,
+                               const char           *name,
+                               lstf_datatype        *return_type,
+                               bool                  is_instance,
                                bool                  is_builtin, 
-                               bool                  is_async);
+                               bool                  is_async)
+    __attribute__((nonnull (2, 3)));
 
 void lstf_function_add_parameter(lstf_function *function, lstf_variable *variable);
+
+void lstf_function_set_return_type(lstf_function *function, lstf_datatype *data_type);
+
+void lstf_function_add_statement(lstf_function *function, lstf_statement *statement);

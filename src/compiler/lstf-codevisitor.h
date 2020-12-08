@@ -1,5 +1,12 @@
 #pragma once
 
+#include "lstf-returnstatement.h"
+#include "lstf-typealias.h"
+#include "lstf-declaration.h"
+#include "lstf-interface.h"
+#include "lstf-constant.h"
+#include "lstf-enum.h"
+#include "lstf-datatype.h"
 #include "lstf-expressionstatement.h"
 #include "lstf-patterntest.h"
 #include "lstf-function.h"
@@ -36,6 +43,21 @@ struct _lstf_codevisitor_vtable {
     void (*visit_block)(lstf_codevisitor *code_visitor, lstf_block *block);
 
     /**
+     * Visits a constant
+     */
+    void (*visit_constant)(lstf_codevisitor *code_visitor, lstf_constant *constant);
+
+    /**
+     * Visits a data type
+     */
+    void (*visit_data_type)(lstf_codevisitor *code_visitor, lstf_datatype *data_type);
+
+    /**
+     * Visits a declaration statement
+     */
+    void (*visit_declaration)(lstf_codevisitor *code_visitor, lstf_declaration *declaration);
+
+    /**
      * Visits an element access expression
      */
     void (*visit_element_access)(lstf_codevisitor *code_visitor, lstf_elementaccess *access);
@@ -44,6 +66,11 @@ struct _lstf_codevisitor_vtable {
      * Visits an ellipsis expression
      */
     void (*visit_ellipsis)(lstf_codevisitor *code_visitor, lstf_ellipsis *ellipsis);
+
+    /**
+     * Visits an enum declaration
+     */
+    void (*visit_enum)(lstf_codevisitor *code_visitor, lstf_enum *enum_symbol);
 
     /**
      * Visits any kind of expression
@@ -64,6 +91,16 @@ struct _lstf_codevisitor_vtable {
      * Visits a LSTF function
      */
     void (*visit_function)(lstf_codevisitor *code_visitor, lstf_function *function);
+
+    /**
+     * Visits an interface
+     */
+    void (*visit_interface)(lstf_codevisitor *code_visitor, lstf_interface *interface);
+
+    /**
+     * Visits an interface property
+     */
+    void (*visit_interface_property)(lstf_codevisitor *code_visitor, lstf_interfaceproperty *property);
 
     /**
      * Visits a literal expression
@@ -96,9 +133,14 @@ struct _lstf_codevisitor_vtable {
     void (*visit_pattern_test)(lstf_codevisitor *code_visitor, lstf_patterntest *stmt);
 
     /**
-     * Visits a statement
+     * Visits a return statement
      */
-    void (*visit_statement)(lstf_codevisitor *code_visitor, lstf_statement *stmt);
+    void (*visit_return_statement)(lstf_codevisitor *code_visitor, lstf_returnstatement *stmt);
+
+    /**
+     * Visits a type alias
+     */
+    void (*visit_type_alias)(lstf_codevisitor *code_visitor, lstf_typealias *alias);
 
     /**
      * Visits a variable
@@ -119,9 +161,17 @@ void lstf_codevisitor_visit_assignment(lstf_codevisitor *code_visitor, lstf_assi
 
 void lstf_codevisitor_visit_block(lstf_codevisitor *code_visitor, lstf_block *block);
 
+void lstf_codevisitor_visit_constant(lstf_codevisitor *code_visitor, lstf_constant *constant);
+
+void lstf_codevisitor_visit_data_type(lstf_codevisitor *code_visitor, lstf_datatype *data_type);
+
+void lstf_codevisitor_visit_declaration(lstf_codevisitor *code_visitor, lstf_declaration *decl);
+
 void lstf_codevisitor_visit_element_access(lstf_codevisitor *code_visitor, lstf_elementaccess *access);
 
 void lstf_codevisitor_visit_ellipsis(lstf_codevisitor *code_visitor, lstf_ellipsis *ellipsis);
+
+void lstf_codevisitor_visit_enum(lstf_codevisitor *code_visitor, lstf_enum *enum_symbol);
 
 void lstf_codevisitor_visit_expression(lstf_codevisitor *code_visitor, lstf_expression *expr);
 
@@ -130,6 +180,10 @@ void lstf_codevisitor_visit_expression_statement(lstf_codevisitor *code_visitor,
 void lstf_codevisitor_visit_file(lstf_codevisitor *code_visitor, lstf_file *file);
 
 void lstf_codevisitor_visit_function(lstf_codevisitor *code_visitor, lstf_function *function);
+
+void lstf_codevisitor_visit_interface(lstf_codevisitor *code_visitor, lstf_interface *interface);
+
+void lstf_codevisitor_visit_interface_property(lstf_codevisitor *code_visitor, lstf_interfaceproperty *property);
 
 void lstf_codevisitor_visit_literal(lstf_codevisitor *code_visitor, lstf_literal *lit);
 
@@ -143,6 +197,8 @@ void lstf_codevisitor_visit_object_property(lstf_codevisitor *code_visitor, lstf
 
 void lstf_codevisitor_visit_pattern_test(lstf_codevisitor *code_visitor, lstf_patterntest *stmt);
 
-void lstf_codevisitor_visit_statement(lstf_codevisitor *code_visitor, lstf_statement *stmt);
+void lstf_codevisitor_visit_return_statement(lstf_codevisitor *code_visitor, lstf_returnstatement *stmt);
+
+void lstf_codevisitor_visit_type_alias(lstf_codevisitor *code_visitor, lstf_typealias *alias);
 
 void lstf_codevisitor_visit_variable(lstf_codevisitor *code_visitor, lstf_variable *variable);

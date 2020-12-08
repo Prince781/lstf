@@ -29,6 +29,7 @@ static void lstf_elementaccess_destruct(lstf_codenode *code_node)
     expr->arguments = NULL;
     lstf_codenode_unref(expr->inner);
     expr->inner = NULL;
+    lstf_expression_destruct(code_node);
 }
 
 static const lstf_codenode_vtable elementaccess_vtable = {

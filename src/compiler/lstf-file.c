@@ -1,4 +1,9 @@
 #include "lstf-file.h"
+#include "lstf-scope.h"
+#include "lstf-sourceref.h"
+#include "lstf-symbol.h"
+#include "lstf-typesymbol.h"
+#include "lstf-variable.h"
 #include "lstf-block.h"
 #include "lstf-codenode.h"
 #include "data-structures/collection.h"
@@ -53,7 +58,7 @@ lstf_file *lstf_file_load(const char *filename)
 
     fclose(stream);
 
-    file->main_block = lstf_block_new();
+    file->main_block = lstf_codenode_ref(lstf_block_new());
 
     return file;
 }

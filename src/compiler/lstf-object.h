@@ -6,6 +6,7 @@
 #include "lstf-expression.h"
 #include "lstf-symbol.h"
 #include "data-structures/ptr-hashmap.h"
+#include <stddef.h>
 
 struct _lstf_objectproperty {
     lstf_symbol parent_struct;
@@ -13,6 +14,15 @@ struct _lstf_objectproperty {
     lstf_expression *value;
 };
 typedef struct _lstf_objectproperty lstf_objectproperty;
+
+static inline lstf_objectproperty *lstf_objectproperty_cast(void *node)
+{
+    lstf_symbol *symbol = lstf_symbol_cast(node);
+
+    if (symbol && symbol->symbol_type == lstf_symbol_type_objectproperty)
+        return node;
+    return NULL;
+}
 
 lstf_objectproperty *lstf_objectproperty_new(const lstf_sourceref *source_reference,
                                              const char           *name,

@@ -46,14 +46,32 @@ ptr_list_node *ptr_list_append(ptr_list *list, void *pointer)
     return node;
 }
 
-ptr_list_node *ptr_list_find(ptr_list *list, const void *pointer, collection_item_equality_func comparator)
+ptr_list_node *ptr_list_find(ptr_list                     *list,
+                             const void                   *query,
+                             collection_item_equality_func comparator)
 {
     for (iterator it = ptr_list_iterator_create(list);
             it.has_next;
             it = iterator_next(it))
-        if (comparator ? comparator(pointer, iterator_get_item(it)) : pointer == iterator_get_item(it))
+        if (comparator ? comparator(query, iterator_get_item(it)) : query == iterator_get_item(it))
             return (ptr_list_node *) it.data[0];
     return NULL;
+}
+
+ptr_list_node *ptr_list_replace(ptr_list                     *list,
+                                const void                   *query,
+                                collection_item_equality_func comparator,
+                                void                         *replacement)
+{
+    ptr_list_node *found_node = ptr_list_find(list, query, comparator);
+
+    if (!found_node)
+        return NULL;
+
+    if (list->data_unref_func)
+        list->data_unref_func(found_node->data);
+    found_node->data = list->data_ref_func ? list->data_ref_func(replacement) : replacement;
+    return found_node;
 }
 
 void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node)

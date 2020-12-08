@@ -10,6 +10,16 @@ enum _lstf_statement_type {
      * An expression statement.
      */
     lstf_statement_type_expression,
+
+    /**
+     * A declaration for a type or function.
+     */
+    lstf_statement_type_declaration,
+
+    /**
+     * A return statement
+     */
+    lstf_statement_type_return,
 };
 typedef enum _lstf_statement_type lstf_statement_type;
 

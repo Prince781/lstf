@@ -9,7 +9,8 @@ enum _lstf_codenode_type {
     lstf_codenode_type_expression,
     lstf_codenode_type_symbol,
     lstf_codenode_type_block,
-    lstf_codenode_type_scope
+    lstf_codenode_type_scope,
+    lstf_codenode_type_datatype
 };
 typedef enum _lstf_codenode_type lstf_codenode_type;
 
@@ -68,6 +69,7 @@ static inline lstf_codenode *lstf_codenode_cast(void *node)
     case lstf_codenode_type_block:
     case lstf_codenode_type_scope:
     case lstf_codenode_type_symbol:
+    case lstf_codenode_type_datatype:
         return code_node;
     }
 
@@ -81,6 +83,7 @@ void lstf_codenode_unref(void *node);
 void lstf_codenode_construct(lstf_codenode              *node, 
                              const lstf_codenode_vtable *vtable,
                              lstf_codenode_type          type,
-                             const lstf_sourceref       *source_reference);
+                             const lstf_sourceref       *source_reference)
+    __attribute__((nonnull (1, 2)));
 
 #define lstf_codenode_set_parent(node, parent) ((lstf_codenode *)(node))->parent_node = ((lstf_codenode *)(parent))

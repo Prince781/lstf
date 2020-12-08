@@ -50,7 +50,6 @@ void lstf_codenode_construct(lstf_codenode              *node,
                              lstf_codenode_type          type,
                              const lstf_sourceref       *source_reference)
 {
-    assert(vtable && "base class vtable must be provided");
     assert(vtable->accept && "base class must be able to accept a code visitor");
     assert(vtable->accept_children && "base class must be able to accept a code visitor for its children");
     assert(vtable->destructor && "base class destructor must be provided");

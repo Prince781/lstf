@@ -1,4 +1,9 @@
 #include "lstf-literal.h"
+#include "lstf-booleantype.h"
+#include "lstf-doubletype.h"
+#include "lstf-integertype.h"
+#include "lstf-stringtype.h"
+#include "lstf-anytype.h"
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-expression.h"
@@ -24,6 +29,7 @@ static void lstf_literal_destruct(lstf_codenode *code_node)
         free(lit->value.string_value);
         lit->value.string_value = NULL;
     }
+    lstf_expression_destruct(code_node);
 }
 
 static const lstf_codenode_vtable literal_vtable = {

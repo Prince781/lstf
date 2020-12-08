@@ -1,4 +1,5 @@
 #include "lstf-variable.h"
+#include "compiler/lstf-datatype.h"
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-symbol.h"
@@ -31,7 +32,9 @@ static const lstf_codenode_vtable variable_vtable = {
     lstf_variable_destruct
 };
 
-lstf_symbol *lstf_variable_new(const lstf_sourceref *source_reference, const char *name)
+lstf_symbol *lstf_variable_new(const lstf_sourceref *source_reference,
+                               const char           *name,
+                               bool                  is_builtin)
 {
     lstf_variable *variable = calloc(1, sizeof *variable);
 
@@ -39,7 +42,22 @@ lstf_symbol *lstf_variable_new(const lstf_sourceref *source_reference, const cha
             &variable_vtable,
             source_reference,
             lstf_symbol_type_variable,
-            strdup(name));
+            strdup(name),
+            is_builtin);
 
     return (lstf_symbol *)variable;
+}
+
+void lstf_variable_set_variable_type(lstf_variable *variable, lstf_datatype *data_type)
+{
+    lstf_codenode_unref(variable->variable_type);
+
+    if (((lstf_codenode *)data_type)->parent_node) {
+        // duplicate
+        variable->variable_type = lstf_codenode_ref(lstf_datatype_copy(data_type));
+    } else {
+        variable->variable_type = lstf_codenode_ref(data_type);
+    }
+
+    lstf_codenode_set_parent(variable->variable_type, variable);
 }

@@ -45,10 +45,14 @@ const char *lstf_token_to_string(lstf_token token)
             return "identifier";
         case lstf_token_integer:
             return "integer";
+        case lstf_token_verticalbar:
+            return "`|'";
         case lstf_token_keyword_await:
             return "`await'";
         case lstf_token_keyword_const:
             return "`const'";
+        case lstf_token_keyword_async:
+            return "`async'";
         case lstf_token_keyword_false:
             return "`false'";
         case lstf_token_keyword_for:
@@ -61,8 +65,24 @@ const char *lstf_token_to_string(lstf_token token)
             return "`of'";
         case lstf_token_keyword_true:
             return "`true'";
+        case lstf_token_keyword_enum:
+            return "`enum'";
+        case lstf_token_keyword_class:
+            return "`class'";
+        case lstf_token_keyword_fun:
+            return "`fun'";
+        case lstf_token_keyword_return:
+            return "`return'";
+        case lstf_token_keyword_interface:
+            return "`interface'";
+        case lstf_token_keyword_extends:
+            return "`extends'";
+        case lstf_token_keyword_type:
+            return "`type'";
         case lstf_token_equivalent:
             return "`<=>'";
+        case lstf_token_doublerightarrow:
+            return "`=>'";
         case lstf_token_openbrace:
             return "`{'";
         case lstf_token_openbracket:
@@ -78,7 +98,6 @@ const char *lstf_token_to_string(lstf_token token)
         case lstf_token_string:
             return "string";
         case lstf_token_error:
-        default:
             break;
     }
 
@@ -182,6 +201,10 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                 current_token = lstf_token_equals;
                 current.pos++;
                 current.column++;
+            } else if (*current.pos == '>') {
+                current_token = lstf_token_doublerightarrow;
+                current.pos++;
+                current.column++;
             }
             break;
         case '<':
@@ -194,6 +217,7 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                 current.pos++;
                 current.column++;
                 current_token = lstf_token_error;
+                scanner->num_errors++;
             }
             break;
         case '>':
@@ -201,6 +225,12 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
             current.pos++;
             current.column++;
             current_token = lstf_token_error;
+            scanner->num_errors++;
+            break;
+        case '|':
+            current_token = lstf_token_verticalbar;
+            current.pos++;
+            current.column++;
             break;
         case '-':
         case '0':
@@ -254,15 +284,18 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                             } else {
                                 lstf_report_error(&lstf_sourceref_at_location(script, begin), "expected exponent");
                                 current_token = lstf_token_error;
+                                scanner->num_errors++;
                             }
                         } else {
                             lstf_report_error(&lstf_sourceref_at_location(script, begin), "expected exponent");
                             current_token = lstf_token_error;
+                            scanner->num_errors++;
                         }
                     }
                 } else {
                     lstf_report_error(&lstf_sourceref_at_location(script, begin), "expected fractional part");
                     current_token = lstf_token_error;
+                    scanner->num_errors++;
                 }
             }
             break;
@@ -327,6 +360,7 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                 current.pos++;
                 current.column++;
                 current_token = lstf_token_error;
+                scanner->num_errors++;
             }
             break;
         case '\0':
@@ -353,8 +387,24 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current_token = lstf_token_keyword_of;
                 else if (strncmp(begin.pos, "const", max(sizeof "const" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_const;
+                else if (strncmp(begin.pos, "async", max(sizeof "async" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_async;
                 else if (strncmp(begin.pos, "await", max(sizeof "await" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_await;
+                else if (strncmp(begin.pos, "enum", max(sizeof "enum" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_enum;
+                else if (strncmp(begin.pos, "class", max(sizeof "class" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_class;
+                else if (strncmp(begin.pos, "fun", max(sizeof "fun" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_fun;
+                else if (strncmp(begin.pos, "interface", max(sizeof "interface" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_interface;
+                else if (strncmp(begin.pos, "extends", max(sizeof "extends" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_extends;
+                else if (strncmp(begin.pos, "type", max(sizeof "type" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_type;
+                else if (strncmp(begin.pos, "return", max(sizeof "return" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_return;
             } else {
                 lstf_report_error(&lstf_sourceref_at_location(script, begin), "unexpected token `%c'", *current.pos);
                 current.pos++;

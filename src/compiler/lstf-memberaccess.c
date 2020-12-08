@@ -26,6 +26,7 @@ static void lstf_memberaccess_destruct(lstf_codenode *code_node)
     lstf_codenode_unref(ma->inner);
     free(ma->member_name);
     ma->member_name = NULL;
+    lstf_expression_destruct(code_node);
 }
 
 static const lstf_codenode_vtable memberaccess_vtable = {

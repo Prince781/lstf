@@ -30,13 +30,15 @@ struct _lstf_expression {
      */
     lstf_expression_type expr_type;
 
+    bool is_constant;
+
     /**
      * (weak ref) The symbol this expression refers to
      */
     lstf_symbol *symbol_reference;
 
     /**
-     * Statically-determined value type (created by semantic analyzer)
+     * Computed by the semantic analyzer.
      */
     lstf_datatype *value_type;
 };
@@ -54,6 +56,9 @@ static inline lstf_expression *lstf_expression_cast(void *node)
 void lstf_expression_construct(lstf_expression            *expr,
                                const lstf_codenode_vtable *vtable,
                                const lstf_sourceref       *source_reference,
-                               lstf_expression_type        expr_type);
+                               lstf_expression_type        expr_type)
+    __attribute__((nonnull (1, 2)));
 
 void lstf_expression_destruct(lstf_codenode *node);
+
+void lstf_expression_set_value_type(lstf_expression *expression, lstf_datatype *data_type);

@@ -20,4 +20,8 @@ static inline lstf_variable *lstf_variable_cast(void *node)
     return NULL;
 }
 
-lstf_symbol *lstf_variable_new(const lstf_sourceref *source_reference, const char *name);
+lstf_symbol *lstf_variable_new(const lstf_sourceref *source_reference,
+                               const char           *name,
+                               bool                  is_builtin);
+
+void lstf_variable_set_variable_type(lstf_variable *variable, lstf_datatype *data_type);

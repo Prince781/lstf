@@ -1,0 +1,11 @@
+let o: object = {1: 1};
+let i: integer = 1;
+let d: double = 3.1415;
+let s: string = "hello";
+let a: array = [1, 2, 3, 4, 5, {}];
+let b: boolean = true;
+let i2: integer = ...;
+let o2: object = {
+    thing: 1,
+    thing: 2
+};

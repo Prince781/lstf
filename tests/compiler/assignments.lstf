@@ -1,5 +1,16 @@
-let oasd = 3;
+let o = {1: 1};
+let i = 1;
+let d = 3.1415;
+let s = "hello";
+let a = [1, 2, 3, 4, 5, {}, ..., {}];
+let b = true;
+let o2 = {
+    line: 1, 
+    character: 2,
+};
+let o3 = {};
+let o4 = {x: 3, y: ...};
 
-o.array = [1, 2];
-
-asd = 3;
+fun do_thing(): null {
+    return;
+}

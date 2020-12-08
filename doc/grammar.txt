@@ -1,17 +1,30 @@
 <array_expression> -> '[' [<expression> [',' <expression> ...]] ']'
-<assignment_statement> -> (let identifier | <member_access_expression> | <element_access_expression>) '=' <expression> ';'
+<assignment_statement> -> (let identifier [':' <data_type>] | <member_access_expression> | <element_access_expression>) '=' <expression> ';'
 <await_expression> -> await <expression>
+<data_type> -> <simple_data_type> ['|' <simple_data_type> ...]
+<declaration_statement> -> <enum_declaration> | <function_declaration> | <interface_declaration> | <type_alias_declaration>
 <element_access_expression> -> <expression> '[' [<expression> [<expression> ...]] ']'
+<element_data_type> -> null | identifier | '(' <data_type> ')' | <object_data_type>
 <ellipsis_expression> -> '...'
+<enum_declaration> -> 'enum' identifier '{' <enum_member> [',' <enum_member> ...] '}'
+<enum_member> -> identifier ['=' <expression>]
 <expression> -> <simple_name> | <literal_expression> | <array_expression> | <object_expression> | <ellipsis_expression> | <method_call_expression> | <element_access_expression>
 <expression_statement> -> <statement_expression> ';'
+<function_data_type> -> ['async'] '(' [identifier ':' <data_type> [',' identifier ':' <data_type> ...]] ')' '=>' <data_type>
+<function_declaration> -> ['async'] 'fun' identifier '(' [<parameter_declaration> [',' <parameter_declaration> ... ]] ')' ':' <data_type> '{' <statement_list> '}'
+<interface_declaration> -> 'interface' identifier ['extends' identifier [',' identifier ...]] '{' [identifier ['?'] ':' <data_type> ';' [identifier ['?'] ':' <data_type> ';' ...]] '}'
 <literal_expression> -> string | integer | double | boolean | null
 <member_access_expression> -> (<expression> '.' | epsilon) <simple_name>
 <method_call_expression> -> <expression> '(' [<expression> [',' <expression> ...]] ')'
+<object_data_type> -> '{' [identifier ':' <data_type> [';' identifier ':' <data_type> ...]] '}'
 <object_expression> -> '{' [<object_property> [',' <object_property> ...]] '}'
-<object_property> -> (<literal_expression> | identifier) ['?'] ':' <expression>
+<object_property> -> identifier ['?'] ':' <expression>
+<parameter_declaration> -> identifier ':' <data_type>
 <pattern_test_statement> -> <expression> '<=>' <expression>
+<return_statement> -> return [<expression>] ';'
 <simple_name> -> identifier
-<statement> -> <assignment_statement> | <expression_statement> | <pattern_test_statement>
+<simple_data_type> -> <element_data_type> ['[' ']' ['[' ']' ...]] | <function_data_type>
+<statement> -> <assignment_statement> | <declaration_statement> | <expression_statement> | <pattern_test_statement> | <return_statement>
 <statement_expression> -> <method_call_expression> | <await_expression>
 <statement_list> -> [<statement> [<statement> ...]]
+<type_alias_declaration> -> 'type' identifier '=' <data_type> ';'

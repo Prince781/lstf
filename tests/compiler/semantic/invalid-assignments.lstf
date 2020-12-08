@@ -1,0 +1,4 @@
+let i: integer = 3;
+i = "hello";
+let a = [1, 2, 3.5, {}];
+a = [3, 4, 5, "hello"];

@@ -5,6 +5,7 @@
 #include "lstf-codenode.h"
 #include "lstf-scope.h"
 #include "data-structures/ptr-list.h"
+#include <stddef.h>
 
 struct _lstf_block {
     lstf_codenode parent_struct;
@@ -20,6 +21,15 @@ struct _lstf_block {
  * An executable series of statements within a scope.
  */
 typedef struct _lstf_block lstf_block;
+
+static inline lstf_block *lstf_block_cast(void *node)
+{
+    lstf_codenode *code_node = node;
+
+    if (code_node && code_node->codenode_type == lstf_codenode_type_block)
+        return (lstf_block *)code_node;
+    return NULL;
+}
 
 lstf_block *lstf_block_new(void);
 

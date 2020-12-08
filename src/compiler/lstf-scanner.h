@@ -22,9 +22,11 @@ enum _lstf_token {
     lstf_token_assignment,
     lstf_token_equals,
     lstf_token_equivalent,
+    lstf_token_doublerightarrow,
     lstf_token_integer,
     lstf_token_double,
     lstf_token_identifier,
+    lstf_token_verticalbar,
     lstf_token_keyword_await,
     lstf_token_keyword_true,
     lstf_token_keyword_false,
@@ -33,6 +35,14 @@ enum _lstf_token {
     lstf_token_keyword_for,
     lstf_token_keyword_of,
     lstf_token_keyword_const,
+    lstf_token_keyword_async,
+    lstf_token_keyword_enum,
+    lstf_token_keyword_class,
+    lstf_token_keyword_fun,
+    lstf_token_keyword_return,
+    lstf_token_keyword_interface,
+    lstf_token_keyword_extends,
+    lstf_token_keyword_type,
     lstf_token_string
 };
 typedef enum _lstf_token lstf_token;

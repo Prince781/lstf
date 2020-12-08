@@ -15,12 +15,6 @@ struct _ptr_list_node {
  */
 typedef struct _ptr_list_node ptr_list_node;
 
-/**
- * @node: a (ptr_list_node *)
- * @type: the pointer data type held in the list
- */
-#define ptr_list_node_get_data(node, type) (*(type *)node)
-
 struct _ptr_list {
     ptr_list_node *head;
     ptr_list_node *tail;
@@ -30,12 +24,25 @@ struct _ptr_list {
 };
 typedef struct _ptr_list ptr_list;
 
+/**
+ * @node: a (ptr_list_node *)
+ * @type: the pointer data type held in the list
+ */
+#define ptr_list_node_get_data(node, type) (*(type *)node)
+
 ptr_list *ptr_list_new(collection_item_ref_func   data_ref_func,
                        collection_item_unref_func data_unref_func);
 
 ptr_list_node *ptr_list_append(ptr_list *list, void *pointer);
 
-ptr_list_node *ptr_list_find(ptr_list *list, const void *pointer, collection_item_equality_func comparator);
+ptr_list_node *ptr_list_find(ptr_list                     *list,
+                             const void                   *query,
+                             collection_item_equality_func comparator);
+
+ptr_list_node *ptr_list_replace(ptr_list                     *list,
+                                const void                   *query,
+                                collection_item_equality_func comparator,
+                                void                         *replacement);
 
 void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node);
 

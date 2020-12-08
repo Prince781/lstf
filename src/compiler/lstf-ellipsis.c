@@ -18,7 +18,7 @@ static void lstf_ellipsis_accept_children(lstf_codenode *code_node, lstf_codevis
 
 static void lstf_ellipsis_destruct(lstf_codenode *code_node)
 {
-    (void) code_node;
+    lstf_expression_destruct(code_node);
 }
 
 static const lstf_codenode_vtable ellipsis_vtable = {

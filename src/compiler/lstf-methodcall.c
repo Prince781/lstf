@@ -27,6 +27,7 @@ static void lstf_methodcall_destruct(lstf_codenode *code_node)
 
     lstf_codenode_unref(expr->call);
     ptr_list_destroy(expr->arguments);
+    lstf_expression_destruct(code_node);
 }
 
 static const lstf_codenode_vtable methodcall_vtable = {

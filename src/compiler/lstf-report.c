@@ -80,18 +80,18 @@ void lstf_report(const lstf_sourceref *source_ref, lstf_report_domain domain, co
 
         lines_log10 = max(lines_log10, 4);
 
-        fprintf(stderr, "%s%s:%d.%d-%d.%d: %s%s:%s ", bold_begin,
-                source_ref->file->filename,
-                source_ref->begin.line, source_ref->begin.column,
-                source_ref->end.line, source_ref->end.column,
-                color_begin,
-                lstf_report_domain_to_string(domain),
-                normal_end);
-        vfprintf(stderr, message, args);
-        fprintf(stderr, "\n");
-
         // print context and arrows for errors across a single line
-        if (source_ref->begin.line == source_ref->end.line) {
+        if (source_ref->begin.line && source_ref->begin.line == source_ref->end.line) {
+            fprintf(stderr, "%s%s:%d.%d-%d.%d: %s%s:%s ", bold_begin,
+                    source_ref->file->filename,
+                    source_ref->begin.line, source_ref->begin.column,
+                    source_ref->end.line, source_ref->end.column,
+                    color_begin,
+                    lstf_report_domain_to_string(domain),
+                    normal_end);
+            vfprintf(stderr, message, args);
+            fprintf(stderr, "\n");
+
             const char *line_begin = source_ref->begin.pos;
             const char *line_end = source_ref->end.pos;
             if (line_begin > source_ref->file->content && (*line_begin == '\n' || *line_begin == '\r'))
@@ -130,6 +130,15 @@ void lstf_report(const lstf_sourceref *source_ref, lstf_report_domain domain, co
                         (pos == source_ref->begin.column ? '^' : '~') : ' ', stderr);
             fprintf(stderr, "%s", normal_end);
             fputc('\n', stderr);
+        } else if (!source_ref->begin.line) {
+            // when the report pertains to the whole file
+            fprintf(stderr, "%s%s: %s%s:%s ", bold_begin,
+                    source_ref->file->filename,
+                    color_begin,
+                    lstf_report_domain_to_string(domain),
+                    normal_end);
+            vfprintf(stderr, message, args);
+            fprintf(stderr, "\n");
         }
 
         // TODO: print context for errors across multiple lines

@@ -3,8 +3,6 @@
 
 void lstf_codevisitor_construct(lstf_codevisitor *code_visitor, const lstf_codevisitor_vtable *vtable)
 {
-    assert(vtable->visit_file && "visit_file must be implemented for code visitor");
-
     code_visitor->vtable = vtable;
 }
 
@@ -26,6 +24,24 @@ void lstf_codevisitor_visit_block(lstf_codevisitor *code_visitor, lstf_block *bl
         code_visitor->vtable->visit_block(code_visitor, block);
 }
 
+void lstf_codevisitor_visit_constant(lstf_codevisitor *code_visitor, lstf_constant *constant)
+{
+    if (code_visitor->vtable->visit_constant)
+        code_visitor->vtable->visit_constant(code_visitor, constant);
+}
+
+void lstf_codevisitor_visit_data_type(lstf_codevisitor *code_visitor, lstf_datatype *data_type)
+{
+    if (code_visitor->vtable->visit_data_type)
+        code_visitor->vtable->visit_data_type(code_visitor, data_type);
+}
+
+void lstf_codevisitor_visit_declaration(lstf_codevisitor *code_visitor, lstf_declaration *decl)
+{
+    if (code_visitor->vtable->visit_declaration)
+        code_visitor->vtable->visit_declaration(code_visitor, decl);
+}
+
 void lstf_codevisitor_visit_element_access(lstf_codevisitor *code_visitor, lstf_elementaccess *access)
 {
     if (code_visitor->vtable->visit_element_access)
@@ -36,6 +52,12 @@ void lstf_codevisitor_visit_ellipsis(lstf_codevisitor *code_visitor, lstf_ellips
 {
     if (code_visitor->vtable->visit_ellipsis)
         code_visitor->vtable->visit_ellipsis(code_visitor, ellipsis);
+}
+
+void lstf_codevisitor_visit_enum(lstf_codevisitor *code_visitor, lstf_enum *enum_symbol)
+{
+    if (code_visitor->vtable->visit_enum)
+        code_visitor->vtable->visit_enum(code_visitor, enum_symbol);
 }
 
 void lstf_codevisitor_visit_expression(lstf_codevisitor *code_visitor, lstf_expression *expr)
@@ -60,6 +82,18 @@ void lstf_codevisitor_visit_function(lstf_codevisitor *code_visitor, lstf_functi
 {
     if (code_visitor->vtable->visit_function)
         code_visitor->vtable->visit_function(code_visitor, function);
+}
+
+void lstf_codevisitor_visit_interface(lstf_codevisitor *code_visitor, lstf_interface *interface)
+{
+    if (code_visitor->vtable->visit_interface)
+        code_visitor->vtable->visit_interface(code_visitor, interface);
+}
+
+void lstf_codevisitor_visit_interface_property(lstf_codevisitor *code_visitor, lstf_interfaceproperty *property)
+{
+    if (code_visitor->vtable->visit_interface_property)
+        code_visitor->vtable->visit_interface_property(code_visitor, property);
 }
 
 void lstf_codevisitor_visit_literal(lstf_codevisitor *code_visitor, lstf_literal *lit)
@@ -98,10 +132,16 @@ void lstf_codevisitor_visit_pattern_test(lstf_codevisitor *code_visitor, lstf_pa
         code_visitor->vtable->visit_pattern_test(code_visitor, stmt);
 }
 
-void lstf_codevisitor_visit_statement(lstf_codevisitor *code_visitor, lstf_statement *stmt)
+void lstf_codevisitor_visit_return_statement(lstf_codevisitor *code_visitor, lstf_returnstatement *stmt)
 {
-    if (code_visitor->vtable->visit_statement)
-        code_visitor->vtable->visit_statement(code_visitor, stmt);
+    if (code_visitor->vtable->visit_return_statement)
+        code_visitor->vtable->visit_return_statement(code_visitor, stmt);
+}
+
+void lstf_codevisitor_visit_type_alias(lstf_codevisitor *code_visitor, lstf_typealias *alias)
+{
+    if (code_visitor->vtable->visit_type_alias)
+        code_visitor->vtable->visit_type_alias(code_visitor, alias);
 }
 
 void lstf_codevisitor_visit_variable(lstf_codevisitor *code_visitor, lstf_variable *variable)
