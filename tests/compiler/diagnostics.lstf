@@ -1,10 +1,6 @@
 server_path = '/usr/bin/vala-language-server';
 project_files = [ 'constructor-example.vala', 'destructor-example.vala' ];
 
-let array = [1, 2, 3];
-
-// diagnostics()
-
 // The use of await is optional, but forces the method calls
 // to be serialized.
 

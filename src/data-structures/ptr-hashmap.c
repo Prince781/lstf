@@ -12,6 +12,14 @@ struct _ptr_hashmap_bucket {
     ptr_list *entries_list;
 };
 
+static void ptr_hashmap_bucket_destroy(ptr_hashmap_bucket *bucket)
+{
+    ptr_list_destroy(bucket->entries_list);
+    bucket->entries_list = NULL;
+    bucket->node_in_buckets_list = NULL;
+    free(bucket);
+}
+
 static bool ptr_hashmap_default_key_equality_func(const void *pointer1, const void *pointer2)
 {
     return pointer1 == pointer2;
@@ -33,7 +41,7 @@ ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
         abort();
     }
 
-    map->buckets_list = ptr_list_new(NULL, free);
+    map->buckets_list = ptr_list_new(NULL, (collection_item_unref_func) ptr_hashmap_bucket_destroy);
     map->num_bucket_places = 8;
     map->buckets = calloc(map->num_bucket_places, sizeof *map->buckets);
 
@@ -41,6 +49,8 @@ ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
         perror("failed to create buckets array for hash map");
         abort();
     }
+
+    map->entries_list = ptr_list_new(NULL, NULL);
 
     map->key_hash_func = key_hash_func;
     map->key_ref_func = key_ref_func;
@@ -55,7 +65,8 @@ ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
 static void
 ptr_hashmap_resize_to_length(ptr_hashmap *map, unsigned new_num_bucket_places)
 {
-    ptr_list *new_buckets_list = ptr_list_new(NULL, free);
+    ptr_list *new_buckets_list = 
+        ptr_list_new(map->buckets_list->data_ref_func, map->buckets_list->data_unref_func);
     ptr_hashmap_bucket **new_buckets = calloc(new_num_bucket_places, sizeof *new_buckets);
 
     if (!new_buckets) {
@@ -80,15 +91,14 @@ ptr_hashmap_resize_to_length(ptr_hashmap *map, unsigned new_num_bucket_places)
                     perror("failed to create bucket for hashmap");
                     abort();
                 }
-                new_bucket->entries_list = ptr_list_new(NULL, NULL);
+                new_bucket->entries_list = 
+                    ptr_list_new(bucket->entries_list->data_ref_func, bucket->entries_list->data_unref_func);
                 new_bucket->node_in_buckets_list = ptr_list_append(new_buckets_list, new_bucket);
                 new_buckets[hash] = new_bucket;
             }
 
             entry->node_in_bucket_entries_list = ptr_list_append(new_bucket->entries_list, entry);
         }
-        ptr_list_destroy(bucket->entries_list);
-        bucket->entries_list = NULL;
     }
 
     ptr_list_destroy(map->buckets_list);
@@ -129,9 +139,9 @@ ptr_hashmap_entry *ptr_hashmap_insert(ptr_hashmap *map, void *new_key, void *new
         entry->value = map->value_ref_func ? map->value_ref_func(new_value) : new_value;
 
         entry->node_in_bucket_entries_list = ptr_list_append(bucket->entries_list, entry);
-        map->num_elements++;
+        entry->node_in_entries_list = ptr_list_append(map->entries_list, entry);
 
-        if (map->num_elements > 0.75 * map->num_bucket_places)
+        if (map->entries_list->length > 0.75 * map->num_bucket_places)
             ptr_hashmap_resize_to_length(map, map->num_bucket_places * 2);
     }
 
@@ -164,6 +174,8 @@ ptr_hashmap_delete_entry(ptr_hashmap *map, ptr_hashmap_entry *entry, unsigned ha
 
     ptr_list_remove_link(bucket->entries_list, entry->node_in_bucket_entries_list);
     entry->node_in_bucket_entries_list = NULL;
+    ptr_list_remove_link(map->entries_list, entry->node_in_entries_list);
+    entry->node_in_entries_list = NULL;
 
     if (ptr_list_is_empty(bucket->entries_list)) {
         ptr_list_destroy(bucket->entries_list);
@@ -177,8 +189,6 @@ ptr_hashmap_delete_entry(ptr_hashmap *map, ptr_hashmap_entry *entry, unsigned ha
     if (map->value_unref_func)
         map->value_unref_func(entry->value);
     free(entry);
-
-    map->num_elements--;
 }
 
 void ptr_hashmap_delete(ptr_hashmap *map, void *key)
@@ -195,61 +205,17 @@ void ptr_hashmap_delete(ptr_hashmap *map, void *key)
 }
 
 bool ptr_hashmap_is_empty(const ptr_hashmap *map) {
-    return map->num_elements == 0;
+    return ptr_list_is_empty(map->entries_list);
 }
 
-static iterator ptr_hashmap_iterator_iterate(iterator it)
+unsigned ptr_hashmap_num_elements(const ptr_hashmap *map)
 {
-    ptr_list_node *buckets_list_node = it.data[0];
-    ptr_list_node *entry_node = it.data[1];
-    ptr_hashmap *map = it.collection;
-    ptr_hashmap_bucket *bucket = NULL;
-
-    if (entry_node->next && 
-            entry_node->next != ptr_list_node_get_data(buckets_list_node, ptr_hashmap_bucket *)->entries_list->head) {
-        entry_node = entry_node->next;
-        bucket = ptr_list_node_get_data(buckets_list_node, ptr_hashmap_bucket *);
-    } else {
-        buckets_list_node = buckets_list_node->next;
-        bucket = ptr_list_node_get_data(buckets_list_node, ptr_hashmap_bucket *);
-        entry_node = bucket->entries_list->head;
-    }
-
-    return (iterator) {
-        .data = { buckets_list_node, entry_node },
-        .is_first = false,
-        .has_next = !((!buckets_list_node || buckets_list_node == map->buckets_list->head) && 
-                (!entry_node || entry_node == bucket->entries_list->head)),
-        .collection = map,
-        .iterate = it.iterate,
-        .get_item = it.get_item
-    };
-}
-
-static void *ptr_hashmap_iterator_get_item(iterator it)
-{
-    ptr_list_node *node = it.data[1];
-
-    return node ? ptr_list_node_get_data(node, ptr_hashmap_entry *) : NULL;
+    return map->entries_list->length;
 }
 
 iterator ptr_hashmap_iterator_create(ptr_hashmap *map)
 {
-    ptr_list_node *buckets_list_node = map->buckets_list->head;
-    ptr_list_node *entry_node = NULL;
-
-    if (buckets_list_node)
-        entry_node = ptr_list_node_get_data(buckets_list_node, ptr_hashmap_bucket *)->
-            entries_list->head;
-
-    return (iterator) {
-        .data = { buckets_list_node, entry_node },
-        .is_first = true,
-        .has_next = buckets_list_node != NULL && entry_node != NULL,
-        .collection = map,
-        .iterate = ptr_hashmap_iterator_iterate,
-        .get_item = ptr_hashmap_iterator_get_item
-    };
+    return ptr_list_iterator_create(map->entries_list);
 }
 
 void ptr_hashmap_destroy(ptr_hashmap *map)
@@ -268,14 +234,13 @@ void ptr_hashmap_destroy(ptr_hashmap *map)
                 map->value_unref_func(entry->value);
             entry->key = NULL;
             entry->value = NULL;
-            map->num_elements--;
             free(entry);
         }
-        ptr_list_destroy(bucket->entries_list);
-        bucket->entries_list = NULL;
     }
     ptr_list_destroy(map->buckets_list);
     map->buckets_list = NULL;
+    ptr_list_destroy(map->entries_list);
+    map->entries_list = NULL;
 
     free(map->buckets);
     map->buckets = NULL;

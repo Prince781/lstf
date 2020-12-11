@@ -26,7 +26,7 @@ int main(void) {
         assert(ptr_hashmap_get(map, sb->buffer) == entry);
     }
 
-    assert(map->num_elements == HASHMAP_SIZE);
+    assert(ptr_hashmap_num_elements(map) == HASHMAP_SIZE);
 
     bool *seen = calloc(HASHMAP_SIZE, sizeof *seen);
     for (iterator it = ptr_hashmap_iterator_create(map); it.has_next; it = iterator_next(it)) {
@@ -47,12 +47,12 @@ int main(void) {
     free(seen);
 
     printf("there are %d buckets in the map for %u elements\n", 
-            map->buckets_list->length, map->num_elements);
+            map->buckets_list->length, ptr_hashmap_num_elements(map));
     printf("current buffer size is %u * sizeof(ptr_hashmap_entry *)\n", map->num_bucket_places);
     double occupancy = map->buckets_list->length / (double) map->num_bucket_places;
     printf("%.1lf%% of the bucket places in the buffer are used\n", occupancy * 100);
 
-    if (map->num_elements / (double) map->buckets_list->length > 2.0)
+    if (ptr_hashmap_num_elements(map) / (double) map->buckets_list->length > 2.0)
         retval = 1;
 
     ptr_hashmap_destroy(map);

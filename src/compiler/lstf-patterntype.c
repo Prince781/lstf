@@ -50,6 +50,7 @@ static bool lstf_patterntype_is_supertype_of(lstf_datatype *self, lstf_datatype 
         case lstf_datatype_type_anytype:
         case lstf_datatype_type_functiontype:
         case lstf_datatype_type_unresolvedtype:
+        case lstf_datatype_type_voidtype:
             return false;
         case lstf_datatype_type_uniontype:
             for (iterator it = ptr_list_iterator_create(lstf_uniontype_cast(other)->options);

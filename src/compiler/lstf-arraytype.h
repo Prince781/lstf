@@ -21,3 +21,5 @@ static inline lstf_arraytype *lstf_arraytype_cast(void *node)
 lstf_datatype *lstf_arraytype_new(const lstf_sourceref *source_reference,
                                    lstf_datatype       *element_type)
     __attribute__((nonnull (2)));
+
+void lstf_arraytype_set_element_type(lstf_arraytype *self, lstf_datatype *element_type);

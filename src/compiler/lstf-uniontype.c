@@ -1,4 +1,5 @@
 #include "lstf-uniontype.h"
+#include "compiler/lstf-report.h"
 #include "lstf-codevisitor.h"
 #include "data-structures/iterator.h"
 #include "data-structures/string-builder.h"
@@ -49,18 +50,14 @@ static bool lstf_uniontype_is_supertype_of(lstf_datatype *self_dt, lstf_datatype
             return true;
     }
 
-    // if the other is a union type, then check that every member of [other]
+    // if the other is a union type, then check that every option of [other]
     // is present in [self]
     if (other->datatype_type == lstf_datatype_type_uniontype) {
         lstf_uniontype *other_ut = lstf_uniontype_cast(other);
-        for (iterator it = ptr_list_iterator_create(other_ut->options); 
-                it.has_next; it = iterator_next(it)) {
+        for (iterator it = ptr_list_iterator_create(other_ut->options); it.has_next; it = iterator_next(it)) {
             lstf_datatype *other_option = iterator_get_item(it);
             ptr_list_node *found = ptr_list_find(self->options, other_option, 
                     (collection_item_equality_func) lstf_datatype_is_supertype_of);
-
-            assert((!found || lstf_datatype_cast(found->data)) &&
-                    "found option, but it's not a data type!");
 
             if (!found)
                 return false;
@@ -159,6 +156,9 @@ void lstf_union_type_replace_option(lstf_uniontype *union_type,
                                     lstf_datatype  *old_data_type,
                                     lstf_datatype  *new_data_type)
 {
+    if (lstf_codenode_cast(new_data_type)->parent_node)
+        new_data_type = lstf_datatype_copy(new_data_type);
     ptr_list_node *result = ptr_list_replace(union_type->options, old_data_type, NULL, new_data_type);
     assert(result && "attempting to replace an option that doesn't exist in a union type!");
+    lstf_codenode_set_parent(new_data_type, union_type);
 }

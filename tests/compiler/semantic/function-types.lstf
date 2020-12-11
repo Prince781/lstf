@@ -1,0 +1,25 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = [];
+
+interface A {
+    aProperty: number;
+}
+
+interface B extends A {
+    bProperty: string;
+}
+
+interface C extends B {
+    cProperty: boolean;
+}
+
+fun identity(x: B): B {
+    return x;
+}
+
+let w: C = { aProperty: 1, bProperty: "I am C!", cProperty: false };
+let x: B = w;
+let y: A = x;
+
+let f: (x: C) => A = identity;
+

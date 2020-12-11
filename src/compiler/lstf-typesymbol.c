@@ -1,4 +1,7 @@
 #include "lstf-typesymbol.h"
+#include "compiler/lstf-interfacetype.h"
+#include "data-structures/ptr-list.h"
+#include "lstf-interface.h"
 #include "lstf-codevisitor.h"
 #include "lstf-scope.h"
 #include "data-structures/iterator.h"
@@ -62,4 +65,22 @@ lstf_symbol *lstf_typesymbol_get_member(lstf_typesymbol *self, const char *membe
     const ptr_hashmap_entry *entry = ptr_hashmap_get(self->members, member_name);
 
     return entry ? entry->value : NULL;
+}
+
+lstf_symbol *lstf_typesymbol_lookup(lstf_typesymbol *self, const char *member_name)
+{
+    lstf_symbol *member = lstf_typesymbol_get_member(self, member_name);
+
+    if (!member && self->typesymbol_type == lstf_typesymbol_type_interface) {
+        lstf_interface *interface = lstf_interface_cast(self);
+        for (iterator it = ptr_list_iterator_create(interface->extends_types); it.has_next; it = iterator_next(it)) {
+            lstf_datatype *base_type = iterator_get_item(it);
+
+            if (base_type->datatype_type == lstf_datatype_type_interfacetype &&
+                    (member = lstf_typesymbol_lookup(lstf_typesymbol_cast(base_type->symbol), member_name)))
+                break;
+        }
+    }
+
+    return member;
 }

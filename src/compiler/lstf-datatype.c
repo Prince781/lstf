@@ -1,7 +1,54 @@
 #include "lstf-datatype.h"
+#include "compiler/lstf-interface.h"
+#include "lstf-symbol.h"
+#include "lstf-typealias.h"
 #include "lstf-codenode.h"
 #include "lstf-codevisitor.h"
 #include <assert.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+const char *lstf_datatype_type_to_string(lstf_datatype_type datatype_type)
+{
+    switch (datatype_type) {
+        case lstf_datatype_type_anytype:
+            return "anytype";
+        case lstf_datatype_type_arraytype:
+            return "arraytype";
+        case lstf_datatype_type_booleantype:
+            return "booleantype";
+        case lstf_datatype_type_doubletype:
+            return "doubletype";
+        case lstf_datatype_type_enumtype:
+            return "enumtype";
+        case lstf_datatype_type_functiontype:
+            return "functiontype";
+        case lstf_datatype_type_integertype:
+            return "integertype";
+        case lstf_datatype_type_interfacetype:
+            return "interfacetype";
+        case lstf_datatype_type_nulltype:
+            return "nulltype";
+        case lstf_datatype_type_numbertype:
+            return "numbertype";
+        case lstf_datatype_type_objecttype:
+            return "objecttype";
+        case lstf_datatype_type_patterntype:
+            return "patterntype";
+        case lstf_datatype_type_stringtype:
+            return "stringtype";
+        case lstf_datatype_type_uniontype:
+            return "uniontype";
+        case lstf_datatype_type_unresolvedtype:
+            return "unresolvedtype";
+        case lstf_datatype_type_voidtype:
+            return "voidtype";
+    }
+
+    fprintf(stderr, "%s: invalid datatype %d", __func__, datatype_type);
+    abort();
+}
 
 void lstf_datatype_construct(lstf_datatype              *datatype,
                              const lstf_codenode_vtable *codenode_vtable,
@@ -33,7 +80,9 @@ bool lstf_datatype_is_supertype_of(lstf_datatype *self, lstf_datatype *other)
 
 lstf_datatype *lstf_datatype_copy(lstf_datatype *self)
 {
-    return self->datatype_vtable->copy(self);
+    lstf_datatype *copy = self->datatype_vtable->copy(self);
+    lstf_datatype_set_symbol(copy, self->symbol);
+    return copy;
 }
 
 bool lstf_datatype_equals(lstf_datatype *self, lstf_datatype *other)
@@ -46,5 +95,10 @@ char *lstf_datatype_to_string(lstf_datatype *self)
 {
     if (!self)
         return NULL;
+    if (self->symbol) {
+        lstf_interface *interface = lstf_interface_cast(self->symbol);
+        if (!interface || !interface->is_anonymous)
+            return strdup(self->symbol->name);
+    }
     return self->datatype_vtable->to_string(self);
 }

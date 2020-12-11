@@ -1,3 +1,6 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = ['/dev/null'];
+
 let i: integer = 3;
 i = "hello";
 let a = [1, 2, 3.5, {}];

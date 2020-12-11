@@ -1,2 +1,4 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = ['/dev/null'];
 let i = 3;
 i.thing = 4;

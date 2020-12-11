@@ -3,6 +3,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
+#include "lstf-uniontype.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -30,8 +31,19 @@ static const lstf_codenode_vtable integertype_vtable = {
 
 static bool lstf_integertype_is_supertype_of(lstf_datatype *self, lstf_datatype *other)
 {
-    (void) self;
-    return !!(lstf_integertype_cast(other) || lstf_booleantype_cast(other));
+    if (other->datatype_type == lstf_datatype_type_integertype ||
+            other->datatype_type == lstf_datatype_type_booleantype)
+        return true;
+
+    if (other->datatype_type == lstf_datatype_type_uniontype) {
+        for (iterator it = ptr_list_iterator_create(lstf_uniontype_cast(other)->options); it.has_next; it = iterator_next(it)) {
+            if (!lstf_datatype_is_supertype_of(self, iterator_get_item(it)))
+                return false;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 static lstf_datatype *lstf_integertype_copy(lstf_datatype *self)

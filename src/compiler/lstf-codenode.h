@@ -86,4 +86,4 @@ void lstf_codenode_construct(lstf_codenode              *node,
                              const lstf_sourceref       *source_reference)
     __attribute__((nonnull (1, 2)));
 
-#define lstf_codenode_set_parent(node, parent) ((lstf_codenode *)(node))->parent_node = ((lstf_codenode *)(parent))
+#define lstf_codenode_set_parent(node, parent) (lstf_codenode_cast(node))->parent_node = (lstf_codenode_cast(parent))

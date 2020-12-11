@@ -144,7 +144,10 @@ lstf_interface *lstf_interface_new(const lstf_sourceref *source_reference,
 
 void lstf_interface_add_base_type(lstf_interface *interface, lstf_datatype *base_type)
 {
+    if (lstf_codenode_cast(base_type)->parent_node)
+        base_type = lstf_datatype_copy(base_type);
     ptr_list_append(interface->extends_types, base_type);
+    lstf_codenode_set_parent(base_type, interface);
 }
 
 void lstf_interface_add_member(lstf_interface *interface, lstf_interfaceproperty *property)
@@ -156,7 +159,10 @@ void lstf_interface_replace_base_type(lstf_interface *interface,
                                       lstf_datatype  *old_base_type,
                                       lstf_datatype  *new_base_type)
 {
-    ptr_list_node *found_node = ptr_list_replace(interface->extends_types, old_base_type, NULL, new_base_type);
-
+    if (lstf_codenode_cast(new_base_type)->parent_node)
+        new_base_type = lstf_datatype_copy(new_base_type);
+    ptr_list_node *found_node =
+        ptr_list_replace(interface->extends_types, old_base_type, NULL, new_base_type);
     assert(found_node && "attempting to replace a non-existent base type!");
+    lstf_codenode_set_parent(new_base_type, interface);
 }

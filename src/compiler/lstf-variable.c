@@ -13,8 +13,9 @@ static void lstf_variable_accept(lstf_codenode *code_node, lstf_codevisitor *vis
 
 static void lstf_variable_accept_children(lstf_codenode *code_node, lstf_codevisitor *visitor)
 {
-    (void)code_node;
-    (void)visitor;
+    lstf_variable *variable = (lstf_variable *)code_node;
+    if (variable->variable_type)
+        lstf_codenode_accept(variable->variable_type, visitor);
 }
 
 static void lstf_variable_destruct(lstf_codenode *code_node)

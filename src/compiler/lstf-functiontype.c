@@ -1,4 +1,5 @@
 #include "lstf-functiontype.h"
+#include "compiler/lstf-report.h"
 #include "compiler/lstf-variable.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-hashmap.h"
@@ -8,7 +9,9 @@
 #include "lstf-datatype.h"
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
+#include "lstf-uniontype.h"
 #include "util.h"
+#include <assert.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -19,13 +22,21 @@ static void lstf_functiontype_accept(lstf_codenode *node, lstf_codevisitor *visi
 
 static void lstf_functiontype_accept_children(lstf_codenode *node, lstf_codevisitor *visitor)
 {
-    (void) node;
-    (void) visitor;
+    lstf_functiontype *self = (lstf_functiontype *)node;
+    for (iterator it = ptr_list_iterator_create(self->parameter_types);
+            it.has_next; it = iterator_next(it)) {
+        lstf_datatype *parameter_type = iterator_get_item(it);
+        lstf_codenode_accept(parameter_type, visitor);
+    }
+    lstf_codenode_accept(self->return_type, visitor);
 }
 
 static void lstf_functiontype_destruct(lstf_codenode *node)
 {
     lstf_functiontype *function_type = (lstf_functiontype *)node;
+
+    ptr_list_destroy(function_type->parameter_names);
+    function_type->parameter_names = NULL;
 
     ptr_list_destroy(function_type->parameter_types);
     function_type->parameter_types = NULL;
@@ -47,8 +58,16 @@ static bool lstf_functiontype_is_supertype_of(lstf_datatype *self_dt, lstf_datat
     lstf_functiontype *self = (lstf_functiontype *)self_dt;
     lstf_functiontype *other_ft = lstf_functiontype_cast(other);
 
-    if (!other_ft)
+    if (!other_ft) {
+        if (other->datatype_type == lstf_datatype_type_uniontype) {
+            for (iterator it = ptr_list_iterator_create(lstf_uniontype_cast(other)->options); it.has_next; it = iterator_next(it)) {
+                if (!lstf_datatype_is_supertype_of(self_dt, iterator_get_item(it)))
+                    return false;
+            }
+            return true;
+        }
         return false;
+    }
 
     // we can save time if the function types have different numbers of arguments
     if (self->parameter_types->length != other_ft->parameter_types->length)
@@ -147,7 +166,9 @@ lstf_datatype *lstf_functiontype_new(const lstf_sourceref *source_reference,
             lstf_datatype_type_functiontype,
             &functiontype_datatype_vtable);
 
-    function_type->return_type = lstf_codenode_ref(lstf_datatype_copy(return_type));
+    if (lstf_codenode_cast(return_type)->parent_node)
+        return_type = lstf_datatype_copy(return_type);
+    function_type->return_type = lstf_codenode_ref(return_type);
     lstf_codenode_set_parent(function_type->return_type, function_type);
 
     function_type->parameter_names = ptr_list_new(NULL,
@@ -186,4 +207,24 @@ void lstf_functiontype_add_parameter(lstf_functiontype *function_type,
         parameter_type = lstf_datatype_copy(parameter_type);
     ptr_list_append(function_type->parameter_types, parameter_type);
     lstf_codenode_set_parent(parameter_type, function_type);
+}
+
+void lstf_functiontype_set_return_type(lstf_functiontype *function_type,
+                                       lstf_datatype     *data_type)
+{
+    lstf_codenode_unref(function_type->return_type);
+
+    if (((lstf_codenode *)data_type)->parent_node)
+        data_type = lstf_datatype_copy(data_type);
+    function_type->return_type = lstf_codenode_ref(data_type);
+    lstf_codenode_set_parent(function_type->return_type, function_type);
+}
+
+void lstf_functiontype_replace_parameter_type(lstf_functiontype *function_type,
+                                              lstf_datatype     *old_data_type,
+                                              lstf_datatype     *new_data_type)
+{
+    ptr_list_node *result =
+        ptr_list_replace(function_type->parameter_types, old_data_type, NULL, new_data_type);
+    assert(result && "attempting to replace a non-existent parameter type!");
 }

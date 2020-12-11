@@ -1,5 +1,8 @@
 #include "lstf-symbolresolver.h"
+#include "compiler/lstf-enum.h"
+#include "compiler/lstf-functiontype.h"
 #include "compiler/lstf-patterntype.h"
+#include "compiler/lstf-voidtype.h"
 #include "lstf-returnstatement.h"
 #include "lstf-uniontype.h"
 #include "lstf-declaration.h"
@@ -108,6 +111,9 @@ lstf_symbolresolver_visit_assignment(lstf_codevisitor *visitor, lstf_assignment 
         lstf_scope_add_symbol(current_scope, lhs_variable);
         assign->lhs->symbol_reference = lhs_variable;
         lhs_declared = (lstf_variable *)lhs_variable;
+        // also resolve the explicit data type, if there is one
+        if (assign->lhs->value_type)
+            lstf_codenode_accept(assign->lhs->value_type, visitor);
     }
     lstf_codenode_accept(assign->lhs, visitor);
 
@@ -151,11 +157,14 @@ lstf_symbolresolver_resolve_data_type(lstf_symbolresolver *resolver, lstf_dataty
     } else if (strcmp(unresolved_type->name, "object") == 0) {
         replacement_type = lstf_objecttype_new(&((lstf_codenode *)data_type)->source_reference);
     } else if (strcmp(unresolved_type->name, "array") == 0) {
-        replacement_type = lstf_arraytype_new(&((lstf_codenode *)data_type)->source_reference, lstf_anytype_new(NULL));
+        replacement_type = lstf_arraytype_new(&((lstf_codenode *)data_type)->source_reference,
+                lstf_anytype_new(NULL));
     } else if (strcmp(unresolved_type->name, "any") == 0) {
         replacement_type = lstf_anytype_new(&((lstf_codenode *)data_type)->source_reference);
     } else if (strcmp(unresolved_type->name, "pattern") == 0) {
         replacement_type = lstf_patterntype_new(&((lstf_codenode *)data_type)->source_reference);
+    } else if (strcmp(unresolved_type->name, "void") == 0) {
+        replacement_type = lstf_voidtype_new(&((lstf_codenode *)data_type)->source_reference);
     } else {
         lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
         lstf_symbol *found_symbol = NULL;
@@ -211,7 +220,8 @@ lstf_symbolresolver_resolve_data_type(lstf_symbolresolver *resolver, lstf_dataty
             } else if (parent_ts && parent_ts->typesymbol_type == lstf_typesymbol_type_interface) {
                 lstf_interface *parent_interface = lstf_interface_cast(parent_ts);
 
-                lstf_interface_replace_base_type(parent_interface, (lstf_datatype *)unresolved_type, replacement_type);
+                lstf_interface_replace_base_type(parent_interface,
+                        (lstf_datatype *)unresolved_type, replacement_type);
             } else {
                 fprintf(stderr, "%s: bad tree: symbol data type must be child of a variable, function, interface, or interface property\n", __func__);
                 abort();
@@ -221,14 +231,30 @@ lstf_symbolresolver_resolve_data_type(lstf_symbolresolver *resolver, lstf_dataty
         lstf_expression *parent_expression = (lstf_expression *)parent;
 
         lstf_expression_set_value_type(parent_expression, replacement_type);
-    } else {
-        lstf_uniontype *parent_union_type = lstf_uniontype_cast(parent);
-        if (parent_union_type) {
-            lstf_union_type_replace_option(parent_union_type, (lstf_datatype *)unresolved_type, replacement_type);
+    } else if (parent->codenode_type == lstf_codenode_type_datatype) {
+        lstf_datatype *parent_dt = lstf_datatype_cast(parent);
+        if (parent_dt->datatype_type == lstf_datatype_type_uniontype) {
+            lstf_union_type_replace_option(lstf_uniontype_cast(parent_dt), 
+                    (lstf_datatype *)unresolved_type, replacement_type);
+        } else if (parent_dt->datatype_type == lstf_datatype_type_functiontype) {
+            lstf_functiontype *parent_ft = lstf_functiontype_cast(parent_dt);
+
+            if (parent_ft->return_type == (lstf_datatype *)unresolved_type)
+                lstf_functiontype_set_return_type(parent_ft, replacement_type);
+            else
+                lstf_functiontype_replace_parameter_type(parent_ft, 
+                        (lstf_datatype *)unresolved_type, replacement_type);
+        } else if (parent_dt->datatype_type == lstf_datatype_type_arraytype) {
+            lstf_arraytype *parent_at = lstf_arraytype_cast(parent_dt);
+
+            lstf_arraytype_set_element_type(parent_at, replacement_type);
         } else {
-            fprintf(stderr, "%s: bad tree: data type must be child of a symbol or expression\n", __func__); 
+            fprintf(stderr, "%s: bad tree: unexpected parent data type for unresolved type\n", __func__); 
             abort();
         }
+    } else {
+        fprintf(stderr, "%s: bad tree: data type must be child of a symbol, expression, or data type\n", __func__); 
+        abort();
     }
 
     lstf_codenode_unref(unresolved_type);
@@ -251,6 +277,26 @@ static void
 lstf_symbolresolver_visit_element_access(lstf_codevisitor *visitor, lstf_elementaccess *access)
 {
     lstf_codenode_accept_children(access, visitor);
+}
+
+static void
+lstf_symbolresolver_visit_enum(lstf_codevisitor *visitor, lstf_enum *enum_symbol)
+{
+    lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
+    lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
+    lstf_symbol *clashing_sym = NULL;
+
+    if ((clashing_sym = lstf_scope_lookup(current_scope, lstf_symbol_cast(enum_symbol)->name))) {
+        lstf_report_error(&lstf_codenode_cast(enum_symbol)->source_reference,
+                "enum declaration conflicts with previous declaration");
+        lstf_report_note(&lstf_codenode_cast(clashing_sym)->source_reference,
+                "previous declaration was here");
+        resolver->num_errors++;
+        return;
+    }
+
+    lstf_scope_add_symbol(current_scope, lstf_symbol_cast(enum_symbol));
+    lstf_codenode_accept_children(enum_symbol, visitor);
 }
 
 static void
@@ -299,6 +345,16 @@ lstf_symbolresolver_visit_function(lstf_codevisitor *visitor, lstf_function *fun
 {
     lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
     lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
+    lstf_symbol *clashing_sym = NULL;
+
+    if ((clashing_sym = lstf_scope_lookup(current_scope, lstf_symbol_cast(function)->name))) {
+        lstf_report_error(&lstf_codenode_cast(function)->source_reference,
+                "function declaration conflicts with previous declaration");
+        lstf_report_note(&lstf_codenode_cast(clashing_sym)->source_reference,
+                "previous declaration was here");
+        resolver->num_errors++;
+        return;
+    }
 
     lstf_scope_add_symbol(current_scope, lstf_symbol_cast(function));
 
@@ -446,8 +502,7 @@ lstf_symbolresolver_visit_variable(lstf_codevisitor *visitor, lstf_variable *var
         lstf_scope_add_symbol(current_scope, (lstf_symbol *)variable);
     }
 
-    if (variable->variable_type)
-        lstf_symbolresolver_resolve_data_type(resolver, variable->variable_type);
+    lstf_codenode_accept_children(variable, visitor);
 }
 
 static const lstf_codevisitor_vtable symbolresolver_vtable = {
@@ -459,7 +514,7 @@ static const lstf_codevisitor_vtable symbolresolver_vtable = {
     lstf_symbolresolver_visit_declaration,
     lstf_symbolresolver_visit_element_access,
     NULL,
-    NULL,
+    lstf_symbolresolver_visit_enum,
     lstf_symbolresolver_visit_expression,
     lstf_symbolresolver_visit_expression_statement,
     lstf_symbolresolver_visit_file,

@@ -35,5 +35,6 @@ int main(void) {
     free(object_json);
 
     ptr_hashmap_destroy(map);
+    json_node_unref(object);
     return 0;
 }

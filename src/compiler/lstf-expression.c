@@ -48,11 +48,9 @@ void lstf_expression_set_value_type(lstf_expression *expression, lstf_datatype *
 {
     lstf_codenode_unref(expression->value_type);
 
-    if (((lstf_codenode *)data_type)->parent_node) {
-        expression->value_type = lstf_codenode_ref(lstf_datatype_copy(data_type));
-    } else {
-        expression->value_type = lstf_codenode_ref(data_type);
-    }
+    if (((lstf_codenode *)data_type)->parent_node)
+        data_type = lstf_datatype_copy(data_type);
+    expression->value_type = lstf_codenode_ref(data_type);
 
     lstf_codenode_set_parent(expression->value_type, expression);
 }

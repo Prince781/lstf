@@ -125,13 +125,13 @@ lstf_parser_parse_simple_name(lstf_parser *parser, lstf_parsererror **error)
 
 static lstf_expression *
 lstf_parser_parse_member_access_expression(lstf_parser       *parser, 
-                                           lstf_sourceloc     begin, 
                                            lstf_expression   *inner, 
                                            lstf_parsererror **error)
 {
     if (!lstf_parser_expect_token(parser, lstf_token_period, error))
         return NULL;
 
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     if (lstf_scanner_current(parser->scanner) != lstf_token_identifier) {
         *error = lstf_parsererror_new(&lstf_sourceref_at_location(parser->file, begin), 
                 "expected %s for member access",
@@ -521,7 +521,7 @@ lstf_parser_parse_expression(lstf_parser *parser, lstf_parsererror **error)
         next_expr = NULL;
         switch (lstf_scanner_current(parser->scanner)) {
         case lstf_token_period:
-            next_expr = lstf_parser_parse_member_access_expression(parser, begin, expression, error);
+            next_expr = lstf_parser_parse_member_access_expression(parser, expression, error);
             break;
         case lstf_token_openparen:
             next_expr = lstf_parser_parse_method_call_expression(parser, begin, expression, error);
@@ -571,7 +571,7 @@ lstf_parser_parse_assignment_statement(lstf_parser *parser, lstf_parsererror **e
 
             switch (lstf_scanner_current(parser->scanner)) {
             case lstf_token_period:
-                next_expr = lstf_parser_parse_member_access_expression(parser, var_begin, lhs, error);
+                next_expr = lstf_parser_parse_member_access_expression(parser, lhs, error);
                 break;
             case lstf_token_openbracket:
                 next_expr = lstf_parser_parse_element_access_expression(parser, var_begin, lhs, error);
@@ -620,14 +620,14 @@ lstf_parser_parse_assignment_statement(lstf_parser *parser, lstf_parsererror **e
 static lstf_statement *
 lstf_parser_parse_enum_declaration(lstf_parser *parser, lstf_parsererror **error)
 {
-    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
-
     if (!lstf_parser_expect_token(parser, lstf_token_keyword_enum, error))
         return NULL;
 
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     char *symbol_name = lstf_parser_parse_identifier(parser, error);
     if (!symbol_name)
         return NULL;
+    lstf_sourceloc end = lstf_scanner_get_prev_end_location(parser->scanner);
 
     ptr_list *enum_members = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
             (collection_item_unref_func) lstf_codenode_unref);
@@ -655,12 +655,6 @@ lstf_parser_parse_enum_declaration(lstf_parser *parser, lstf_parsererror **error
             break;
         }
 
-        if (!lstf_parser_expect_token(parser, lstf_token_semicolon, error)) {
-            free(member_name);
-            lstf_codenode_unref(member_value);
-            break;
-        }
-
         lstf_symbol *constant = lstf_constant_new(&(lstf_sourceref) {
                     parser->file,
                     member_begin,
@@ -669,6 +663,9 @@ lstf_parser_parse_enum_declaration(lstf_parser *parser, lstf_parsererror **error
 
         ptr_list_append(enum_members, constant);
         free(member_name);
+
+        if (!lstf_parser_accept_token(parser, lstf_token_comma))
+            break;
     }
 
     if (*error) {
@@ -698,7 +695,7 @@ lstf_parser_parse_enum_declaration(lstf_parser *parser, lstf_parsererror **error
         (lstf_enum *) lstf_enum_new(&(lstf_sourceref) {
                     parser->file,
                     begin,
-                    lstf_scanner_get_prev_end_location(parser->scanner)
+                    end
                 }, symbol_name, false);
 
     for (iterator it = ptr_list_iterator_create(enum_members); it.has_next; it = iterator_next(it)) {
@@ -914,8 +911,10 @@ lstf_parser_parse_simple_data_type(lstf_parser *parser, lstf_parsererror **error
     {
         const unsigned saved_token_idx = parser->scanner->current_token_idx;
         lstf_scanner_next(parser->scanner);
-        if (lstf_parser_accept_token(parser, lstf_token_questionmark) ||
-                lstf_parser_accept_token(parser, lstf_token_colon)) {
+        if (lstf_parser_accept_token(parser, lstf_token_keyword_async) ||
+                (lstf_parser_accept_token(parser, lstf_token_identifier) &&
+                 (lstf_parser_accept_token(parser, lstf_token_questionmark) || 
+                  lstf_parser_accept_token(parser, lstf_token_colon)))) {
             lstf_scanner_rewind(parser->scanner, saved_token_idx);
             return lstf_parser_parse_function_data_type(parser, error);
         }
@@ -997,15 +996,16 @@ lstf_parser_parse_statement_list(lstf_parser *parser, bool in_root_scope);
 static lstf_statement *
 lstf_parser_parse_function_declaration(lstf_parser *parser, bool in_class_declaration, lstf_parsererror **error)
 {
-    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     bool is_async = lstf_parser_accept_token(parser, lstf_token_keyword_async);
 
     if (!lstf_parser_expect_token(parser, lstf_token_keyword_fun, error))
         return NULL;
 
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     char *function_name = lstf_parser_parse_identifier(parser, error);
     if (!function_name)
         return NULL;
+    lstf_sourceloc end = lstf_scanner_get_prev_end_location(parser->scanner);
 
     if (!lstf_parser_expect_token(parser, lstf_token_openparen, error)) {
         free(function_name);
@@ -1045,6 +1045,7 @@ lstf_parser_parse_function_declaration(lstf_parser *parser, bool in_class_declar
                         lstf_scanner_get_prev_end_location(parser->scanner)
                     }, parameter_name, false);
             lstf_variable_set_variable_type(parameter, parameter_type);
+            free(parameter_name);
 
             ptr_list_append(parameters, parameter);
 
@@ -1098,7 +1099,7 @@ lstf_parser_parse_function_declaration(lstf_parser *parser, bool in_class_declar
         lstf_function_new(&(lstf_sourceref) {
                 parser->file,
                 begin,
-                lstf_scanner_get_prev_end_location(parser->scanner)
+                end,
             }, function_name, return_type, in_class_declaration, false, is_async);
 
     for (iterator params_it = ptr_list_iterator_create(parameters);
@@ -1111,6 +1112,7 @@ lstf_parser_parse_function_declaration(lstf_parser *parser, bool in_class_declar
 
     ptr_list_destroy(parameters);
     ptr_list_destroy(statements);
+    free(function_name);
 
     return lstf_declaration_new_from_function(&lstf_codenode_cast(function)->source_reference, function);
 }
@@ -1126,11 +1128,6 @@ lstf_parser_parse_interface_declaration(lstf_parser *parser, lstf_parsererror **
     char *interface_name = lstf_parser_parse_identifier(parser, error);
     if (!interface_name)
         return NULL;
-
-    if (!lstf_parser_expect_token(parser, lstf_token_openbrace, error)) {
-        free(interface_name);
-        return NULL;
-    }
 
     ptr_list *base_types = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
             (collection_item_unref_func) lstf_codenode_unref);
@@ -1151,7 +1148,7 @@ lstf_parser_parse_interface_declaration(lstf_parser *parser, lstf_parsererror **
         }
     }
 
-    if (*error) {
+    if (*error || !lstf_parser_expect_token(parser, lstf_token_openbrace, error)) {
         free(interface_name);
         ptr_list_destroy(base_types);
         return NULL;
@@ -1381,7 +1378,7 @@ lstf_parser_parse_statement_expression(lstf_parser *parser, lstf_parsererror **e
         next_expr = NULL;
         switch (lstf_scanner_current(parser->scanner)) {
         case lstf_token_period:
-            next_expr = lstf_parser_parse_member_access_expression(parser, begin, expression, error);
+            next_expr = lstf_parser_parse_member_access_expression(parser, expression, error);
             break;
         case lstf_token_openparen:
             next_expr = lstf_parser_parse_method_call_expression(parser, begin, expression, error);

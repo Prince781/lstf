@@ -223,7 +223,7 @@ bool json_node_equal_to(const json_node *node1, const json_node *node2)
         const json_object *object1 = (const json_object *)node1;
         const json_object *object2 = (const json_object *)node2;
 
-        if (object1->members->num_elements != object2->members->num_elements)
+        if (ptr_hashmap_num_elements(object1->members) != ptr_hashmap_num_elements(object2->members))
             return false;
 
         for (iterator it = ptr_hashmap_iterator_create(object1->members);

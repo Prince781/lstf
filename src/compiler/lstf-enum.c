@@ -54,3 +54,14 @@ void lstf_enum_add_member(lstf_enum *self, lstf_constant *member)
     ptr_hashmap_insert(((lstf_typesymbol *)self)->members, lstf_symbol_cast(member)->name, member);
     lstf_scope_add_symbol(((lstf_typesymbol *)self)->scope, lstf_symbol_cast(member));
 }
+
+void lstf_enum_set_members_type(lstf_enum *self, lstf_datatype *data_type)
+{
+    lstf_codenode_unref(self->members_type);
+
+    if (((lstf_codenode *)data_type)->parent_node)
+        data_type = lstf_datatype_copy(data_type);
+
+    self->members_type = lstf_codenode_ref(data_type);
+    lstf_codenode_set_parent(self->members_type, self);
+}

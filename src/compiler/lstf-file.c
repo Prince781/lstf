@@ -45,7 +45,7 @@ lstf_file *lstf_file_load(const char *filename)
     }
 
     if (ferror(stream)) {
-        fprintf(stderr, "%s: error reading LSTF script `%s': %s\n", __func__, filename, strerror(errno));
+        fclose(stream);
         free(content);
         free(file->filename);
         free(file);

@@ -7,7 +7,6 @@
 
 struct _lstf_interfacetype {
     lstf_datatype parent_struct;
-    lstf_interface *interface;
 };
 typedef struct _lstf_interfacetype lstf_interfacetype;
 

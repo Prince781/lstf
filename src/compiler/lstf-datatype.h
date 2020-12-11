@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-symbol.h"
 #include "lstf-sourceref.h"
 #include "lstf-codenode.h"
 #include "lstf-typesymbol.h"
@@ -20,6 +21,7 @@ struct _lstf_datatype_vtable {
 enum _lstf_datatype_type {
     lstf_datatype_type_anytype,
     lstf_datatype_type_nulltype,
+    lstf_datatype_type_voidtype,
     lstf_datatype_type_unresolvedtype,
     lstf_datatype_type_uniontype,
     lstf_datatype_type_objecttype,
@@ -36,6 +38,8 @@ enum _lstf_datatype_type {
 };
 typedef enum _lstf_datatype_type lstf_datatype_type;
 
+const char *lstf_datatype_type_to_string(lstf_datatype_type datatype_type);
+
 struct _lstf_datatype {
     lstf_codenode parent_struct;
     const lstf_datatype_vtable *datatype_vtable;
@@ -44,6 +48,11 @@ struct _lstf_datatype {
      * The class type
      */
     lstf_datatype_type datatype_type;
+
+    /**
+     * (weak ref) (nullable) the symbol that creates this data type
+     */
+    lstf_symbol *symbol;
 };
 
 static inline lstf_datatype *lstf_datatype_cast(void *node)
@@ -63,6 +72,8 @@ void lstf_datatype_construct(lstf_datatype              *datatype,
     __attribute__((nonnull (1, 2, 5)));
 
 void lstf_datatype_destruct(lstf_datatype *datatype);
+
+#define lstf_datatype_set_symbol(dt, sym) (lstf_datatype_cast(dt)->symbol = lstf_symbol_cast(sym))
 
 /**
  * determines whether @self can receive a type @other

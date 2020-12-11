@@ -36,3 +36,10 @@ lstf_datatype *lstf_functiontype_new_from_function(const lstf_sourceref *source_
 void lstf_functiontype_add_parameter(lstf_functiontype *function_type,
                                      const char        *parameter_name,
                                      lstf_datatype     *parameter_type);
+
+void lstf_functiontype_set_return_type(lstf_functiontype *function_type,
+                                       lstf_datatype     *data_type);
+
+void lstf_functiontype_replace_parameter_type(lstf_functiontype *function_type,
+                                              lstf_datatype     *old_data_type,
+                                              lstf_datatype     *new_data_type);

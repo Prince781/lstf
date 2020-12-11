@@ -3,6 +3,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
+#include "lstf-uniontype.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -37,8 +38,16 @@ static bool lstf_arraytype_is_supertype_of(lstf_datatype *self, lstf_datatype *o
     // consumer (ex: push(T)) members
     lstf_arraytype *other_arraytype = lstf_arraytype_cast(other);
 
-    if (!other_arraytype)
+    if (!other_arraytype) {
+        if (other->datatype_type == lstf_datatype_type_uniontype) {
+            for (iterator it = ptr_list_iterator_create(lstf_uniontype_cast(other)->options); it.has_next; it = iterator_next(it)) {
+                if (!lstf_datatype_is_supertype_of(self, iterator_get_item(it)))
+                    return false;
+            }
+            return true;
+        }
         return false;
+    }
 
     return lstf_datatype_equals(((lstf_arraytype *)self)->element_type, other_arraytype->element_type);
 }
@@ -57,7 +66,10 @@ static char *lstf_arraytype_to_string(lstf_datatype *self_dt)
     string *representation = string_new();
     char *element_type_to_string = lstf_datatype_to_string(self->element_type);
 
-    if (self->element_type->datatype_type == lstf_datatype_type_uniontype)
+    if (self->element_type->datatype_type == lstf_datatype_type_uniontype &&
+            (!self->element_type->symbol ||
+             (lstf_interface_cast(self->element_type->symbol) &&
+             ((lstf_interface *)self->element_type->symbol)->is_anonymous)))
         string_appendf(representation, "(%s)[]", element_type_to_string);
     else
         string_appendf(representation, "%s[]", element_type_to_string);
@@ -83,6 +95,19 @@ lstf_datatype *lstf_arraytype_new(const lstf_sourceref *source_reference,
             lstf_datatype_type_arraytype,
             &arraytype_datatype_vtable);
 
+    if (((lstf_codenode *)element_type)->parent_node)
+        element_type = lstf_datatype_copy(element_type);
     array_type->element_type = lstf_codenode_ref(element_type);
+    lstf_codenode_set_parent(array_type->element_type, array_type);
     return (lstf_datatype *)array_type;
+}
+
+void lstf_arraytype_set_element_type(lstf_arraytype *self, lstf_datatype *element_type)
+{
+    lstf_codenode_unref(self->element_type);
+
+    if (((lstf_codenode *)element_type)->parent_node)
+        element_type = lstf_datatype_copy(element_type);
+    self->element_type = lstf_codenode_ref(element_type);
+    lstf_codenode_set_parent(self->element_type, self);
 }

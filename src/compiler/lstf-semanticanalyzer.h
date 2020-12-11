@@ -18,14 +18,19 @@ struct _lstf_semanticanalyzer {
     ptr_list *expected_expression_types;
 
     /**
+     * Stack of expected return types
+     */
+    ptr_list *expected_return_types;
+
+    unsigned num_errors;
+
+    /**
      * Whether ellipsis is allowed in the current context
      */
     bool ellipsis_allowed;
 
     bool encountered_server_path_assignment;
     bool encountered_project_files_assignment;
-
-    unsigned num_errors;
 };
 typedef struct _lstf_semanticanalyzer lstf_semanticanalyzer;
 

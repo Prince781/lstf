@@ -100,7 +100,8 @@ compiler_lib = static_library('compiler',
     'compiler/lstf-typesymbol.c',
     'compiler/lstf-uniontype.c',
     'compiler/lstf-unresolvedtype.c',
-    'compiler/lstf-variable.c'
+    'compiler/lstf-variable.c',
+    'compiler/lstf-voidtype.c'
   ],
   c_args: c_args,
 )

@@ -54,3 +54,5 @@ void lstf_typesymbol_destruct(lstf_codenode *code_node);
 void lstf_typesymbol_add_member(lstf_typesymbol *self, lstf_symbol *member);
 
 lstf_symbol *lstf_typesymbol_get_member(lstf_typesymbol *self, const char *member_name);
+
+lstf_symbol *lstf_typesymbol_lookup(lstf_typesymbol *self, const char *member_name);

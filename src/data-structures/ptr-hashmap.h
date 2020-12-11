@@ -12,22 +12,27 @@ struct _ptr_hashmap_entry {
     void *key;
     void *value;
     ptr_list_node *node_in_bucket_entries_list;
+    ptr_list_node *node_in_entries_list;
 };
 typedef struct _ptr_hashmap_entry ptr_hashmap_entry;
 
 struct _ptr_hashmap {
     /**
-     * Each element is a ptr_hashmap_bucket
+     * Each element is a `(ptr_hashmap_bucket *)`
      */
     ptr_list *buckets_list;
 
     ptr_hashmap_bucket **buckets;
-    unsigned num_bucket_places;
 
     /**
-     * Total number of elements when you flatten the buckets.
+     * The elements of the hashmap when you flatten the buckets.
+     * This preserves the order of the inserted elements.
+     *
+     * Each element is a `(ptr_hashmap_entry *)`
      */
-    unsigned num_elements;
+    ptr_list *entries_list;
+
+    unsigned num_bucket_places;
 
     collection_item_hash_func key_hash_func;
     collection_item_ref_func key_ref_func;
@@ -61,9 +66,12 @@ void ptr_hashmap_delete(ptr_hashmap *map, void *key);
 
 bool ptr_hashmap_is_empty(const ptr_hashmap *map);
 
+unsigned ptr_hashmap_num_elements(const ptr_hashmap *map);
+
 /**
  * Returns an iterator on the entries of the hash map.
  * Cast the result of `iterator_get_item()` to `(ptr_hashmap_entry *)`.
+ * The entries are returned in the order they were inserted.
  */
 iterator ptr_hashmap_iterator_create(ptr_hashmap *map);
 

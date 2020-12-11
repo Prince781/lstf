@@ -1,11 +1,6 @@
 {
     "nullProperty": null,
     "intProperty": -9223372036854775808,
-    "objectProperty": {
-        "nullProperty": null,
-        "stringProperty": "Hello—there",
-        "arrayProperty": []
-    },
     "boolProperty": true,
     "doubleProperty": 3.141590,
     "stringProperty": "this is a string",
@@ -16,5 +11,10 @@
         "this is another string, inside an array",
         {},
         []
-    ]
+    ],
+    "objectProperty": {
+        "nullProperty": null,
+        "stringProperty": "Hello—there",
+        "arrayProperty": []
+    }
 }

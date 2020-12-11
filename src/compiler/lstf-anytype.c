@@ -33,7 +33,7 @@ static bool lstf_anytype_is_supertype_of(lstf_datatype *self, lstf_datatype *oth
     (void) self;
     assert(other != NULL && "cannot compare lstf_anytype to NULL data type");
 
-    return true;
+    return other->datatype_type != lstf_datatype_type_voidtype;
 }
 
 static lstf_datatype *lstf_anytype_copy(lstf_datatype *self)

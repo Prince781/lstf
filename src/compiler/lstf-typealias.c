@@ -51,9 +51,10 @@ lstf_typesymbol *lstf_typealias_new(const lstf_sourceref *source_reference,
 
 void lstf_typealias_set_aliased_type(lstf_typealias *self, lstf_datatype *aliased_type)
 {
+    lstf_codenode_unref(self->aliased_type);
     if (lstf_codenode_cast(aliased_type)->parent_node)
         aliased_type = lstf_datatype_copy(aliased_type);
-    lstf_codenode_unref(self->aliased_type);
     self->aliased_type = lstf_codenode_ref(aliased_type);
-    lstf_codenode_set_parent(aliased_type, self);
+    lstf_codenode_set_parent(self->aliased_type, self);
+    lstf_datatype_set_symbol(self->aliased_type, self);
 }
