@@ -14,4 +14,4 @@ fun do_nothing(x: thing[]): void {
     return;
 }
 
-let f: (x: integer[]) => any = do_nothing;
+let f: (x: integer[]) => void = do_nothing;

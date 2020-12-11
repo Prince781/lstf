@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
     lstf_parser *parser = lstf_parser_create(script);
     lstf_symbolresolver *resolver = lstf_symbolresolver_new(script);
     lstf_semanticanalyzer *analyzer = lstf_semanticanalyzer_new(script);
+    int retval = 0;
 
     lstf_parser_parse(parser);
     if (parser->scanner->num_errors + parser->num_errors == 0) {
@@ -39,17 +40,20 @@ int main(int argc, char *argv[])
             if (analyzer->num_errors == 0) {
             } else {
                 fprintf(stderr, "%u error(s) generated.\n", analyzer->num_errors);
+                retval = 1;
             }
         } else {
             fprintf(stderr, "%u error(s) generated.\n", resolver->num_errors);
+            retval = 1;
         }
     } else {
         fprintf(stderr, "%u error(s) generated.\n", parser->scanner->num_errors + parser->num_errors);
+        retval = 1;
     }
 
     lstf_parser_destroy(parser);
     lstf_symbolresolver_destroy(resolver);
     lstf_semanticanalyzer_destroy(analyzer);
     lstf_file_unload(script);
-    return 0;
+    return retval;
 }

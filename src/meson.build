@@ -111,7 +111,7 @@ compiler = declare_dependency(
   link_with: [compiler_lib],
 )
 
-executable('lstf',
+lstf = executable('lstf',
   dependencies: [compiler],
   c_args: c_args,
   sources: ['main.c'],
