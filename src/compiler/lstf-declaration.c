@@ -73,3 +73,9 @@ lstf_statement *lstf_declaration_new_from_type_alias(const lstf_sourceref *sourc
 {
     return lstf_declaration_new(source_reference, lstf_symbol_cast(type_alias));
 }
+
+lstf_statement *lstf_declaration_new_from_variable(const lstf_sourceref *source_reference,
+                                                   lstf_variable        *variable)
+{
+    return lstf_declaration_new(source_reference, lstf_symbol_cast(variable));
+}

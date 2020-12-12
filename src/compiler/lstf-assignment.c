@@ -32,7 +32,6 @@ static const lstf_codenode_vtable assignment_vtable = {
 };
 
 lstf_statement *lstf_assignment_new(const lstf_sourceref *source_reference,
-                                    bool                  is_declaration, 
                                     lstf_expression      *lhs, 
                                     lstf_expression      *rhs)
 {
@@ -43,7 +42,6 @@ lstf_statement *lstf_assignment_new(const lstf_sourceref *source_reference,
             source_reference, 
             lstf_statement_type_assignment);
 
-    stmt->is_declaration = is_declaration;
     stmt->lhs = lstf_codenode_ref(lhs);
     lstf_codenode_set_parent(lhs, stmt);
     stmt->rhs = lstf_codenode_ref(rhs);

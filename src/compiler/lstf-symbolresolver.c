@@ -58,68 +58,7 @@ lstf_symbolresolver_visit_array(lstf_codevisitor *visitor, lstf_array *array)
 static void
 lstf_symbolresolver_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *assign)
 {
-    lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
-    lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
-
-    // resolve rhs before resolving lhs in case scope would be modified by declaration
-    lstf_codenode_accept(assign->rhs, visitor);
-    lstf_variable *lhs_declared = NULL;
-
-    if (assign->is_declaration) {
-        assert(assign->lhs->expr_type == lstf_expression_type_memberaccess &&
-                ((lstf_memberaccess *)assign->lhs)->inner == NULL &&
-                "`let' assignment must have identifier after keyword");
-
-        lstf_symbol *lhs_variable = lstf_variable_new(&((lstf_codenode *)assign->lhs)->source_reference, 
-                ((lstf_memberaccess *)assign->lhs)->member_name,
-                false);
-
-        lstf_symbol *clashing_var = NULL;
-        if ((clashing_var = lstf_scope_lookup(current_scope, lhs_variable->name))) {
-            if (clashing_var->is_builtin) {
-                const char *symbol_type = "symbol";
-                switch (clashing_var->symbol_type) {
-                    case lstf_symbol_type_function:
-                        symbol_type = "function";
-                        break;
-                    case lstf_symbol_type_typesymbol:
-                        symbol_type = "type";
-                        break;
-                    case lstf_symbol_type_variable:
-                        symbol_type = "variable";
-                        break;
-                    case lstf_symbol_type_objectproperty:
-                    case lstf_symbol_type_interfaceproperty:
-                        symbol_type = "property";
-                        break;
-                    case lstf_symbol_type_constant:
-                        symbol_type = "constant";
-                        break;
-                }
-                lstf_report_error(&((lstf_codenode *)lhs_variable)->source_reference, 
-                        "redefinition of reserved %s `%s'", symbol_type, lhs_variable->name);
-            } else {
-                lstf_report_error(&((lstf_codenode *)lhs_variable)->source_reference, 
-                        "redefinition of `%s'", lhs_variable->name);
-                lstf_report_note(&((lstf_codenode *)clashing_var)->source_reference,
-                        "previous definition of `%s' was here", lhs_variable->name);
-            }
-            resolver->num_errors++;
-            lstf_codenode_unref(lhs_variable);
-            return;
-        }
-        lstf_scope_add_symbol(current_scope, lhs_variable);
-        assign->lhs->symbol_reference = lhs_variable;
-        lhs_declared = (lstf_variable *)lhs_variable;
-        // also resolve the explicit data type, if there is one
-        if (assign->lhs->value_type)
-            lstf_codenode_accept(assign->lhs->value_type, visitor);
-    }
-    lstf_codenode_accept(assign->lhs, visitor);
-
-    if (lhs_declared && assign->lhs->value_type) {
-        lstf_variable_set_variable_type(lhs_declared, assign->lhs->value_type);
-    }
+    lstf_codenode_accept_children(assign, visitor);
 }
 
 static void
@@ -317,21 +256,19 @@ lstf_symbolresolver_visit_file(lstf_codevisitor *visitor, lstf_file *file)
 {
     // create built-in variables and functions
     lstf_sourceref src = lstf_sourceref_default_from_file(file);
-    lstf_symbol *server_path = lstf_variable_new(&src, "server_path", true);
-    lstf_variable_set_variable_type(lstf_variable_cast(server_path), lstf_stringtype_new(&src));
+    lstf_symbol *server_path = lstf_variable_new(&src, 
+            "server_path", lstf_stringtype_new(&src), NULL, true);
     lstf_scope_add_symbol(file->main_block->scope, server_path);
 
-    lstf_symbol *project_files = lstf_variable_new(&src, "project_files", true);
-    lstf_variable_set_variable_type(lstf_variable_cast(project_files),
-            lstf_arraytype_new(&src, lstf_stringtype_new(&src)));
+    lstf_symbol *project_files = lstf_variable_new(&src,
+            "project_files", lstf_arraytype_new(&src, lstf_stringtype_new(&src)), NULL, true);
     lstf_scope_add_symbol(file->main_block->scope, project_files);
 
     lstf_function *diagnostics = (lstf_function *)
         lstf_function_new(&src, "diagnostics", lstf_anytype_new(&src), false, true, true);
     lstf_variable *diagnostics_args[] = {
-        (lstf_variable *)lstf_variable_new(&src, "file", true),
+        (lstf_variable *)lstf_variable_new(&src, "file", lstf_stringtype_new(&src), NULL, true),
     };
-    lstf_variable_set_variable_type(diagnostics_args[0], lstf_stringtype_new(&src));
 
     for (unsigned i = 0; i < sizeof(diagnostics_args) / sizeof(diagnostics_args[0]); i++)
         lstf_function_add_parameter(diagnostics, diagnostics_args[i]);
@@ -369,7 +306,8 @@ lstf_symbolresolver_visit_interface(lstf_codevisitor *visitor, lstf_interface *i
     lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
     lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
 
-    lstf_scope_add_symbol(current_scope, lstf_symbol_cast(interface));
+    if (!interface->is_anonymous)
+        lstf_scope_add_symbol(current_scope, lstf_symbol_cast(interface));
     lstf_codenode_accept_children(interface, visitor);
 }
 
@@ -482,27 +420,23 @@ static void
 lstf_symbolresolver_visit_variable(lstf_codevisitor *visitor, lstf_variable *variable)
 {
     lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
-    lstf_function *parent_function = lstf_function_cast(((lstf_codenode *)variable)->parent_node);
-
-    if (parent_function) {
-        // then this is a parameter declaration
-        lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
-        lstf_symbol *clashing_param = lstf_scope_get_symbol(current_scope, ((lstf_symbol *)variable)->name);
-
-        if (clashing_param) {
-            lstf_report_error(&((lstf_codenode *)variable)->source_reference,
-                    "duplicate parameter `%s'",
-                    ((lstf_symbol *)variable)->name);
-            lstf_report_note(&((lstf_codenode *)clashing_param)->source_reference,
-                    "previous declaration of parameter `%s' was here",
-                    clashing_param->name);
-            resolver->num_errors++;
-            return;
-        }
-        lstf_scope_add_symbol(current_scope, (lstf_symbol *)variable);
-    }
 
     lstf_codenode_accept_children(variable, visitor);
+
+    lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
+    lstf_symbol *clashing_param = lstf_scope_get_symbol(current_scope, ((lstf_symbol *)variable)->name);
+
+    if (clashing_param) {
+        lstf_report_error(&((lstf_codenode *)variable)->source_reference,
+                "duplicate parameter `%s'",
+                ((lstf_symbol *)variable)->name);
+        lstf_report_note(&((lstf_codenode *)clashing_param)->source_reference,
+                "previous declaration of parameter `%s' was here",
+                clashing_param->name);
+        resolver->num_errors++;
+        return;
+    }
+    lstf_scope_add_symbol(current_scope, (lstf_symbol *)variable);
 }
 
 static const lstf_codevisitor_vtable symbolresolver_vtable = {
@@ -540,7 +474,6 @@ lstf_symbolresolver *lstf_symbolresolver_new(lstf_file *file)
     resolver->file = file;
     resolver->scopes = ptr_list_new((collection_item_ref_func) lstf_codenode_ref, 
             (collection_item_unref_func) lstf_codenode_unref);
-    resolver->expected_element_type = NULL;
 
     return resolver;
 }

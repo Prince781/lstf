@@ -20,8 +20,10 @@ static void lstf_interfacetype_accept(lstf_codenode *node, lstf_codevisitor *vis
 
 static void lstf_interfacetype_accept_children(lstf_codenode *node, lstf_codevisitor *visitor)
 {
-    (void) node;
-    (void) visitor;
+    lstf_datatype *self = (lstf_datatype *)node;
+
+    if (lstf_interface_cast(self->symbol)->is_anonymous)
+        lstf_codenode_accept(self->symbol, visitor);
 }
 
 static void lstf_interfacetype_destruct(lstf_codenode *node)

@@ -126,52 +126,13 @@ lstf_semanticanalyzer_visit_assignment(lstf_codevisitor *visitor, lstf_assignmen
     lstf_scope *current_scope = ptr_list_node_get_data(analyzer->scopes->tail, lstf_scope *);
 
     // resolve LHS
-    if (assign->is_declaration) {
-        lstf_variable *variable = lstf_variable_cast(assign->lhs->symbol_reference);
-
-        if (!variable) {
-            lstf_report_error(&lstf_codenode_cast(assign)->source_reference,
-                    "left hand of assignment must be a variable");
-            analyzer->num_errors++;
-            return;
-        }
-
-        if (!variable->variable_type) {
-            // the variable does not have an explicit type, so set
-            // it to the type of the RHS
-
-            // resolve RHS first
-            bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
-            analyzer->ellipsis_allowed = false;
-            lstf_codenode_accept(assign->rhs, visitor);
-            analyzer->ellipsis_allowed = old_ellipsis_allowed;
-
-            if (assign->rhs->value_type) {
-                lstf_variable_set_variable_type(variable, assign->rhs->value_type);
-                // resolve LHS
-                lstf_expression_set_value_type(assign->lhs, assign->rhs->value_type);
-            }
-        } else {
-            // the variable *does* have an explicit type
-            if (!assign->lhs->value_type)
-                lstf_expression_set_value_type(assign->lhs, variable->variable_type);
-            // resolve RHS
-            bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
-            analyzer->ellipsis_allowed = false;
-            ptr_list_append(analyzer->expected_expression_types, variable->variable_type);
-            lstf_codenode_accept(assign->rhs, visitor);
-            ptr_list_remove_last_link(analyzer->expected_expression_types);
-            analyzer->ellipsis_allowed = old_ellipsis_allowed;
-        }
-    } else {
-        bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
-        analyzer->ellipsis_allowed = false;
-        lstf_codenode_accept(assign->lhs, visitor);
-        ptr_list_append(analyzer->expected_expression_types, assign->lhs->value_type);
-        lstf_codenode_accept(assign->rhs, visitor);
-        ptr_list_remove_last_link(analyzer->expected_expression_types);
-        analyzer->ellipsis_allowed = old_ellipsis_allowed;
-    }
+    bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
+    analyzer->ellipsis_allowed = false;
+    lstf_codenode_accept(assign->lhs, visitor);
+    ptr_list_append(analyzer->expected_expression_types, assign->lhs->value_type);
+    lstf_codenode_accept(assign->rhs, visitor);
+    ptr_list_remove_last_link(analyzer->expected_expression_types);
+    analyzer->ellipsis_allowed = old_ellipsis_allowed;
 
     if (assign->lhs->symbol_reference == lstf_scope_lookup(current_scope, "server_path"))
         analyzer->encountered_server_path_assignment = true;
@@ -611,6 +572,36 @@ lstf_semanticanalyzer_visit_return_statement(lstf_codevisitor *visitor, lstf_ret
     }
 }
 
+static void
+lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *variable)
+{
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    if (!variable->variable_type) {
+        // the variable does not have an explicit type, so set
+        // it to the type of the RHS
+        assert(variable->initializer && "untyped variable must have an initializer!");
+
+        // resolve RHS first
+        bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
+        analyzer->ellipsis_allowed = false;
+        lstf_codenode_accept(variable->initializer, visitor);
+        analyzer->ellipsis_allowed = old_ellipsis_allowed;
+
+        if (variable->initializer->value_type)
+            lstf_variable_set_variable_type(variable, variable->initializer->value_type);
+    } else if (variable->initializer) {
+        // the variable *does* have an explicit type
+        // resolve RHS
+        bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
+        analyzer->ellipsis_allowed = false;
+        ptr_list_append(analyzer->expected_expression_types, variable->variable_type);
+        lstf_codenode_accept(variable->initializer, visitor);
+        ptr_list_remove_last_link(analyzer->expected_expression_types);
+        analyzer->ellipsis_allowed = old_ellipsis_allowed;
+    }
+}
+
 static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_array,
     lstf_semanticanalyzer_visit_assignment,
@@ -635,7 +626,7 @@ static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_pattern_test,
     lstf_semanticanalyzer_visit_return_statement,
     NULL /* visit_type_alias */,
-    NULL /* visit_variable */
+    lstf_semanticanalyzer_visit_variable
 };
 
 lstf_semanticanalyzer *lstf_semanticanalyzer_new(lstf_file *file)
