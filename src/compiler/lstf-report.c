@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include "lstf-report.h"
 
 static const char *lstf_report_domain_to_string(lstf_report_domain domain)
@@ -19,6 +21,9 @@ static const char *lstf_report_domain_to_string(lstf_report_domain domain)
     abort();
 }
 
+#ifdef max
+#undef max
+#endif
 static unsigned max(unsigned a, unsigned b)
 {
     return a > b ? a : b;
@@ -29,12 +34,9 @@ static unsigned max(unsigned a, unsigned b)
 #include <consoleapi.h>
 #include <io.h>
 static bool is_ascii_terminal(FILE *file) {
-    HANDLE file_handle = _get_osfhandle(fileno(file));
-    if (!file_handle)
-        return false;
-    HWND win32_console_hwnd = GetStdHandle(file_handle);
+    HWND win32_console_hwnd = GetStdHandle(_fileno(file));
     if (win32_console_hwnd)
-        return !!SetConsoleMode(win32_console, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        return !!SetConsoleMode(win32_console_hwnd, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     return false;
 }
 #else

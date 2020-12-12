@@ -357,7 +357,7 @@ json_node *json_object_new(void)
  */
 static char *json_member_name_canonicalize(const char *member_name)
 {
-    int cmember_size = strlen(member_name) + 1;
+    size_t cmember_size = strlen(member_name) + 1;
     int cmember_length = 0;
     char *cmember_name = calloc(1, cmember_size);
 

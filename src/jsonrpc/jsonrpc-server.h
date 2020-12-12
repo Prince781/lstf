@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <sys/time.h>
 
 struct _jsonrpc_server;
 typedef struct _jsonrpc_server jsonrpc_server;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-common.h"
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -16,7 +17,7 @@ string *string_append_va(string *sb, const char *format, va_list args)
     __attribute__((format (printf, 2, 0)));
 
 string *string_appendf(string *sb, const char *format, ...)
-    __attribute__ ((format (printf, 2, 3)));
+    __attribute__((format (printf, 2, 3)));
 
 string *string_clear(string *sb);
 

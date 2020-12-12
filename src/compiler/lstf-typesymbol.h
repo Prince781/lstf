@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-common.h"
 #include "lstf-scope.h"
 #include "data-structures/iterator.h"
 #include "lstf-codenode.h"

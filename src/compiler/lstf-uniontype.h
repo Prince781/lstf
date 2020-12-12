@@ -1,3 +1,6 @@
+#pragma once
+
+#include "lstf-common.h"
 #include "lstf-sourceref.h"
 #include "data-structures/ptr-list.h"
 #include "lstf-datatype.h"

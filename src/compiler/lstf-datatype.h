@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-common.h"
 #include "lstf-symbol.h"
 #include "lstf-sourceref.h"
 #include "lstf-codenode.h"

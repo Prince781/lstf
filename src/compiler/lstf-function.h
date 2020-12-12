@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-common.h"
 #include "lstf-statement.h"
 #include "lstf-variable.h"
 #include "lstf-sourceref.h"

@@ -46,9 +46,22 @@ const char *json_token_to_string(json_token token)
 }
 
 #if (_WIN32 || _WIN64)
-#warning "TODO: implement get_filename_from_fd() on Windows"
+#include <windows.h>
+#include <io.h>
 static char *get_filename_from_fd(int fd) {
-    return NULL;
+    HANDLE fh = (HANDLE) _get_osfhandle(fd);
+    char resolved_path[MAX_PATH] = { '\0' };
+    DWORD ret = 0;
+
+    if (!fh) {
+        fprintf(stderr, "%s: could not get OS f-handle from fd %d\n", __func__, fd);
+        return NULL;
+    }
+
+    if (!(ret = GetFinalPathNameByHandle(fh, resolved_path, sizeof resolved_path, 0)))
+        return NULL;
+
+    return _strdup(resolved_path);
 }
 #else
 #include <unistd.h>

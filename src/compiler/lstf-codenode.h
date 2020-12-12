@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-common.h"
 #include "lstf-sourceref.h"
 #include <stdbool.h>
 #include <stddef.h>

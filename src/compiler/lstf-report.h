@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-common.h"
 #include "lstf-sourceref.h"
 
 enum _lstf_report_domain {
