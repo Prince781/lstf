@@ -34,9 +34,9 @@ static unsigned max(unsigned a, unsigned b)
 #include <consoleapi.h>
 #include <io.h>
 static bool is_ascii_terminal(FILE *file) {
-    HWND win32_console_hwnd = GetStdHandle(_fileno(file));
-    if (win32_console_hwnd)
-        return !!SetConsoleMode(win32_console_hwnd, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    HANDLE file_handle = (HANDLE) _get_osfhandle(fileno(file));
+    if (file_handle)
+        return !!SetConsoleMode(file_handle, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     return false;
 }
 #else
