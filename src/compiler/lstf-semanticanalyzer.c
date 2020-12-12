@@ -177,6 +177,11 @@ lstf_semanticanalyzer_visit_declaration(lstf_codevisitor *visitor, lstf_declarat
 }
 
 static void
+lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_elementaccess *access)
+{
+}
+
+static void
 lstf_semanticanalyzer_visit_ellipsis(lstf_codevisitor *visitor, lstf_ellipsis *ellipsis)
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
@@ -425,6 +430,63 @@ lstf_semanticanalyzer_visit_member_access(lstf_codevisitor *visitor, lstf_member
 }
 
 static void
+lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodcall* mcall)
+{
+    lstf_semanticanalyzer* analyzer = (lstf_semanticanalyzer*)visitor;
+
+    lstf_codenode_accept(mcall->call, visitor);
+
+    if (!mcall->call->value_type)
+        return;
+
+    if (mcall->call->value_type->datatype_type != lstf_datatype_type_functiontype) {
+        char* call_dt = lstf_datatype_to_string(mcall->call->value_type);
+        lstf_report_error(&lstf_codenode_cast(mcall->call)->source_reference,
+            "expression of type `%s' is not callable", call_dt);
+        analyzer->num_errors++;
+        free(call_dt);
+        return;
+    }
+
+    lstf_functiontype* call_ft = lstf_functiontype_cast(mcall->call->value_type);
+
+    // 1. check arguments are correct
+    iterator ft_paramname_it = ptr_list_iterator_create(call_ft->parameter_names);
+    iterator ft_paramtype_it = ptr_list_iterator_create(call_ft->parameter_types);
+    iterator call_argexpr_it = ptr_list_iterator_create(mcall->arguments);
+
+    while (ft_paramname_it.has_next && ft_paramtype_it.has_next && call_argexpr_it.has_next) {
+        const char* param_name = iterator_get_item(ft_paramname_it);
+        lstf_datatype* param_type = iterator_get_item(ft_paramtype_it);
+        lstf_expression* argument = iterator_get_item(call_argexpr_it);
+
+        ptr_list_append(analyzer->expected_expression_types, param_type);
+        lstf_codenode_accept(argument, visitor);
+        ptr_list_remove_last_link(analyzer->expected_expression_types);
+
+        ft_paramname_it = iterator_next(ft_paramname_it);
+        ft_paramtype_it = iterator_next(ft_paramtype_it);
+        call_argexpr_it = iterator_next(call_argexpr_it);
+    }
+
+    if (ft_paramtype_it.has_next && !call_argexpr_it.has_next) {
+        lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
+            "expected %u arguments to function instead of only %u",
+            call_ft->parameter_types->length,
+            mcall->arguments->length);
+        analyzer->num_errors++;
+    } else if (!ft_paramtype_it.has_next && call_argexpr_it.has_next) {
+        lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
+            "expected %u arguments to function instead of %u",
+            call_ft->parameter_types->length,
+            mcall->arguments->length);
+        analyzer->num_errors++;
+    }
+
+    lstf_expression_set_value_type(lstf_expression_cast(mcall), call_ft->return_type);
+}
+
+static void
 lstf_semanticanalyzer_visit_object(lstf_codevisitor *visitor, lstf_object *object)
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
@@ -620,7 +682,7 @@ static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     NULL /* visit_interface_property */,
     lstf_semanticanalyzer_visit_literal,
     lstf_semanticanalyzer_visit_member_access,
-    NULL /* visit_method_call */,
+    lstf_semanticanalyzer_visit_method_call,
     lstf_semanticanalyzer_visit_object,
     lstf_semanticanalyzer_visit_object_property,
     lstf_semanticanalyzer_visit_pattern_test,

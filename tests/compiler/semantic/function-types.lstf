@@ -1,5 +1,5 @@
 server_path = '/usr/bin/vala-language-server';
-project_files = [];
+project_files = ['/dev/null'];
 
 interface A {
     aProperty: number;

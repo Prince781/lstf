@@ -1,0 +1,9 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = ['/dev/null'];
+
+fun strdup(x: string): string {
+    return x;
+}
+
+let y = strdup("hello");
+y = "goodbye";

@@ -178,13 +178,11 @@ lstf_parser_parse_expression(lstf_parser *parser, lstf_parsererror **error);
 
 static lstf_expression *
 lstf_parser_parse_method_call_expression(lstf_parser       *parser, 
-                                         lstf_sourceloc     begin,
                                          lstf_expression   *call,
                                          lstf_parsererror **error);
 
 static lstf_expression *
 lstf_parser_parse_element_access_expression(lstf_parser       *parser, 
-                                            lstf_sourceloc     begin,
                                             lstf_expression   *inner,
                                             lstf_parsererror **error);
 
@@ -524,10 +522,10 @@ lstf_parser_parse_expression(lstf_parser *parser, lstf_parsererror **error)
             next_expr = lstf_parser_parse_member_access_expression(parser, expression, error);
             break;
         case lstf_token_openparen:
-            next_expr = lstf_parser_parse_method_call_expression(parser, begin, expression, error);
+            next_expr = lstf_parser_parse_method_call_expression(parser, expression, error);
             break;
         case lstf_token_openbracket:
-            next_expr = lstf_parser_parse_element_access_expression(parser, begin, expression, error);
+            next_expr = lstf_parser_parse_element_access_expression(parser, expression, error);
             break;
         default:
             break;
@@ -572,7 +570,7 @@ lstf_parser_parse_assignment_statement(lstf_parser *parser, lstf_parsererror **e
             next_expr = lstf_parser_parse_member_access_expression(parser, lhs, error);
             break;
         case lstf_token_openbracket:
-            next_expr = lstf_parser_parse_element_access_expression(parser, var_begin, lhs, error);
+            next_expr = lstf_parser_parse_element_access_expression(parser, lhs, error);
             break;
         default:
             break;
@@ -1313,11 +1311,10 @@ lstf_parser_parse_declaration_statement(lstf_parser *parser, lstf_parsererror **
 
 static lstf_expression *
 lstf_parser_parse_method_call_expression(lstf_parser       *parser, 
-                                         lstf_sourceloc     begin,
                                          lstf_expression   *call,
                                          lstf_parsererror **error)
 {
-
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     if (!lstf_parser_expect_token(parser, lstf_token_openparen, error))
         return NULL;
 
@@ -1340,17 +1337,21 @@ lstf_parser_parse_method_call_expression(lstf_parser       *parser,
     }
 
     return lstf_methodcall_new(
-            &(lstf_sourceref) {parser->file, begin, lstf_scanner_get_prev_end_location(parser->scanner)},
+            &(lstf_sourceref) {
+                parser->file,
+                begin,
+                lstf_scanner_get_prev_end_location(parser->scanner)
+            },
             call,
             arguments);   
 }
 
 static lstf_expression *
 lstf_parser_parse_element_access_expression(lstf_parser       *parser, 
-                                            lstf_sourceloc     begin,
                                             lstf_expression   *inner,
                                             lstf_parsererror **error)
 {
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     if (!lstf_parser_expect_token(parser, lstf_token_openbracket, error))
         return NULL;
 
@@ -1372,7 +1373,11 @@ lstf_parser_parse_element_access_expression(lstf_parser       *parser,
     }
 
     return lstf_elementaccess_new(
-            &(lstf_sourceref) {parser->file, begin, lstf_scanner_get_prev_end_location(parser->scanner)},
+            &(lstf_sourceref) {
+                parser->file,
+                begin,
+                lstf_scanner_get_prev_end_location(parser->scanner)
+            },
             inner, 
             arguments);
 }
@@ -1416,10 +1421,10 @@ lstf_parser_parse_statement_expression(lstf_parser *parser, lstf_parsererror **e
             next_expr = lstf_parser_parse_member_access_expression(parser, expression, error);
             break;
         case lstf_token_openparen:
-            next_expr = lstf_parser_parse_method_call_expression(parser, begin, expression, error);
+            next_expr = lstf_parser_parse_method_call_expression(parser, expression, error);
             break;
         case lstf_token_openbracket:
-            next_expr = lstf_parser_parse_element_access_expression(parser, begin, expression, error);
+            next_expr = lstf_parser_parse_element_access_expression(parser, expression, error);
             break;
         default:
             break;

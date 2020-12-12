@@ -1,0 +1,8 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = ['/dev/null'];
+
+fun maxof4(a: number, b: number, c: number, d: number): number {
+    return 0;   // TODO
+}
+
+let maximum_value = maxof4(1, 2);

@@ -28,7 +28,6 @@ else
       '-Wformat-truncation=2',
       '-Wformat-overflow=2',
       '-Wstrict-aliasing=3',
-      '-Wcast-align=strict',
       '-Wcast-qual',
       '-Wuninitialized'
     ])
