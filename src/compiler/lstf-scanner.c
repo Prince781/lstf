@@ -505,6 +505,13 @@ lstf_sourceloc lstf_scanner_get_location(const lstf_scanner *scanner)
     return scanner->token_beginnings[scanner->current_token_idx];
 }
 
+lstf_sourceloc lstf_scanner_get_end_location(const lstf_scanner *scanner)
+{
+    assert(scanner->current_token_idx < scanner->num_tokens);
+
+    return scanner->token_endings[scanner->current_token_idx];
+}
+
 lstf_sourceloc lstf_scanner_get_prev_end_location(const lstf_scanner *scanner)
 {
     assert(scanner->current_token_idx > 0);

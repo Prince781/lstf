@@ -1,0 +1,6 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = ['/dev/null'];
+
+let o = { propertyName: false };
+o["property-name"] = true;
+o["propertyName"] = 2;

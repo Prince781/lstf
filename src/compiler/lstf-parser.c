@@ -1,6 +1,6 @@
 #include "lstf-parser.h"
 #include "lstf-variable.h"
-#include "compiler/lstf-returnstatement.h"
+#include "lstf-returnstatement.h"
 #include "lstf-nulltype.h"
 #include "lstf-arraytype.h"
 #include "lstf-functiontype.h"
@@ -405,6 +405,8 @@ lstf_parser_parse_literal_expression(lstf_parser *parser, lstf_parsererror **err
     }   break;
     case lstf_token_keyword_false:
     case lstf_token_keyword_true:
+    {
+        const lstf_token token = lstf_scanner_current(parser->scanner);
         lstf_scanner_next(parser->scanner);
         expression = lstf_literal_new(&(lstf_sourceref) {
                     parser->file,
@@ -412,9 +414,22 @@ lstf_parser_parse_literal_expression(lstf_parser *parser, lstf_parsererror **err
                     lstf_scanner_get_prev_end_location(parser->scanner)
                 },
                 lstf_literal_type_boolean, 
-                (lstf_literal_value) {.boolean_value = lstf_scanner_current(parser->scanner) == lstf_token_keyword_true});
-        break;
+                (lstf_literal_value) {.boolean_value = token == lstf_token_keyword_true});
+    }   break;
     case lstf_token_string:
+    {
+        lstf_sourceloc end = lstf_scanner_get_end_location(parser->scanner);
+        char *token_string = lstf_sourceref_get_string(
+                (lstf_sourceloc) {
+                    begin.line,
+                    begin.column + 1,
+                    begin.pos + 1
+                },
+                (lstf_sourceloc) {
+                    end.line,
+                    end.column - 1,
+                    end.pos - 1
+                });
         lstf_scanner_next(parser->scanner);
         expression = lstf_literal_new(&(lstf_sourceref) {
                     parser->file,
@@ -422,8 +437,8 @@ lstf_parser_parse_literal_expression(lstf_parser *parser, lstf_parsererror **err
                     lstf_scanner_get_prev_end_location(parser->scanner)
                 },
                 lstf_literal_type_string,
-                (lstf_literal_value) {.string_value = lstf_scanner_get_current_string(parser->scanner)});
-        break;
+                (lstf_literal_value) {.string_value = token_string});
+    }   break;
     default:
         *error = lstf_parsererror_new(&lstf_sourceref_at_location(parser->file, begin), "expected a literal expression");
         break;
@@ -1357,9 +1372,15 @@ lstf_parser_parse_element_access_expression(lstf_parser       *parser,
 
     ptr_list *arguments = ptr_list_new((collection_item_ref_func) lstf_codenode_ref, 
             (collection_item_unref_func) lstf_codenode_unref);
-    lstf_expression *arg = NULL;
+    lstf_expression *arg = lstf_parser_parse_expression(parser, error);
 
-    if (lstf_scanner_current(parser->scanner) != lstf_token_closebracket) {
+    if (!arg) {
+        ptr_list_destroy(arguments);
+        return NULL;
+    }
+
+    ptr_list_append(arguments, arg);
+    if (lstf_parser_accept_token(parser, lstf_token_comma)) {
         while ((arg = lstf_parser_parse_expression(parser, error))) {
             ptr_list_append(arguments, arg);
             if (!lstf_parser_accept_token(parser, lstf_token_comma))

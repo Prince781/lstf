@@ -85,6 +85,11 @@ json_node *json_array_new(void);
 
 json_node *json_array_add_element(json_node *node, json_node *element);
 
+/**
+ * Canonicalize to camelCase. Return value must be free()'d when done with.
+ */
+char *json_member_name_canonicalize(const char *member_name);
+
 json_node *json_object_new(void);
 
 json_node *json_object_set_member(json_node *node, const char *member_name, json_node *member_value);

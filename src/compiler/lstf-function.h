@@ -59,6 +59,8 @@ lstf_symbol *lstf_function_new(const lstf_sourceref *source_reference,
 
 void lstf_function_add_parameter(lstf_function *function, lstf_variable *variable);
 
+lstf_variable *lstf_function_get_parameter(lstf_function *function, const char *parameter_name);
+
 void lstf_function_set_return_type(lstf_function *function, lstf_datatype *data_type);
 
 void lstf_function_add_statement(lstf_function *function, lstf_statement *statement);

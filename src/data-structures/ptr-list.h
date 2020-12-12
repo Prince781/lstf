@@ -46,6 +46,8 @@ ptr_list_node *ptr_list_replace(ptr_list                     *list,
 
 void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node);
 
+void *ptr_list_remove_first_link(ptr_list *list);
+
 void *ptr_list_remove_last_link(ptr_list *list);
 
 void ptr_list_clear(ptr_list *list);

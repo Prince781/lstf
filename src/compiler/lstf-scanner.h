@@ -81,6 +81,11 @@ lstf_token lstf_scanner_rewind(lstf_scanner *scanner, unsigned position);
 lstf_sourceloc lstf_scanner_get_location(const lstf_scanner *scanner);
 
 /**
+ * Gets the end of the current token.
+ */
+lstf_sourceloc lstf_scanner_get_end_location(const lstf_scanner *scanner);
+
+/**
  * Gets the end of the previous token.
  */
 lstf_sourceloc lstf_scanner_get_prev_end_location(const lstf_scanner *scanner);

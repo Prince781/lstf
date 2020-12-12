@@ -7,9 +7,9 @@ struct _lstf_elementaccess {
     lstf_expression parent_struct;
 
     /**
-     * base inner expression
+     * expression representing the container we want to access
      */
-    lstf_expression *inner;
+    lstf_expression *container;
 
     /**
      * list of [lstf_expression]s
@@ -19,5 +19,5 @@ struct _lstf_elementaccess {
 typedef struct _lstf_elementaccess lstf_elementaccess;
 
 lstf_expression *lstf_elementaccess_new(const lstf_sourceref *source_reference,
-                                        lstf_expression      *inner,
+                                        lstf_expression      *container,
                                         ptr_list             *arguments);

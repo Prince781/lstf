@@ -7,6 +7,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-expression.h"
+#include <assert.h>
 #include <stdlib.h>
 
 static void lstf_literal_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -53,4 +54,37 @@ lstf_expression *lstf_literal_new(const lstf_sourceref *source_reference,
     lit->value = literal_value;
 
     return (lstf_expression *)lit;
+}
+
+bool lstf_literal_is_null(const lstf_literal *lit)
+{
+    return lit->literal_type == lstf_literal_type_null;
+}
+
+int64_t lstf_literal_get_integer(const lstf_literal *lit)
+{
+    assert(lit->literal_type == lstf_literal_type_integer && "get_integer() called on literal that's not an integer!");
+
+    return lit->value.integer_value;
+}
+
+double lstf_literal_get_double(const lstf_literal *lit)
+{
+    assert(lit->literal_type == lstf_literal_type_double && "get_double() called on literal that's not a double!");
+
+    return lit->value.double_value;
+}
+
+bool lstf_literal_get_boolean(const lstf_literal *lit)
+{
+    assert(lit->literal_type == lstf_literal_type_boolean && "get_boolean() called on literal that's not a boolean!");
+
+    return lit->value.boolean_value;
+}
+
+const char *lstf_literal_get_string(const lstf_literal *lit)
+{
+    assert(lit->literal_type == lstf_literal_type_string && "get_string() called on literal that's not a string!");
+
+    return lit->value.string_value;
 }

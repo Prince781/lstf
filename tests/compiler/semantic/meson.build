@@ -19,6 +19,11 @@ test('semantic-invalid-assignments', lstf, suite: 'compiler', should_fail: true,
 test('semantic-not-callable', lstf, suite: 'compiler', should_fail: true,
   args: [meson.source_root() + '/tests/compiler/semantic/not-callable.lstf'])
 
+test('semantic-object-element-access', lstf, suite: 'compiler',
+  args: [meson.source_root() + '/tests/compiler/semantic/object-element-access.lstf'])
+
+test('semantic-string-element-access', lstf, suite: 'compiler',
+  args: [meson.source_root() + '/tests/compiler/semantic/string-element-access.lstf'])
 
 test('semantic-too-many-arguments', lstf, suite: 'compiler', should_fail: true,
   args: [meson.source_root() + '/tests/compiler/semantic/too-many-arguments.lstf'])

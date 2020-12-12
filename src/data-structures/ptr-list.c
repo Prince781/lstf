@@ -105,6 +105,11 @@ void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node)
     return data;
 }
 
+void *ptr_list_remove_first_link(ptr_list *list)
+{
+    return ptr_list_remove_link(list, list->head);
+}
+
 void *ptr_list_remove_last_link(ptr_list *list)
 {
     return ptr_list_remove_link(list, list->tail);

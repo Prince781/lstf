@@ -3,7 +3,7 @@
 <await_expression> -> await <expression>
 <data_type> -> <simple_data_type> ['|' <simple_data_type> ...]
 <declaration_statement> -> <enum_declaration> | <function_declaration> | <interface_declaration> | <type_alias_declaration> | <variable_declaration>
-<element_access_expression> -> <expression> '[' [<expression> [<expression> ...]] ']'
+<element_access_expression> -> <expression> '[' <expression> [',' <expression> ...] ']'
 <element_data_type> -> null | identifier | '(' <data_type> ')' | <object_data_type>
 <ellipsis_expression> -> '...'
 <enum_declaration> -> 'enum' identifier '{' <enum_member> [',' <enum_member> ...] '}'

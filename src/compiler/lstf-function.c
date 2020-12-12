@@ -89,6 +89,21 @@ void lstf_function_add_parameter(lstf_function *function, lstf_variable *variabl
     lstf_codenode_set_parent(variable, function);
 }
 
+static bool compare_parameter_name_to_parameter(const void *param, void *var)
+{
+    const char *parameter_name = param;
+
+    return strcmp(parameter_name, lstf_symbol_cast(var)->name);
+}
+
+lstf_variable *lstf_function_get_parameter(lstf_function *function, const char *parameter_name)
+{
+    ptr_list_node *found = ptr_list_find(function->parameters, parameter_name,
+            (collection_item_equality_func) compare_parameter_name_to_parameter);
+
+    return found ? ptr_list_node_get_data(found, lstf_variable *) : NULL;
+}
+
 void lstf_function_set_return_type(lstf_function *function, lstf_datatype *data_type)
 {
     lstf_codenode_unref(function->return_type);

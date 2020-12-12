@@ -16,7 +16,7 @@ static void lstf_elementaccess_accept_children(lstf_codenode *code_node, lstf_co
 {
     lstf_elementaccess *access = (lstf_elementaccess *)code_node;
 
-    lstf_codenode_accept(access->inner, visitor);
+    lstf_codenode_accept(access->container, visitor);
     for (iterator it = ptr_list_iterator_create(access->arguments); it.has_next; it = iterator_next(it))
         lstf_codenode_accept(iterator_get_item(it), visitor);
 }
@@ -27,8 +27,8 @@ static void lstf_elementaccess_destruct(lstf_codenode *code_node)
 
     ptr_list_destroy(expr->arguments);
     expr->arguments = NULL;
-    lstf_codenode_unref(expr->inner);
-    expr->inner = NULL;
+    lstf_codenode_unref(expr->container);
+    expr->container = NULL;
     lstf_expression_destruct(code_node);
 }
 
@@ -39,7 +39,7 @@ static const lstf_codenode_vtable elementaccess_vtable = {
 };
 
 lstf_expression *lstf_elementaccess_new(const lstf_sourceref *source_reference,
-                                        lstf_expression      *inner,
+                                        lstf_expression      *container,
                                         ptr_list             *arguments)
 {
     lstf_elementaccess *expr = calloc(1, sizeof *expr);
@@ -49,7 +49,8 @@ lstf_expression *lstf_elementaccess_new(const lstf_sourceref *source_reference,
             source_reference,
             lstf_expression_type_elementaccess);
 
-    expr->inner = lstf_codenode_ref(inner);
+    expr->container = lstf_codenode_ref(container);
+    lstf_codenode_set_parent(expr->container, expr);
     expr->arguments = arguments;
 
     for (iterator it = ptr_list_iterator_create(expr->arguments); it.has_next; it = iterator_next(it))

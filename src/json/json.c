@@ -336,26 +336,7 @@ json_node *json_array_add_element(json_node *node, json_node *element)
     return element;
 }
 
-json_node *json_object_new(void)
-{
-    json_object *node = calloc(1, sizeof *node);
-
-    ((json_node *)node)->node_type = json_node_type_object;
-    ((json_node *)node)->floating = true;
-    node->members = ptr_hashmap_new((collection_item_hash_func) strhash, 
-            (collection_item_ref_func) strdup, 
-            free,
-            (collection_item_equality_func) strequal, 
-            (collection_item_ref_func) json_node_ref,
-            (collection_item_unref_func) json_node_unref);
-
-    return (json_node *)node;
-}
-
-/**
- * Canonicalize to camelCase. Return value must be free()'d when done with.
- */
-static char *json_member_name_canonicalize(const char *member_name)
+char *json_member_name_canonicalize(const char *member_name)
 {
     size_t cmember_size = strlen(member_name) + 1;
     size_t cmember_length = 0;
@@ -386,6 +367,22 @@ static char *json_member_name_canonicalize(const char *member_name)
 
     cmember_name[cmember_length] = '\0';
     return cmember_name;
+}
+
+json_node *json_object_new(void)
+{
+    json_object *node = calloc(1, sizeof *node);
+
+    ((json_node *)node)->node_type = json_node_type_object;
+    ((json_node *)node)->floating = true;
+    node->members = ptr_hashmap_new((collection_item_hash_func) strhash, 
+            (collection_item_ref_func) strdup, 
+            free,
+            (collection_item_equality_func) strequal, 
+            (collection_item_ref_func) json_node_ref,
+            (collection_item_unref_func) json_node_unref);
+
+    return (json_node *)node;
 }
 
 json_node *json_object_set_member(json_node *node, const char *member_name, json_node *member_value)

@@ -42,6 +42,7 @@
 #include "lstf-codevisitor.h"
 #include "data-structures/ptr-list.h"
 #include "util.h"
+#include "json/json.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -179,6 +180,166 @@ lstf_semanticanalyzer_visit_declaration(lstf_codevisitor *visitor, lstf_declarat
 static void
 lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_elementaccess *access)
 {
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    lstf_codenode_accept(access->container, visitor);
+
+    if (!access->container->value_type)
+        return;
+
+    // check expression is array, object, or string
+    switch (access->container->value_type->datatype_type) {
+    case lstf_datatype_type_arraytype:
+    case lstf_datatype_type_objecttype:
+    case lstf_datatype_type_interfacetype:
+    case lstf_datatype_type_stringtype:
+        break;
+    default:
+    {
+        char *container_dt = lstf_datatype_to_string(access->container->value_type);
+        lstf_report_error(&lstf_codenode_cast(access->container)->source_reference,
+                "container expression of type `%s' is not an array, object, or string",
+                container_dt);
+        analyzer->num_errors++;
+        free(container_dt);
+        return;
+    } break;
+    }
+
+    // check that the access indices are appropriate for the container
+    // expression
+    if (access->container->value_type->datatype_type == lstf_datatype_type_arraytype) {
+        // array indices must be integers
+        ptr_list_append(analyzer->expected_expression_types, lstf_integertype_new(NULL));
+        for (iterator it = ptr_list_iterator_create(access->arguments);
+                it.has_next; it = iterator_next(it))
+            lstf_codenode_accept(iterator_get_item(it), visitor);
+        ptr_list_remove_last_link(analyzer->expected_expression_types);
+
+        if (access->arguments->length == 2) {
+            // this is an array slice
+            lstf_expression_set_value_type(lstf_expression_cast(access), access->container->value_type);
+        } else if (access->arguments->length == 1) {
+            lstf_expression_set_value_type(lstf_expression_cast(access),
+                    lstf_arraytype_cast(access->container->value_type)->element_type);
+        } else {
+            lstf_report_error(&lstf_codenode_cast(access)->source_reference,
+                    "too many indices for array access");
+            analyzer->num_errors++;
+            return;
+        }
+    } else if (access->container->value_type->datatype_type == lstf_datatype_type_objecttype) {
+        // object indices must be strings
+        ptr_list_append(analyzer->expected_expression_types, lstf_stringtype_new(NULL));
+        for (iterator it = ptr_list_iterator_create(access->arguments);
+                it.has_next; it = iterator_next(it))
+            lstf_codenode_accept(iterator_get_item(it), visitor);
+        ptr_list_remove_last_link(analyzer->expected_expression_types);
+
+        // unchecked access to plain 'object'
+        if (access->arguments->length == 1) {
+            lstf_expression_set_value_type(lstf_expression_cast(access),
+                    lstf_anytype_new(&lstf_codenode_cast(access)->source_reference));
+        } else {
+            lstf_report_error(&lstf_codenode_cast(access)->source_reference,
+                    "can only access one property at a time");
+            analyzer->num_errors++;
+            return;
+        }
+    } else if (access->container->value_type->datatype_type == lstf_datatype_type_interfacetype) {
+        // interface (object) indices must be strings
+        ptr_list_append(analyzer->expected_expression_types, lstf_stringtype_new(NULL));
+        for (iterator it = ptr_list_iterator_create(access->arguments);
+                it.has_next; it = iterator_next(it))
+            lstf_codenode_accept(iterator_get_item(it), visitor);
+        ptr_list_remove_last_link(analyzer->expected_expression_types);
+
+        // checked access to interface
+        if (access->arguments->length == 1) {
+            lstf_expression *property_expr = iterator_get_item(ptr_list_iterator_create(access->arguments));
+            lstf_literal *property_lit = lstf_literal_cast(property_expr);
+            lstf_interface *first_interface = lstf_interface_cast(access->container->value_type->symbol);
+
+            if (property_lit && property_lit->literal_type == lstf_literal_type_string) {
+                const char *property_name = lstf_literal_get_string(property_lit);
+                char *canon_property_name = json_member_name_canonicalize(property_name);
+                lstf_symbol *found_member = NULL;
+
+                ptr_list *interfaces_to_check = ptr_list_new(NULL, NULL);
+                ptr_list_append(interfaces_to_check, first_interface);
+
+                // compare this canonicalized property name to the
+                // canonicalized property names of the interface(s) we are
+                // checking
+                while (!found_member && !ptr_list_is_empty(interfaces_to_check)) {
+                    lstf_typesymbol *interface = ptr_list_remove_first_link(interfaces_to_check);
+
+                    for (iterator it = ptr_hashmap_iterator_create(interface->members);
+                            !found_member && it.has_next; it = iterator_next(it)) {
+                        const ptr_hashmap_entry *entry = iterator_get_item(it);
+                        const char *other_property_name = entry->key;
+                        char *other_canon_property_name = json_member_name_canonicalize(other_property_name);
+
+                        if (strcmp(canon_property_name, other_canon_property_name) == 0)
+                            found_member = entry->value;
+
+                        free(other_canon_property_name);
+                    }
+
+                    for (iterator it = ptr_list_iterator_create(lstf_interface_cast(interface)->extends_types);
+                            it.has_next; it = iterator_next(it))
+                        ptr_list_append(interfaces_to_check, lstf_datatype_cast(iterator_get_item(it))->symbol);
+                }
+
+                if (!found_member) {
+                    char *dt_string = lstf_datatype_to_string(access->container->value_type);
+
+                    if (strcmp(property_name, canon_property_name) == 0) {
+                        lstf_report_error(&lstf_codenode_cast(property_lit)->source_reference,
+                                "`%s' is not a member of type `%s'",
+                                property_name,
+                                dt_string);
+                    } else {
+                        lstf_report_error(&lstf_codenode_cast(property_lit)->source_reference,
+                                "`%s'/`%s' is not a member of type `%s'",
+                                property_name, canon_property_name,
+                                dt_string);
+                    }
+                    analyzer->num_errors++;
+
+                    free(dt_string);
+                    ptr_list_destroy(interfaces_to_check);
+                    free(canon_property_name);
+                    return;
+                }
+
+                ptr_list_destroy(interfaces_to_check);
+                free(canon_property_name);
+            }
+        } else {
+            lstf_report_error(&lstf_codenode_cast(access)->source_reference,
+                    "can only access one property at a time");
+            analyzer->num_errors++;
+            return;
+        }
+    } else if (access->container->value_type->datatype_type == lstf_datatype_type_stringtype) {
+        // string (char array) indices must be integers
+        ptr_list_append(analyzer->expected_expression_types, lstf_integertype_new(NULL));
+        for (iterator it = ptr_list_iterator_create(access->arguments);
+                it.has_next; it = iterator_next(it))
+            lstf_codenode_accept(iterator_get_item(it), visitor);
+        ptr_list_remove_last_link(analyzer->expected_expression_types);
+
+        if (access->arguments->length >= 1 && access->arguments->length <= 2) {
+            // this is a string slice
+            lstf_expression_set_value_type(lstf_expression_cast(access), access->container->value_type);
+        } else {
+            lstf_report_error(&lstf_codenode_cast(access)->source_reference,
+                    "too many indices for substring access (expected 1 or 2)");
+            analyzer->num_errors++;
+            return;
+        }
+    }
 }
 
 static void
@@ -432,15 +593,16 @@ lstf_semanticanalyzer_visit_member_access(lstf_codevisitor *visitor, lstf_member
 static void
 lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodcall* mcall)
 {
-    lstf_semanticanalyzer* analyzer = (lstf_semanticanalyzer*)visitor;
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer*)visitor;
 
     lstf_codenode_accept(mcall->call, visitor);
 
     if (!mcall->call->value_type)
         return;
 
+    // check expression is callable
     if (mcall->call->value_type->datatype_type != lstf_datatype_type_functiontype) {
-        char* call_dt = lstf_datatype_to_string(mcall->call->value_type);
+        char *call_dt = lstf_datatype_to_string(mcall->call->value_type);
         lstf_report_error(&lstf_codenode_cast(mcall->call)->source_reference,
             "expression of type `%s' is not callable", call_dt);
         analyzer->num_errors++;
@@ -448,17 +610,16 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
         return;
     }
 
-    lstf_functiontype* call_ft = lstf_functiontype_cast(mcall->call->value_type);
+    lstf_functiontype *call_ft = lstf_functiontype_cast(mcall->call->value_type);
 
-    // 1. check arguments are correct
+    // check arguments are correct
     iterator ft_paramname_it = ptr_list_iterator_create(call_ft->parameter_names);
     iterator ft_paramtype_it = ptr_list_iterator_create(call_ft->parameter_types);
     iterator call_argexpr_it = ptr_list_iterator_create(mcall->arguments);
 
     while (ft_paramname_it.has_next && ft_paramtype_it.has_next && call_argexpr_it.has_next) {
-        const char* param_name = iterator_get_item(ft_paramname_it);
-        lstf_datatype* param_type = iterator_get_item(ft_paramtype_it);
-        lstf_expression* argument = iterator_get_item(call_argexpr_it);
+        lstf_datatype *param_type = iterator_get_item(ft_paramtype_it);
+        lstf_expression *argument = iterator_get_item(call_argexpr_it);
 
         ptr_list_append(analyzer->expected_expression_types, param_type);
         lstf_codenode_accept(argument, visitor);
@@ -475,6 +636,20 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
             call_ft->parameter_types->length,
             mcall->arguments->length);
         analyzer->num_errors++;
+        lstf_function *function = lstf_function_cast(mcall->call->value_type->symbol);
+        if (function) {
+            while (ft_paramname_it.has_next && ft_paramtype_it.has_next) {
+                const char *param_name = iterator_get_item(ft_paramname_it);
+                lstf_variable *parameter = lstf_function_get_parameter(function, param_name);
+
+                lstf_report_note(&lstf_codenode_cast(parameter)->source_reference,
+                        "parameter `%s' required",
+                        param_name);
+
+                ft_paramname_it = iterator_next(ft_paramname_it);
+                ft_paramtype_it = iterator_next(ft_paramtype_it);
+            }
+        }
     } else if (!ft_paramtype_it.has_next && call_argexpr_it.has_next) {
         lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
             "expected %u arguments to function instead of %u",
@@ -662,6 +837,17 @@ lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *v
         ptr_list_remove_last_link(analyzer->expected_expression_types);
         analyzer->ellipsis_allowed = old_ellipsis_allowed;
     }
+    
+    if (variable->variable_type && variable->variable_type->datatype_type == lstf_datatype_type_voidtype) {
+        char *dt_string = lstf_datatype_to_string(variable->variable_type);
+        lstf_report_error(&lstf_codenode_cast(variable)->source_reference,
+                "%s cannot have type `%s'",
+                lstf_function_cast(lstf_codenode_cast(variable)->parent_node) ? "parameter" : "variable",
+                dt_string);
+        analyzer->num_errors++;
+        free(dt_string);
+        return;
+    }
 }
 
 static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
@@ -671,7 +857,7 @@ static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_constant,
     NULL /* visit_data_type */,
     lstf_semanticanalyzer_visit_declaration,
-    NULL /* visit_element_access */,
+    lstf_semanticanalyzer_visit_element_access,
     lstf_semanticanalyzer_visit_ellipsis,
     lstf_semanticanalyzer_visit_enum,
     lstf_semanticanalyzer_visit_expression,
