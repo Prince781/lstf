@@ -17,8 +17,8 @@ typedef enum _json_node_type json_node_type;
 
 struct _json_node {
     json_node_type node_type;
-    unsigned long refcount;
-    bool floating;
+    unsigned refcount : 31;
+    bool floating : 1;
 };
 typedef struct _json_node json_node;
 
@@ -49,8 +49,8 @@ typedef struct _json_string json_string;
 struct _json_array {
     json_node parent_struct;
     json_node **elements;
-    int buffer_size;
-    int num_elements;
+    unsigned buffer_size;
+    unsigned num_elements;
 };
 typedef struct _json_array json_array;
 

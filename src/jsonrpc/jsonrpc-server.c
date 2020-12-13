@@ -371,7 +371,7 @@ ptr_list *jsonrpc_server_wait_for_notification(jsonrpc_server *server, const cha
                     // otherwise, this is a method call or notification not for us
                     ptr_list_append(server->received_requests, received_node);
                 } else if (received_node->node_type == json_node_type_array) {
-                    for (int i = 0; i < ((json_array *)received_node)->num_elements; i++) {
+                    for (unsigned i = 0; i < ((json_array *)received_node)->num_elements; i++) {
                         json_node *element = ((json_array *)received_node)->elements[i];
                         const char *error = NULL;
                         if (jsonrpc_verify_is_request_object(element, &error)) {
@@ -444,7 +444,7 @@ int jsonrpc_server_process_incoming_messages(jsonrpc_server *server)
         if (!jsonrpc_verify_is_request_object(request_node, NULL)) {
             bool have_valid_requests = false;
             if (request_node->node_type == json_node_type_array) {
-                for (int i = 0; i < ((json_array *)request_node)->num_elements; i++) {
+                for (unsigned i = 0; i < ((json_array *)request_node)->num_elements; i++) {
                     json_node *element = ((json_array *)request_node)->elements[i];
 
                     if (jsonrpc_verify_is_request_object(element, NULL)) {

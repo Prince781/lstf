@@ -39,7 +39,7 @@ static void json_node_destroy(json_node *node)
     } else if (node->node_type == json_node_type_array) {
         json_array *array = (json_array *)node;
 
-        for (int i = 0; i < array->num_elements; i++) {
+        for (unsigned i = 0; i < array->num_elements; i++) {
             json_node_unref(array->elements[i]);
             array->elements[i] = NULL;
         }
@@ -128,7 +128,7 @@ static void json_node_build_string(const json_node *node, bool pretty, int tabul
     {
         const json_array *array = (const json_array *)node;
         string_appendf(sb, "["); 
-        for (int i = 0; i < array->num_elements; i++) {
+        for (unsigned i = 0; i < array->num_elements; i++) {
             if (pretty) {
                 string_appendf(sb, "\n");
                 tabulate(sb, tabulation + 1);
@@ -212,7 +212,7 @@ bool json_node_equal_to(const json_node *node1, const json_node *node2)
         if (array1->num_elements != array2->num_elements)
             return false;
 
-        for (int i = 0; i < array1->num_elements; i++)
+        for (unsigned i = 0; i < array1->num_elements; i++)
             if (!json_node_equal_to(array1->elements[i], array2->elements[i]))
                 return false;
 
