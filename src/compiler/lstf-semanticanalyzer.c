@@ -104,7 +104,7 @@ lstf_semanticanalyzer_visit_array(lstf_codevisitor *visitor, lstf_array *array)
         }
 
         if (!element_type) {
-            if (old_expected_dt->datatype_type == lstf_datatype_type_arraytype)
+            if (old_expected_dt && old_expected_dt->datatype_type == lstf_datatype_type_arraytype)
                 element_type = lstf_arraytype_cast(old_expected_dt)->element_type;
             else
                 element_type = lstf_anytype_new(&((lstf_codenode *)array)->source_reference);
