@@ -83,6 +83,7 @@
 	3. jumps to the return address
 - `vmcall <name>` - calls a special function provided by the virtual machine
 	- function codes/names (names are converted to immediate codes in assembly):
+
 | code | name          | signature                                                      | description
 | ---- | ------------- | -------------------------------------------------------------- | -----------
 | `01` | `connect`     | `connect(path_to_server: string): void`                        | Connect to LSP server. On failure throws a fatal exception.
