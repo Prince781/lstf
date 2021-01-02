@@ -1,5 +1,5 @@
 #include "lstf-semanticanalyzer.h"
-#include "compiler/lstf-patterntest.h"
+#include "lstf-patterntest.h"
 #include "lstf-enumtype.h"
 #include "lstf-patterntype.h"
 #include "lstf-sourceref.h"

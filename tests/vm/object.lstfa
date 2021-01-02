@@ -1,0 +1,9 @@
+--- code ---
+main:
+    load {x: 1, y: 3}
+    load frame(0)
+    load "z"
+    load 2
+    set
+    print               # should print "{x: 1, y: 3, z: 2}"
+    exit 0

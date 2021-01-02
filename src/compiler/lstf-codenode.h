@@ -2,6 +2,7 @@
 
 #include "lstf-common.h"
 #include "lstf-sourceref.h"
+#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -49,10 +50,8 @@ void lstf_codenode_accept_children(void *node, lstf_codevisitor *visitor);
 struct _lstf_codenode {
     const lstf_codenode_vtable *codenode_vtable;
     lstf_codenode_type codenode_type;
-    struct {
-        unsigned refcount : sizeof(unsigned) * 8 - 1;
-        bool floating : 1;
-    };
+    unsigned refcount : sizeof(unsigned) * CHAR_BIT - 1;
+    bool floating : 1;
     lstf_sourceref source_reference;
     lstf_codenode *parent_node;
 };

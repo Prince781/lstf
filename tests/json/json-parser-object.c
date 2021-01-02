@@ -1,6 +1,7 @@
 #include "data-structures/iterator.h"
 #include "json/json-parser.h"
 #include "json/json.h"
+#include "io/inputstream.h"
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,10 +9,10 @@
 
 int main(int argc, char *argv[])
 {
-    FILE *json_file_to_parse = NULL;
+    inputstream *json_file_to_parse = NULL;
     for (int i = 1; i < argc; i++) {
         if (!json_file_to_parse) {
-            if (!(json_file_to_parse = fopen(argv[i], "r"))) {
+            if (!(json_file_to_parse = inputstream_new_from_path(argv[i], "r"))) {
                 fprintf(stderr, "could not open %s - %s\n", argv[i], strerror(errno));
                 return 1;
             }
@@ -40,7 +41,7 @@ int main(int argc, char *argv[])
     json_object_set_member(object, "int-property", json_integer_new(-340));
 
     // parse the JSON object from the file
-    json_parser *parser = json_parser_create_from_stream(json_file_to_parse, true);
+    json_parser *parser = json_parser_create_from_stream(json_file_to_parse);
     json_node *parsed_node = NULL;
 
     if ((parsed_node = json_parser_parse_node(parser))) {

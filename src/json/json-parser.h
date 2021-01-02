@@ -3,6 +3,7 @@
 #include "json.h"
 #include "json-scanner.h"
 #include "data-structures/iterator.h"
+#include "io/inputstream.h"
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -32,9 +33,14 @@ struct _json_parser {
 typedef struct _json_parser json_parser;
 
 /**
+ * Constructs a new JSON node from a string.
+ */
+json_node *json_parser_parse_string(const char *str);
+
+/**
  * Creates a streaming parser.
  */
-json_parser *json_parser_create_from_stream(FILE *stream, bool close_stream);
+json_parser *json_parser_create_from_stream(inputstream *stream);
 
 /**
  * Parse a single node. Returns NULL if the stream hits EOF.

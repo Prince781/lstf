@@ -2,6 +2,7 @@
 #include "data-structures/ptr-list.h"
 #include "jsonrpc/jsonrpc-server.h"
 #include "json/json.h"
+#include "io/inputstream.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -29,10 +30,10 @@ testMethod(jsonrpc_server *server,
 }
 
 int main(int argc, char *argv[]) {
-    FILE *json_file_to_parse = NULL;
+    inputstream *json_file_to_parse = NULL;
     for (int i = 1; i < argc; i++) {
         if (!json_file_to_parse) {
-            if (!(json_file_to_parse = fopen(argv[i], "r"))) {
+            if (!(json_file_to_parse = inputstream_new_from_path(argv[i], "r"))) {
                 fprintf(stderr, "could not open %s - %s\n", argv[i], strerror(errno));
                 return 1;
             }
@@ -45,7 +46,7 @@ int main(int argc, char *argv[]) {
     }
 
     int methods_invoked = 0;
-    jsonrpc_server *server = jsonrpc_server_create(json_file_to_parse, true, stdout, false);
+    jsonrpc_server *server = jsonrpc_server_create(json_file_to_parse, stdout, false);
 
     jsonrpc_server_handle_call(server, "test/methodA", testMethod, &methods_invoked, NULL);
     jsonrpc_server_handle_call(server, "test/methodC", testMethod, &methods_invoked, NULL);

@@ -1,8 +1,8 @@
 #pragma once
 
+#include "io/inputstream.h"
 #include <stdio.h>
 #include <stdbool.h>
-#include "compiler/lstf-sourceloc.h"
 
 enum _json_token {
     json_token_eof,
@@ -24,25 +24,31 @@ typedef enum _json_token json_token;
 
 const char *json_token_to_string(json_token token);
 
+struct _json_sourceloc {
+    unsigned line;
+    unsigned column;
+    const char *pos;
+};
+typedef struct _json_sourceloc json_sourceloc;
+
 struct _json_scanner {
-    lstf_sourceloc source_location;
-    lstf_sourceloc prev_char_source_location;
+    json_sourceloc source_location;
+    json_sourceloc prev_char_source_location;
     json_token last_token;
     char *last_token_buffer;
-    lstf_sourceloc last_token_begin;
+    json_sourceloc last_token_begin;
     unsigned last_token_length;
     unsigned last_token_buffer_size;
-    FILE *stream;
+    inputstream *stream;
     char *filename;
-    bool close_stream;
     char *message;
 };
 typedef struct _json_scanner json_scanner;
 
 /**
- * Creates a streaming scanner.
+ * Creates a scanner from a `FILE` stream.
  */
-json_scanner *json_scanner_create_from_stream(FILE *stream, bool close_stream);
+json_scanner *json_scanner_create_from_stream(inputstream *stream);
 
 json_token json_scanner_next(json_scanner *scanner);
 

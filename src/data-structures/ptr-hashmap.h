@@ -43,6 +43,13 @@ struct _ptr_hashmap {
 };
 typedef struct _ptr_hashmap ptr_hashmap;
 
+static inline void ptr_hashmap_entry_set_value(ptr_hashmap *map, ptr_hashmap_entry *entry, void *value)
+{
+    if (map->value_unref_func)
+        map->value_unref_func(entry->value);
+    entry->value = map->value_ref_func ? map->value_ref_func(value) : value;
+}
+
 ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
                              collection_item_ref_func       key_ref_func,
                              collection_item_unref_func     key_unref_func,

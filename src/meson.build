@@ -22,6 +22,18 @@ data_structures = declare_dependency(
   link_with: [data_structures_lib],
 )
 
+io_lib = static_library('io',
+  [
+    'io/inputstream.c',
+    'io/outputstream.c'
+  ],
+  c_args: c_args,
+)
+
+io = declare_dependency(
+  dependencies: [data_structures],
+  link_with: [io_lib],
+)
 
 json_lib = static_library('json',
   [
@@ -33,7 +45,7 @@ json_lib = static_library('json',
 )
 
 json = declare_dependency(
-  dependencies: [util, data_structures],
+  dependencies: [util, data_structures, io],
   link_with: [json_lib],
 )
 
@@ -45,7 +57,7 @@ jsonrpc_lib = static_library('jsonrpc',
 )
 
 jsonrpc = declare_dependency(
-  dependencies: [util, data_structures, json],
+  dependencies: [util, data_structures, json, io],
   link_with: [jsonrpc_lib],
 )
 
@@ -107,8 +119,21 @@ compiler_lib = static_library('compiler',
 )
 
 compiler = declare_dependency(
-  dependencies: [data_structures, util, json, jsonrpc],
+  dependencies: [data_structures, util, json, jsonrpc, io],
   link_with: [compiler_lib],
+)
+
+vm_lib = static_library('vm',
+  [
+    'vm/lstf-virtualmachine.c',
+    'vm/lstf-vm-stack.c',
+  ],
+  c_args: c_args
+)
+
+vm = declare_dependency(
+  dependencies: [data_structures, util, json, jsonrpc, io],
+  link_with: [vm_lib]
 )
 
 lstf = executable('lstf',

@@ -1,0 +1,23 @@
+{
+    "nullProperty": null,
+    "intProperty": -9223372036854775808,
+    "boolProperty": true,
+    "doubleProperty": 3.141590,
+    "stringProperty": "this is a string",
+    "arrayProperty": [
+        null,
+        true,
+        3.141590,
+        "this is another string, inside an array",
+        {},
+        []
+    ],
+    "objectProperty": {
+        "nullProperty": null,
+        "stringProperty": "Hello—there",
+        "arrayProperty": [
+            [Circular *1]
+        ],
+        "cyclicProperty": [Circular *1]
+    }
+}

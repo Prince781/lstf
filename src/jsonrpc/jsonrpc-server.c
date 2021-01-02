@@ -25,7 +25,7 @@ enum _jsonrpc_error {
 };
 typedef enum _jsonrpc_error jsonrpc_error;
 
-jsonrpc_server *jsonrpc_server_create(FILE *input_stream, bool close_input, 
+jsonrpc_server *jsonrpc_server_create(inputstream *input_stream, 
                                       FILE *output_stream, bool close_output)
 {
     jsonrpc_server *server = calloc(1, sizeof *server);
@@ -35,7 +35,7 @@ jsonrpc_server *jsonrpc_server_create(FILE *input_stream, bool close_input,
         abort();
     }
 
-    server->parser = json_parser_create_from_stream(input_stream, close_input);
+    server->parser = json_parser_create_from_stream(input_stream);
     server->output_stream = output_stream;
     server->close_output = close_output;
 
@@ -99,8 +99,8 @@ void jsonrpc_server_reply_to_remote(jsonrpc_server  *server,
 }
 
 static bool 
-jsonrpc_verify_is_request_object(const json_node      *node, 
-                                 const char          **reason)
+jsonrpc_verify_is_request_object(json_node      *node, 
+                                 const char    **reason)
 {
     if (reason)
         *reason = NULL;
@@ -153,7 +153,7 @@ jsonrpc_verify_is_request_object(const json_node      *node,
 }
 
 static bool
-jsonrpc_verify_is_error_object(const json_node *node)
+jsonrpc_verify_is_error_object(json_node *node)
 {
     if (node->node_type != json_node_type_object)
         return false;
@@ -174,8 +174,8 @@ jsonrpc_verify_is_error_object(const json_node *node)
 }
 
 static bool
-jsonrpc_verify_is_response_object(const json_node        *node,
-                                  const char          **reason)
+jsonrpc_verify_is_response_object(json_node        *node,
+                                  const char      **reason)
 {
     if (reason)
         *reason = NULL;
@@ -239,7 +239,7 @@ jsonrpc_verify_is_response_object(const json_node        *node,
 /**
  * Returns number of bytes written, or < 0 if an error occurred.
  */
-static int jsonrpc_server_send_message(jsonrpc_server *server, const json_node *node)
+static int jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
 {
     char *serialized_message = json_node_to_string(node, false);
     int ret = fprintf(server->output_stream, "%s\n", serialized_message);
@@ -317,7 +317,7 @@ void jsonrpc_server_notify_remote(jsonrpc_server *server, const char *method, js
     json_node_unref(request_object);
 }
 
-static bool jsonrpc_json_object_method_property_comparator(const json_node *node1, const json_node *node2)
+static bool jsonrpc_json_object_method_property_comparator(json_node *node1, json_node *node2)
 {
     json_node *node1_method = json_object_get_member(node1, "method");
     json_node *node2_method = json_object_get_member(node2, "method");

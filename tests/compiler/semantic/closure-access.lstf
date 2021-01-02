@@ -1,0 +1,9 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = [];
+
+let variable_out = 3;
+
+fun thing(variable: string): string {
+    let x = variable_out;
+    return x;
+}

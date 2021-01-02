@@ -35,7 +35,7 @@ struct _jsonrpc_server {
     ptr_list *received_requests;
 };
 
-jsonrpc_server *jsonrpc_server_create(FILE *input_stream, bool close_input, 
+jsonrpc_server *jsonrpc_server_create(inputstream *input_stream, 
                                       FILE *output_stream, bool close_output);
 
 /**

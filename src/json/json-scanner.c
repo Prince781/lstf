@@ -1,9 +1,10 @@
 #include "json-scanner.h"
-#include "compiler/lstf-sourceloc.h"
 #include "data-structures/string-builder.h"
+#include "io/inputstream.h"
 #include "json/json-parser.h"
 #include <stdarg.h>
 #include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,44 +46,7 @@ const char *json_token_to_string(json_token token)
     abort();
 }
 
-#if (_WIN32 || _WIN64)
-#include <windows.h>
-#include <io.h>
-static char *get_filename_from_fd(int fd) {
-    HANDLE fh = (HANDLE) _get_osfhandle(fd);
-    char resolved_path[MAX_PATH] = { '\0' };
-    DWORD ret = 0;
-
-    if (!fh) {
-        fprintf(stderr, "%s: could not get OS f-handle from fd %d\n", __func__, fd);
-        return NULL;
-    }
-
-    if (!(ret = GetFinalPathNameByHandle(fh, resolved_path, sizeof resolved_path, 0)))
-        return NULL;
-
-    return _strdup(resolved_path);
-}
-#else
-#include <unistd.h>
-#include <limits.h>
-static char *get_filename_from_fd(int fd)
-{
-    string *path_sb = string_new();
-    char resolved_path[PATH_MAX] = { '\0' };
-    ssize_t ret = 0;
-
-    string_appendf(path_sb, "/proc/self/fd/%d", fd); 
-    ret = readlink(path_sb->buffer, resolved_path, sizeof resolved_path);
-    free(string_destroy(path_sb));
-
-    if (ret != -1)
-        return strdup(resolved_path);
-    return NULL;
-}
-#endif
-
-json_scanner *json_scanner_create_from_stream(FILE *stream, bool close_stream)
+json_scanner *json_scanner_create_from_stream(inputstream *stream)
 {
     json_scanner *scanner = NULL;
 
@@ -94,15 +58,8 @@ json_scanner *json_scanner_create_from_stream(FILE *stream, bool close_stream)
         exit(EXIT_FAILURE);
     }
 
-    scanner->stream = stream;
-    if (scanner->stream == stdin)
-        scanner->filename = strdup("<stdin>");
-    else if (!(scanner->filename = get_filename_from_fd(fileno(scanner->stream)))){
-        string *sb = string_new();
-        string_appendf(sb, "<fd %d>", fileno(scanner->stream));
-        scanner->filename = string_destroy(sb);
-    }
-    scanner->close_stream = close_stream;
+    scanner->stream = inputstream_ref(stream);
+    scanner->filename = inputstream_get_name(stream);
     scanner->source_location.line = 1;
 
     return scanner;
@@ -168,7 +125,7 @@ static int xvalue(int digit_character)
 
 static char json_scanner_getc(json_scanner *scanner)
 {
-    char read_character = fgetc(scanner->stream);
+    char read_character = inputstream_read_char(scanner->stream);
 
     scanner->prev_char_source_location = scanner->source_location;
     if (read_character == '\n' || read_character == '\r') {
@@ -181,16 +138,18 @@ static char json_scanner_getc(json_scanner *scanner)
     return read_character;
 }
 
-static void json_scanner_ungetc(json_scanner *scanner, char unread_character)
+static void json_scanner_ungetc(json_scanner *scanner)
 {
-    if (ungetc(unread_character, scanner->stream) != EOF)
+    if (inputstream_unread_char(scanner->stream) != EOF)
         scanner->source_location = scanner->prev_char_source_location;
+    else
+        fprintf(stderr, "%s: failed: %s\n", __func__, strerror(errno));
 }
 
 
 __attribute__ ((format (printf, 3, 4)))
 static void 
-json_scanner_report_message(json_scanner *scanner, lstf_sourceloc source_location, const char *format, ...)
+json_scanner_report_message(json_scanner *scanner, json_sourceloc source_location, const char *format, ...)
 {
     string *sb = string_new();
     string_appendf(sb, "%s:%d:%d: ",
@@ -205,7 +164,7 @@ json_scanner_report_message(json_scanner *scanner, lstf_sourceloc source_locatio
 
 json_token json_scanner_next(json_scanner *scanner)
 {
-    if (feof(scanner->stream) || ferror(scanner->stream))
+    if (!inputstream_has_data(scanner->stream))
         return scanner->last_token = json_token_eof;
 
     if (scanner->message) {
@@ -277,7 +236,7 @@ json_token json_scanner_next(json_scanner *scanner)
     }
     case '"':
     {
-        lstf_sourceloc begin_sourceloc = scanner->source_location;
+        json_sourceloc begin_sourceloc = scanner->source_location;
         while ((current_char = json_scanner_getc(scanner)) != '"' && current_char != EOF) {
             char previous_char = current_char;
             if (current_char == '\\') {
@@ -367,7 +326,7 @@ json_token json_scanner_next(json_scanner *scanner)
                             scanner->last_token = json_token_double;
                             while (isdigit(current_char = json_scanner_getc(scanner)))
                                 json_scanner_save_char(scanner, current_char);
-                            json_scanner_ungetc(scanner, current_char);
+                            json_scanner_ungetc(scanner);
                         } else {
                             json_scanner_report_message(scanner, scanner->source_location,
                                     "error: expected exponent");
@@ -377,14 +336,14 @@ json_token json_scanner_next(json_scanner *scanner)
                                 "error: expected exponent");
                     }
                 } else {
-                    json_scanner_ungetc(scanner, current_char);
+                    json_scanner_ungetc(scanner);
                 }
             } else {
                 json_scanner_report_message(scanner, scanner->source_location,
                         "error: expected fractional part for number");
             }
         } else {
-            json_scanner_ungetc(scanner, current_char);
+            json_scanner_ungetc(scanner);
         }
         return scanner->last_token;
     case EOF:
@@ -416,8 +375,7 @@ void json_scanner_destroy(json_scanner *scanner)
 {
     free(scanner->last_token_buffer);
     scanner->last_token_buffer = NULL;
-    if (scanner->close_stream)
-        fclose(scanner->stream);
+    inputstream_unref(scanner->stream);
     scanner->stream = NULL;
     free(scanner->filename);
     scanner->filename = NULL;

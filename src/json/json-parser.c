@@ -1,4 +1,3 @@
-#include "compiler/lstf-sourceloc.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
 #include "data-structures/string-builder.h"
@@ -9,17 +8,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 
-json_parser *json_parser_create_from_stream(FILE *stream, bool close_stream)
+json_node *json_parser_parse_string(const char *str)
 {
+    json_parser *parser = json_parser_create_from_stream(inputstream_new_from_const_string(str));
+
+    if (!parser)
+        return NULL;
+
+    json_node *node = json_parser_parse_node(parser);
+    int saved_errno = errno;
+
+    json_parser_destroy(parser);
+    errno = saved_errno;
+    return node;
+}
+
+json_parser *json_parser_create_from_stream(inputstream *stream)
+{
+    if (!stream)
+        return NULL;
+
     json_parser *parser = calloc(1, sizeof *parser);
 
-    if (!parser) {
-        perror("could not create parser");
-        abort();
-    }
+    if (!parser)
+        return NULL;
 
-    parser->scanner = json_scanner_create_from_stream(stream, close_stream);
+    parser->scanner = json_scanner_create_from_stream(stream);
     parser->messages = ptr_list_new(NULL, free);
 
     return parser;
@@ -74,7 +90,7 @@ json_node *json_parser_parse_node(json_parser *parser)
     {   // parse array
         json_node *array = json_array_new();
         json_node *element = NULL;
-        lstf_sourceloc last_sourceloc = parser->scanner->source_location;
+        json_sourceloc last_sourceloc = parser->scanner->source_location;
 
         while ((element = json_parser_parse_node(parser)) != NULL) {
             json_array_add_element(array, element);
@@ -124,7 +140,7 @@ json_node *json_parser_parse_node(json_parser *parser)
     case json_token_openbrace:
     {   // parse object
         json_node *object = json_object_new();
-        lstf_sourceloc last_sourceloc = parser->scanner->source_location;
+        json_sourceloc last_sourceloc = parser->scanner->source_location;
 
         while (json_scanner_next(parser->scanner) == json_token_string) {
             char *member_name = strdup(parser->scanner->last_token_buffer);

@@ -17,7 +17,7 @@ int main(void) {
             (collection_item_ref_func) strdup, 
             free, 
             strequal,
-            NULL, (collection_item_unref_func) string_free);
+            (collection_item_ref_func) string_ref, (collection_item_unref_func) string_unref);
 
     for (unsigned i = 0; i < HASHMAP_SIZE; i++) {
         string *sb = string_new();

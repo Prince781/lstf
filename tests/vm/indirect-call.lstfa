@@ -1,0 +1,10 @@
+--- code ---
+foo:
+    load "hello, world\n"
+    print
+    return
+
+main:
+    load foo
+    indirect
+    exit 0

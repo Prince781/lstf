@@ -1,0 +1,10 @@
+# "info" section is optional
+
+--- data ---
+    1: "Hello, world\n"
+
+--- code ---
+main:
+    load data(1)
+    print
+    exit 0
