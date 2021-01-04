@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -53,6 +54,24 @@ char inputstream_read_char(inputstream *stream);
  * Unreads a character. Returns `EOF` on error.
  */
 int inputstream_unread_char(inputstream *stream);
+
+/**
+ * Returns `true` and `integer` is set to the integer that was read. Otherwise
+ * (if there was an error or EOF) returns `false`.
+ */
+bool inputstream_read_uint32(inputstream *stream, uint32_t *integer);
+
+/**
+ * Returns `true` and `integer` is set to the integer that was read. Otherwise
+ * (if there was an error or EOF) returns `false`.
+ */
+bool inputstream_read_uint64(inputstream *stream, uint64_t *integer);
+
+/**
+ * Reads an arbitrary amount of data into `buffer`. Returns `true` if the read
+ * was successful, `false` otherwise.
+ */
+bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size);
 
 bool inputstream_has_data(inputstream *stream);
 

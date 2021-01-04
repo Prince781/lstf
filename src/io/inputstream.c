@@ -198,11 +198,71 @@ int inputstream_unread_char(inputstream *stream)
     abort();
 }
 
+bool inputstream_read_uint32(inputstream *stream, uint32_t *integer)
+{
+    uint32_t value = 0;
+
+    for (unsigned i = 0; i < sizeof value; i++) {
+        if (!inputstream_has_data(stream))
+            return false;
+        uint8_t byte = inputstream_read_char(stream);
+        value |= byte << (sizeof(value) - 1 - i) * CHAR_BIT;
+    }
+
+    *integer = value;
+    return true;
+}
+
+bool inputstream_read_uint64(inputstream *stream, uint64_t *integer)
+{
+    uint64_t value = 0;
+
+    for (unsigned i = 0; i < sizeof value; i++) {
+        if (!inputstream_has_data(stream))
+            return false;
+        uint8_t byte = inputstream_read_char(stream);
+        value |= byte << (sizeof(value) - 1 - i) * CHAR_BIT;
+    }
+
+    *integer = value;
+    return true;
+}
+
+bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
+{
+    switch (stream->stream_type) {
+    case inputstream_type_file:
+        return fread(buffer, buffer_size, 1, stream->file);
+    case inputstream_type_buffer:
+        if (stream->buffer_size - stream->buffer_offset < buffer_size) {
+            errno = EINVAL;
+            return false;
+        }
+        memcpy(buffer, &stream->const_buffer[stream->buffer_offset], buffer_size);
+        stream->buffer_offset += buffer_size;
+        return true;
+    }
+
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    abort();
+}
+
 bool inputstream_has_data(inputstream *stream)
 {
     switch (stream->stream_type) {
     case inputstream_type_file:
-        return !feof(stream->file);
+    {
+        if (feof(stream->file))
+            return false;
+        // it's possible we could have not performed a first read, in which
+        // case we must do that to determine whether there is data available
+        char byte = 0;
+        if ((byte = fgetc(stream->file)) == EOF)
+            return false;
+        // otherwise, unget character
+        ungetc(byte, stream->file);
+        return true;
+    }
     case inputstream_type_buffer:
         return stream->buffer_offset < stream->buffer_size;
     }

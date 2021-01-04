@@ -220,6 +220,9 @@ iterator ptr_hashmap_iterator_create(ptr_hashmap *map)
 
 void ptr_hashmap_destroy(ptr_hashmap *map)
 {
+    if (!map)
+        return;
+
     for (iterator buckets_it = ptr_list_iterator_create(map->buckets_list);
             buckets_it.has_next; 
             buckets_it = iterator_next(buckets_it)) {

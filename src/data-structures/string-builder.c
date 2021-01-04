@@ -141,6 +141,8 @@ string *string_clear(string *sb)
 
 char *string_destroy(string *sb)
 {
+    if (!sb)
+        return NULL;
     assert(sb->refcount == 0 && "cannot destroy string held by other owners!");
 
     const size_t length = sb->length;

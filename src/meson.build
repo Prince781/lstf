@@ -126,6 +126,8 @@ compiler = declare_dependency(
 vm_lib = static_library('vm',
   [
     'vm/lstf-virtualmachine.c',
+    'vm/lstf-vm-loader.c',
+    'vm/lstf-vm-program.c',
     'vm/lstf-vm-stack.c',
   ],
   c_args: c_args
@@ -137,7 +139,7 @@ vm = declare_dependency(
 )
 
 lstf = executable('lstf',
-  dependencies: [compiler],
+  dependencies: [compiler, vm],
   c_args: c_args,
-  sources: ['main.c'],
+  sources: ['lstf.c'],
   install: true)

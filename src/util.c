@@ -1,6 +1,7 @@
 #include "util.h"
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 
 unsigned strhash(const char *str)
 {
@@ -15,4 +16,9 @@ unsigned strhash(const char *str)
 bool strequal(const void *str1, const void *str2)
 {
     return strcmp(str1, str2) == 0;
+}
+
+unsigned int ptrhash(const void *ptr)
+{
+    return (unsigned int)(intptr_t)ptr;
 }

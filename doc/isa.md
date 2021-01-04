@@ -12,9 +12,11 @@
 | byte range | description
 | ---------- | -----------
 | 0 - 7      | `\x89LSTF\x01\x0A\x00` (magic value)
-| 8 - n      | sections: list of [`[section name]` followed by `\x00` followed by 8-byte-length `[section size]`]
+| 8 - 15     | `[entry point]` - offset in the `code` section where execution begins
+| 15 - n     | sections: list of [`[section name]` followed by `\x00` followed by 8-byte-length `[section size]`]
 
 - header terminated with one `\x00` (NUL) byte
+- `[section name]` cannot be longer than 128 bytes, including the trailing NUL byte
 
 ### `debug_info` section
 - `source_file` - is a string containing the path to the source file, terminated with a NUL byte

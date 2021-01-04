@@ -13,10 +13,10 @@ struct _lstf_vm_program {
     bool floating : 1;
 
     // --- important sections
-    uint8_t *file;                      // beginning point of the entire file (the memory-mapped file)
-
     // --- debug info fields (optional)
-    char *source_file;
+    uint8_t *debug;                     // mapped debug section (optional)
+    uint64_t debug_size;
+    char *source_filename;
     /**
      * maps `(uint8_t *) -> (lstf_vm_debugentry *)`
      */
@@ -27,21 +27,20 @@ struct _lstf_vm_program {
     ptr_hashmap *debug_symbols;
 
     // --- data
-    uint8_t *data;                      // beginning point of the data section
+    uint8_t *data;                      // mapped data section
     uint64_t data_size;
 
     // --- code
-    uint8_t *code;                      // beginning point of the code section
+    uint8_t *code;                      // mapped code section
     uint8_t *entry_point;               // offset in `code` to begin execution
     uint64_t code_size;
 };
 typedef struct _lstf_vm_program lstf_vm_program;
 
-/**
- * Loads a compiled LSTF program. The file must have the extension `.lstfc`
- */
-lstf_vm_program *lstf_vm_program_load(const char *filename);
-
 lstf_vm_program *lstf_vm_program_ref(lstf_vm_program *prog);
 
+/**
+ * Dereferences the program. The program will be unloaded when its reference
+ * count hits 0.
+ */
 void lstf_vm_program_unref(lstf_vm_program *prog);

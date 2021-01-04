@@ -123,6 +123,8 @@ void ptr_list_clear(ptr_list *list)
 
 void ptr_list_destroy(ptr_list *list)
 {
+    if (!list)
+        return;
     ptr_list_clear(list);
     free(list);
 }

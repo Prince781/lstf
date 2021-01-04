@@ -1,26 +1,51 @@
 #include "lstf-vm-program.h"
+#include "data-structures/ptr-hashmap.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define LSTFC_MAGIC_VALUE (char[]) { '\x89', 'L', 'S', 'T', 'F', '\x01', '\x0A', '\x00' }
-
-lstf_vm_program *lstf_vm_program_load(const char *filename)
+lstf_vm_program *lstf_vm_program_ref(lstf_vm_program *prog)
 {
-    FILE *file = fopen(filename, "rb");
-    lstf_vm_program *program = NULL;
-
-    if (!file) {
+    if (!prog)
         return NULL;
+
+    assert(prog->floating || prog->refcount > 0);
+
+    if (prog->floating) {
+        prog->floating = false;
+        prog->refcount = 1;
+    } else {
+        prog->refcount++;
     }
 
-    program = calloc(1, sizeof *program);
-    program->floating = true;
+    return prog;
+}
 
-    for (unsigned i = 0; i < sizeof(LSTFC_MAGIC_VALUE); i++) {
-        // TODO: deserialize
-    }
+static void lstf_vm_program_destroy(lstf_vm_program *prog)
+{
+    if (!prog)
+        return;
 
-    fclose(file);
-    return program;
+    assert(prog->floating || prog->refcount == 0);
+
+    free(prog->debug);
+    ptr_hashmap_destroy(prog->debug_entries);
+    ptr_hashmap_destroy(prog->debug_symbols);
+    free(prog->data);
+    free(prog->code);
+    memset(prog, 0, sizeof *prog);
+
+    free(prog);
+}
+
+void lstf_vm_program_unref(lstf_vm_program *prog)
+{
+    if (!prog)
+        return;
+
+    assert(prog->floating || prog->refcount > 0);
+
+    if (prog->floating || --prog->refcount == 0)
+        lstf_vm_program_destroy(prog);
 }
