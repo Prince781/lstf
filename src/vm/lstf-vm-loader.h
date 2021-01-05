@@ -5,7 +5,18 @@
 
 enum _lstf_vm_loader_error {
     lstf_vm_loader_error_none,
+
+    /**
+     * There was a system error reading the file.
+     */
     lstf_vm_loader_error_read,
+
+    /**
+     * One or more of the section sizes is inconsistent with the size of the
+     * program binary and sections.
+     */
+    lstf_vm_loader_error_invalid_section_size,
+
     lstf_vm_loader_error_invalid_magic_value,
 
     /**

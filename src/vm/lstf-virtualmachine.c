@@ -6,6 +6,7 @@
 #include "lstf-vm-stack.h"
 #include "lstf-vm-status.h"
 #include "lstf-vm-value.h"
+#include "util.h"
 #include "json/json.h"
 #include "json/json-parser.h"
 #include <assert.h>
@@ -20,10 +21,18 @@ lstf_virtualmachine_new(lstf_vm_program *program, bool debug)
     vm->stack = lstf_vm_stack_new();
     vm->program = lstf_vm_program_ref(program);
     vm->pc = program->entry_point;
-    vm->breakpoints = ptr_hashmap_new(NULL, NULL, NULL, NULL, NULL, NULL);
+    vm->breakpoints = ptr_hashmap_new(ptrhash, NULL, NULL, NULL, NULL, NULL);
     vm->debug = debug;
 
     return vm;
+}
+
+void lstf_virtualmachine_destroy(lstf_virtualmachine *vm)
+{
+    lstf_vm_program_unref(vm->program);
+    ptr_hashmap_destroy(vm->breakpoints);
+    lstf_vm_stack_destroy(vm->stack);
+    free(vm);
 }
 
 static lstf_vm_status
@@ -31,7 +40,7 @@ lstf_virtualmachine_read_byte(lstf_virtualmachine *vm,
                               uint8_t             *byte)
 {
     if (vm->pc < vm->program->code || vm->pc >= vm->program->code + vm->program->code_size)
-        return lstf_vm_status_invalid_instruction;
+        return lstf_vm_status_invalid_code_offset;
 
     *byte = *vm->pc++;
     return lstf_vm_status_continue;
@@ -572,13 +581,14 @@ lstf_vm_op_print_exec(lstf_virtualmachine *vm)
 static lstf_vm_status
 lstf_vm_op_exit_exec(lstf_virtualmachine *vm)
 {
-    lstf_vm_status status = lstf_vm_status_exited;
+    lstf_vm_status status = lstf_vm_status_continue;
     int8_t return_code;
 
     if ((status = lstf_virtualmachine_read_signed_byte(vm, &return_code)))
         return status;
 
     vm->return_code = return_code;
+    status = lstf_vm_status_exited;
 
     return status;
 }
@@ -614,22 +624,31 @@ static lstf_vm_status (*const instruction_table[256])(lstf_virtualmachine *) = {
 bool
 lstf_virtualmachine_run(lstf_virtualmachine *vm)
 {
-    if (vm->should_stop || vm->last_status != lstf_vm_status_continue)
-        return true;
+    while (true) {
+        if (vm->should_stop)
+            return true;
 
-    if (vm->debug) {
-        // TODO: breakpoints, watchpoints
+        if (vm->last_status != lstf_vm_status_continue)
+            return false;
+
+        if (vm->debug) {
+            // TODO: breakpoints, watchpoints
+        }
+
+        if (vm->pc == vm->program->entry_point) {
+            // setup initial stack frame
+            if ((vm->last_status = lstf_vm_stack_setup_frame(vm->stack)))
+                return false;
+        }
+
+        uint8_t opcode;
+        if ((vm->last_status = lstf_virtualmachine_read_byte(vm, &opcode)))
+            return false;
+
+        if (!instruction_table[opcode]) {
+            vm->last_status = lstf_vm_status_invalid_instruction;
+        } else {
+            vm->last_status = instruction_table[opcode](vm);
+        }
     }
-
-    uint8_t opcode;
-    if ((vm->last_status = lstf_virtualmachine_read_byte(vm, &opcode)))
-        return true;
-
-    if (!instruction_table[opcode]) {
-        vm->last_status = lstf_vm_status_invalid_instruction;
-    } else {
-        vm->last_status = instruction_table[opcode](vm);
-    }
-
-    return false;
 }

@@ -10,30 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include "util.h"
-
-// for ntoh*()
-#if (WIN32 || WIN64)
-#include <winsock.h>
-#else
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-// ntohll not defined on non-Windows systems
-
-uint64_t ntohll(uint64_t netinteger) {
-    if (((unsigned char *)&netinteger)[0] != (netinteger >> 56)) {
-        // host is little-endian
-        uint64_t hostinteger = 0;
-
-        for (unsigned i = 0; i < sizeof netinteger; i++)
-            hostinteger |= ((netinteger >> (sizeof netinteger - 1 - i)*CHAR_BIT) & 0xFF) << i*CHAR_BIT;
-
-        return hostinteger;
-    }
-    return netinteger;
-}
-#endif
 
 static lstf_vm_program *lstf_vm_program_create(void)
 {
@@ -74,7 +52,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
     for (unsigned i = 0; i < sizeof magic; i++) {
         if (!inputstream_has_data(istream)) {
             if (error)
-                *error = lstf_vm_loader_error_read;
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         } else if ((byte = inputstream_read_char(istream)) != magic[i]) {
             if (error)
@@ -85,14 +63,16 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
     // load entry point offset
     if (!inputstream_read_uint64(istream, &entry_point_offset)) {
-        *error = lstf_vm_loader_error_read;
+        if (error)
+            *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
         goto error_cleanup;
     }
 
     // read the rest of the program header
     if (!inputstream_has_data(istream)) {
         // a list of sections was not found
-        *error = lstf_vm_loader_error_read;
+        if (error)
+            *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
         goto error_cleanup;
     }
     program = lstf_vm_program_create();
@@ -118,13 +98,15 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
                 break;
         }
         if (byte != '\0') {
-            *error = lstf_vm_loader_error_read;
+            if (error)
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
 
         // read section length
         if (!inputstream_read_uint64(istream, &section_size)) {
-            *error = lstf_vm_loader_error_read;
+            if (error)
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
 
@@ -149,7 +131,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         }
     }
     if (byte != '\0') {
-        *error = lstf_vm_loader_error_read;
+        if (error)
+            *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
         goto error_cleanup;
     }
 
@@ -163,7 +146,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         }
 
         if (!inputstream_read(istream, program->debug, program->debug_size)) {
-            *error = lstf_vm_loader_error_read;
+            if (error)
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
 
@@ -177,7 +161,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
         uint64_t n_debug_entries = 0;
         if (!inputstream_read_uint64(istream, &n_debug_entries)) {
-            *error = lstf_vm_loader_error_read;
+            if (error)
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
 
@@ -202,7 +187,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         // parse debug symbols
         uint64_t n_debug_symbols = 0;
         if (!inputstream_read_uint64(istream, &n_debug_symbols)) {
-            *error = lstf_vm_loader_error_read;
+            if (error)
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
 
@@ -241,11 +227,10 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         }
 
         if (!inputstream_read(istream, program->data, program->data_size)) {
-            *error = lstf_vm_loader_error_read;
+            if (error)
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
-
-        program->entry_point = program->data + entry_point_offset;
     }
 
     // now load the code section, which is mandatory
@@ -258,47 +243,52 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         }
 
         if (!inputstream_read(istream, program->code, program->code_size)) {
-            *error = lstf_vm_loader_error_read;
+            if (error)
+                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
+
+        program->entry_point = program->code + entry_point_offset;
     } else {
         *error = lstf_vm_loader_error_no_code_section;
         goto error_cleanup;
     }
 
-    // now write the debug entries
-    for (iterator it = ptr_list_iterator_create(debug_entries);
-            it.has_next; it = iterator_next(it)) {
-        lstf_vm_debugentry *entry = iterator_get_item(it);
+    if (debug_entries) {
+        // now write the debug entries
+        for (iterator it = ptr_list_iterator_create(debug_entries);
+                it.has_next; it = iterator_next(it)) {
+            lstf_vm_debugentry *entry = iterator_get_item(it);
 
-        entry->instruction_offset = ntohll(entry->instruction_offset);
-        entry->source_column = ntohl(entry->source_column);
-        entry->source_line = ntohl(entry->source_line);
-
-        ptr_hashmap_insert(program->debug_entries,
-                program->code + entry->instruction_offset, entry);
+            ptr_hashmap_insert(program->debug_entries,
+                    program->code + entry->instruction_offset, entry);
+        }
     }
 
-    // now write the debug symbols
-    for (iterator it = ptr_list_iterator_create(debug_symbols);
-            it.has_next; it = iterator_next(it)) {
-        lstf_vm_debugsym *symbol = iterator_get_item(it);
+    if (debug_symbols) {
+        // now write the debug symbols
+        for (iterator it = ptr_list_iterator_create(debug_symbols);
+                it.has_next; it = iterator_next(it)) {
+            lstf_vm_debugsym *symbol = iterator_get_item(it);
 
-        symbol->instruction_offset = ntohll(symbol->instruction_offset);
-
-        ptr_hashmap_insert(program->debug_symbols,
-                program->code + symbol->instruction_offset, symbol);
+            ptr_hashmap_insert(program->debug_symbols,
+                    program->code + symbol->instruction_offset, symbol);
+        }
     }
 
-    ptr_list_destroy(debug_entries);
-    ptr_list_destroy(debug_symbols);
+    if (debug_entries)
+        ptr_list_destroy(debug_entries);
+    if (debug_symbols)
+        ptr_list_destroy(debug_symbols);
     inputstream_unref(istream);
     return program;
 
 //  -------------------------------------------
 error_cleanup:
-    ptr_list_destroy(debug_entries);
-    ptr_list_destroy(debug_symbols);
+    if (debug_entries)
+        ptr_list_destroy(debug_entries);
+    if (debug_symbols)
+        ptr_list_destroy(debug_symbols);
     inputstream_unref(istream);
     if (program) {
         lstf_vm_program_unref(program);

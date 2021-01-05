@@ -235,7 +235,7 @@ bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
         return fread(buffer, buffer_size, 1, stream->file);
     case inputstream_type_buffer:
         if (stream->buffer_size - stream->buffer_offset < buffer_size) {
-            errno = EINVAL;
+            errno = ENODATA;
             return false;
         }
         memcpy(buffer, &stream->const_buffer[stream->buffer_offset], buffer_size);

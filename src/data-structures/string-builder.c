@@ -9,7 +9,8 @@ static void string_free(string *sb)
 {
     assert(sb->refcount == 0 && "cannot free string held by other owners!");
 
-    free(sb->buffer);
+    if (!sb->copy_on_write)
+        free(sb->buffer);
     sb->buffer = NULL;
     sb->buffer_size = 0;
     sb->length = 0;

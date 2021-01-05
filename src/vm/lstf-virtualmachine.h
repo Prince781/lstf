@@ -31,7 +31,7 @@ void lstf_virtualmachine_destroy(lstf_virtualmachine *vm);
 /**
  * Runs the virtual machine until termination or interruption.
  *
- * Returns `true` if interrupted and should continue, `false` otherwise.
+ * Returns `true` if interrupted but should continue, `false` if should not continue.
  */
 bool lstf_virtualmachine_run(lstf_virtualmachine *vm);
 

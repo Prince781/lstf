@@ -26,6 +26,8 @@ typedef struct _lstf_vm_stack lstf_vm_stack;
 
 lstf_vm_stack *lstf_vm_stack_new(void);
 
+void lstf_vm_stack_destroy(lstf_vm_stack *stack);
+
 // --- observes the stack
 
 lstf_vm_status lstf_vm_stack_get_value(lstf_vm_stack  *stack,
