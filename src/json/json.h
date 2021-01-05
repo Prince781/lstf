@@ -20,8 +20,8 @@ enum _json_node_type {
 typedef enum _json_node_type json_node_type;
 
 struct _json_node {
-    json_node_type node_type : 3;
-    unsigned long refcount : sizeof(unsigned long)*CHAR_BIT - (3 + 1 + 1 + 1 + 1 + 1);
+    json_node_type node_type;
+    unsigned long refcount : sizeof(unsigned long)*CHAR_BIT - (1 + 1 + 1 + 1 + 1);
 
     /**
      * Whether this node is a floating reference.

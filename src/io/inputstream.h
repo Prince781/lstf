@@ -12,8 +12,8 @@ enum _inputstream_type {
 typedef enum _inputstream_type inputstream_type;
 
 struct _inputstream {
-    inputstream_type stream_type : 1;
-    unsigned long refcount : sizeof(unsigned long) - (1 + 1 + 1);
+    inputstream_type stream_type;
+    unsigned long refcount : sizeof(unsigned long) - (1 + 1);
     bool floating : 1;
     bool close_or_free_on_destruction : 1;
     union {

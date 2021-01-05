@@ -176,6 +176,9 @@ lstf_vm_value_from_json_node(json_node *node)
         fprintf(stderr, "%s: unreachable code: cannot convert JSON ellipsis to LSTF VM value\n", __func__);
         abort();
     }
+
+    fprintf(stderr, "%s: unreachable code: unexpected JSON node type %d\n", __func__, node->node_type);
+    abort();
 }
 
 /**

@@ -116,7 +116,7 @@ static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_
 
     void *new_buffer = realloc(stream->buffer, minimum_new_size);
     if (!new_buffer)
-        return NULL;
+        return false;
 
     stream->buffer = new_buffer;
     stream->buffer_size = minimum_new_size;

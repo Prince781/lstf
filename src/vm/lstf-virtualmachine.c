@@ -564,7 +564,7 @@ lstf_vm_op_print_exec(lstf_virtualmachine *vm)
             printf("%lf\n", value.data.double_value);
             break;
         case lstf_vm_value_type_integer:
-            printf("%ld\n", value.data.integer);
+            printf("%"PRIi64"\n", value.data.integer);
             break;
         case lstf_vm_value_type_null:
             printf("null\n");
