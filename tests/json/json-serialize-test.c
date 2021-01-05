@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
 
     json_node *object_property = json_object_new();
     json_object_set_member(object_property, "null-property", json_null_new());
-    json_object_set_member(object_property, "string-property", json_string_new("Hello\u2014there"));
+    json_object_set_member(object_property, "string-property", json_string_new("Hello, world"));
     json_object_set_member(object_property, "array-property", json_array_new());
     json_object_set_member(object, "object-property", object_property);
 

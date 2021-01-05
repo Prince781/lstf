@@ -14,7 +14,7 @@
     ],
     "objectProperty": {
         "nullProperty": null,
-        "stringProperty": "Hello—there",
+        "stringProperty": "Hello, world",
         "arrayProperty": []
     }
 }
