@@ -116,7 +116,7 @@ static int run_program(lstf_vm_program *program)
             exception_message = "invalid data offset";
             break;
         case lstf_vm_status_invalid_expression:
-            exception_message = "could not parse immediate expression";
+            exception_message = "could not parse JSON expression";
             break;
         case lstf_vm_status_invalid_instruction:
             exception_message = "invalid instruction";

@@ -140,7 +140,7 @@ static char json_scanner_getc(json_scanner *scanner)
 
 static void json_scanner_ungetc(json_scanner *scanner)
 {
-    if (inputstream_unread_char(scanner->stream) != EOF)
+    if (inputstream_unread_char(scanner->stream))
         scanner->source_location = scanner->prev_char_source_location;
     else
         fprintf(stderr, "%s: failed: %s\n", __func__, strerror(errno));

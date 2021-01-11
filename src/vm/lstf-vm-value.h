@@ -118,6 +118,22 @@ lstf_vm_value_to_json_node(lstf_vm_value value)
     abort();
 }
 
+static inline string *
+string_new_from_json_string(json_node *node)
+{
+    assert(node->node_type == json_node_type_string);
+
+    string *sb = NULL;
+
+    if (node->floating) {
+        sb = string_new_take_data(json_string_destroy(node));
+    } else {
+        sb = string_new_copy_data(((json_string *)node)->value);
+    }
+
+    return sb;
+}
+
 static inline lstf_vm_value
 lstf_vm_value_from_json_node(json_node *node)
 {
@@ -125,7 +141,7 @@ lstf_vm_value_from_json_node(json_node *node)
             (node->node_type == json_node_type_string || node->node_type == json_node_type_object))
         return (lstf_vm_value) {
             lstf_vm_value_type_pattern_ref,
-            false,
+            node->floating,
             { .json_node_ref = node }
         };
 
@@ -133,44 +149,46 @@ lstf_vm_value_from_json_node(json_node *node)
     case json_node_type_array:
         return (lstf_vm_value) {
             lstf_vm_value_type_array_ref,
-            false,
+            node->floating,
             { .json_node_ref = node }
         };
     case json_node_type_boolean:
         return (lstf_vm_value) {
             lstf_vm_value_type_boolean,
-            true,
+            false,
             { .boolean = ((json_boolean *)node)->value }
         };
     case json_node_type_double:
         return (lstf_vm_value) {
             lstf_vm_value_type_double,
-            true,
+            false,
             { .double_value = ((json_double *)node)->value }
         };
     case json_node_type_integer:
         return (lstf_vm_value) {
             lstf_vm_value_type_integer,
-            true,
+            false,
             { .integer = ((json_integer *)node)->value }
         };
     case json_node_type_null:
         return (lstf_vm_value) {
             lstf_vm_value_type_null,
-            true,
+            false,
             { .address = 0 }
         };
     case json_node_type_object:
         return (lstf_vm_value) {
             lstf_vm_value_type_object_ref,
-            false,
+            node->floating,
             { .json_node_ref = node }
         };
     case json_node_type_string:
         return (lstf_vm_value) {
             lstf_vm_value_type_string,
             true,
-            { .string = string_new_with_data(((json_string *)node)->value) } 
+            { .string = node->floating ?
+                string_new_from_json_string(node) :
+                    string_new_copy_data(((json_string *)node)->value) } 
         };
     case json_node_type_ellipsis:
         fprintf(stderr, "%s: unreachable code: cannot convert JSON ellipsis to LSTF VM value\n", __func__);
@@ -226,9 +244,13 @@ lstf_vm_value_take_ownership(lstf_vm_value *value)
     case lstf_vm_value_type_object_ref:
     case lstf_vm_value_type_pattern_ref:
         json_node_ref(new_value.data.json_node_ref);
+        if (new_value.data.json_node_ref->refcount == 1)
+            value->takes_ownership = false;
         break;
     case lstf_vm_value_type_string:
         string_ref(new_value.data.string);
+        if (new_value.data.string->refcount == 1)
+            value->takes_ownership = false;
         break;
     case lstf_vm_value_type_boolean:
     case lstf_vm_value_type_code_address:
@@ -238,6 +260,7 @@ lstf_vm_value_take_ownership(lstf_vm_value *value)
         break;
     }
 
-    lstf_vm_value_clear(value);
+    if (value->takes_ownership)
+        lstf_vm_value_clear(value);
     return new_value;
 }

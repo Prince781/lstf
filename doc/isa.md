@@ -19,11 +19,14 @@
 - `[section name]` cannot be longer than 128 bytes, including the trailing NUL byte
 
 ### `debug_info` section
-- `source_file` - is a string containing the path to the source file, terminated with a NUL byte
+- `source_filename` - is a string containing the path to the source file, terminated with a NUL byte
 - `n_debug_entries` - number of debug entries
 - `debug_entries` - is a list of `(uint64_t instruction_offset, uint32_t line, uint32_t column)`
 - `n_debug_syms` - number of debug symbols
 - `debug_syms` - debug symbols `(uint64_t instruction_offset, char[] name)`
+
+### `comments` section
+- is a list of `(uint64_t instruction_offset, char[] comment)`
 
 ### `data` section
 - essentially a contiguous block of NUL-terminated strings
@@ -49,10 +52,11 @@
 	- `<n>` is encoded as a 8-byte immediate
 - `load data(<n>)` - loads the `<n>`'th element from the `data` section
 	- `<n>` is encoded as a 8-byte immediate
-- `load <function>` - loads an offset to the function in the code
+	- the item is loaded as a JSON node
+- `load <function>` - loads an offset in the code to the beginning of a function
     - encoded as a 8-byte immediate value that is an offset in the `code`
       section to the function
-- `load <expr>` - loads an expression onto the stack
+- `load <expr>` - loads an (immediate) JSON expression onto the stack
 	- if the expression is an object expression, a new object is created
 	- if the expression is an array expression, a new array is created
     - examples for `<expr>`: `"Hello, world\n"`, `3`, `3.0`, `true`, `{x: 3}`,
@@ -105,5 +109,5 @@
 - `lnot` - logical NOT; pops one element
 
 ### Input/Output
-- `print <value>` - pops the stack and prints the value to standard output
+- `print` - pops the stack and prints the value to standard output
 - `exit <integer: 0-255>` exits with the exit code `<integer>`

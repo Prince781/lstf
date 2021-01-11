@@ -180,18 +180,18 @@ char inputstream_read_char(inputstream *stream)
     abort();
 }
 
-int inputstream_unread_char(inputstream *stream)
+bool inputstream_unread_char(inputstream *stream)
 {
     switch (stream->stream_type) {
     case inputstream_type_file:
-        return fseek(stream->file, -1, SEEK_CUR);
+        return !fseek(stream->file, -1, SEEK_CUR);
     case inputstream_type_buffer:
         if (stream->buffer_offset == 0) {
             errno = EINVAL;
-            return EOF;
+            return false;
         }
         stream->buffer_offset--;
-        return 0;
+        return true;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
@@ -240,6 +240,25 @@ bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
         }
         memcpy(buffer, &stream->const_buffer[stream->buffer_offset], buffer_size);
         stream->buffer_offset += buffer_size;
+        return true;
+    }
+
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    abort();
+}
+
+bool inputstream_skip(inputstream *stream, size_t bytes)
+{
+    switch (stream->stream_type) {
+    case inputstream_type_file:
+        return !fseek(stream->file, bytes, SEEK_CUR);
+    case inputstream_type_buffer:
+        if (stream->buffer_size - stream->buffer_offset < bytes) {
+            errno = ESPIPE;
+            return false;
+        } else {
+            stream->buffer_offset += bytes;
+        }
         return true;
     }
 

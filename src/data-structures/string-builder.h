@@ -25,9 +25,26 @@ void string_unref(string *sb);
 
 string *string_new(void);
 
-string *string_new_with_data(const char *data);
+/**
+ * Creates a new string backing an existing string that will not be free()'d.
+ */
+string *string_new_with_static_data(const char *data);
 
-string *string_dup(const string *sb);
+/**
+ * Creates a new string from a copy of `data`.
+ */
+string *string_new_copy_data(const char *data);
+
+/**
+ * Creates a new string that will take ownership of `data`, which will be
+ * free()'d when this string is free()'d.
+ */
+string *string_new_take_data(char *data);
+
+/**
+ * Duplicates an existing `string` object.
+ */
+string *string_dup(string *sb);
 
 string *string_append_va(string *sb, const char *format, va_list args)
     __attribute__((format (printf, 2, 0)));

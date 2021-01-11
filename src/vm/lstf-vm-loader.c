@@ -13,6 +13,32 @@
 #include <errno.h>
 #include "util.h"
 
+#if (_WIN32 || _WIN64)
+#include <winsock2.h>
+#else
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+uint64_t ntohll(uint64_t netint) {
+    if (((unsigned char *)&netint)[0] != (netint >> 56)) {
+        uint64_t hostint = 0;
+
+        // host byte order is little-endian, so we have to swap bytes in `netint`
+        hostint = (hostint << CHAR_BIT) | ((netint >> (0*CHAR_BIT)) & 0xFF);
+        hostint = (hostint << CHAR_BIT) | ((netint >> (1*CHAR_BIT)) & 0xFF);
+        hostint = (hostint << CHAR_BIT) | ((netint >> (2*CHAR_BIT)) & 0xFF);
+        hostint = (hostint << CHAR_BIT) | ((netint >> (3*CHAR_BIT)) & 0xFF);
+        hostint = (hostint << CHAR_BIT) | ((netint >> (4*CHAR_BIT)) & 0xFF);
+        hostint = (hostint << CHAR_BIT) | ((netint >> (5*CHAR_BIT)) & 0xFF);
+        hostint = (hostint << CHAR_BIT) | ((netint >> (6*CHAR_BIT)) & 0xFF);
+        hostint = (hostint << CHAR_BIT) | ((netint >> (7*CHAR_BIT)) & 0xFF);
+
+        return hostint;
+    }
+    return netint;
+}
+#endif
+
 static lstf_vm_program *lstf_vm_program_create(void)
 {
     lstf_vm_program *program = calloc(1, sizeof *program);
@@ -44,6 +70,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
     char byte = 0;
     ptr_list *debug_entries = NULL;
     ptr_list *debug_symbols = NULL;
+    uint64_t comments_size = 0;
 
     if (error)
         *error = lstf_vm_loader_error_none;
@@ -89,7 +116,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         while (inputstream_has_data(istream)) {
             byte = inputstream_read_char(istream);
             if (sn_length >= sizeof section_name) {
-                *error = lstf_vm_loader_error_too_long_section_name;
+                if (error)
+                    *error = lstf_vm_loader_error_too_long_section_name;
                 goto error_cleanup;
             }
 
@@ -111,22 +139,27 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         }
 
         if (section_size == 0) {
-            *error = lstf_vm_loader_error_zero_section_size;
+            if (error)
+                *error = lstf_vm_loader_error_zero_section_size;
             goto error_cleanup;
         }
 
         if (strcmp(section_name, "debug_info") == 0) {
             program->debug_size = section_size;
+        } else if (strcmp(section_name, "comments") == 0) {
+            comments_size = section_size;
         } else if (strcmp(section_name, "data") == 0) {
             program->data_size = section_size;
         } else if (strcmp(section_name, "code") == 0) {
             program->code_size = section_size;
             if (entry_point_offset >= program->code_size) {
-                *error = lstf_vm_loader_error_invalid_entry_point;
+                if (error)
+                    *error = lstf_vm_loader_error_invalid_entry_point;
                 goto error_cleanup;
             }
         } else {
-            *error = lstf_vm_loader_error_invalid_section_name;
+            if (error)
+                *error = lstf_vm_loader_error_invalid_section_name;
             goto error_cleanup;
         }
     }
@@ -141,7 +174,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         program->debug = calloc(program->debug_size, sizeof *program->debug);
 
         if (!program->debug) {
-            *error = lstf_vm_loader_error_out_of_memory;
+            if (error)
+                *error = lstf_vm_loader_error_out_of_memory;
             goto error_cleanup;
         }
 
@@ -155,7 +189,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         program->source_filename = (char *) program->debug;
         char *nb_ptr = memchr(program->debug, '\0', program->debug_size);
         if (!nb_ptr || nb_ptr - (char *)program->debug > FILENAME_MAX) {
-            *error = lstf_vm_loader_error_source_filename_too_long;
+            if (error)
+                *error = lstf_vm_loader_error_source_filename_too_long;
             goto error_cleanup;
         }
 
@@ -172,6 +207,11 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         while (n_debug_entries > 0 && (uint64_t)(offset - program->debug) < program->debug_size) {
             lstf_vm_debugentry *entry = (lstf_vm_debugentry *)offset;
 
+            // aliasing memory means we have to convert the byte order to host byte order
+            entry->instruction_offset = ntohll(entry->instruction_offset);
+            entry->source_column = ntohl(entry->source_column);
+            entry->source_line = ntohl(entry->source_line);
+
             ptr_list_append(debug_entries, entry);
 
             offset += sizeof *entry;
@@ -180,7 +220,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         
         if (n_debug_entries > 0) {
             // debug entries remain
-            *error = lstf_vm_loader_error_invalid_debug_size;
+            if (error)
+                *error = lstf_vm_loader_error_invalid_debug_size;
             goto error_cleanup;
         }
 
@@ -200,10 +241,13 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             nb_ptr = memchr(offset, '\0', program->debug_size - (offset - program->debug));
 
             if (!nb_ptr) {
-                *error = lstf_vm_loader_error_invalid_debug_info;
+                if (error)
+                    *error = lstf_vm_loader_error_invalid_debug_info;
                 goto error_cleanup;
             }
 
+            // aliasing memory means we have to convert the byte order to host byte order
+            symbol->instruction_offset = ntohll(symbol->instruction_offset);
             ptr_list_append(debug_symbols, symbol);
 
             offset += sizeof *symbol;
@@ -212,7 +256,17 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
         if (n_debug_symbols > 0) {
             // debug symbols remain
-            *error = lstf_vm_loader_error_invalid_debug_size;
+            if (error)
+                *error = lstf_vm_loader_error_invalid_debug_size;
+            goto error_cleanup;
+        }
+    }
+
+    // skip over comments section
+    if (comments_size > 0) {
+        if (!inputstream_skip(istream, comments_size)) {
+            if (error)
+                *error = lstf_vm_loader_error_read;
             goto error_cleanup;
         }
     }
@@ -222,7 +276,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         program->data = calloc(program->data_size, sizeof *program->data);
 
         if (!program->data) {
-            *error = lstf_vm_loader_error_out_of_memory;
+            if (error)
+                *error = lstf_vm_loader_error_out_of_memory;
             goto error_cleanup;
         }
 
@@ -238,7 +293,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         program->code = calloc(program->code_size, sizeof *program->code);
 
         if (!program->code) {
-            *error = lstf_vm_loader_error_out_of_memory;
+            if (error)
+                *error = lstf_vm_loader_error_out_of_memory;
             goto error_cleanup;
         }
 
@@ -250,7 +306,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
         program->entry_point = program->code + entry_point_offset;
     } else {
-        *error = lstf_vm_loader_error_no_code_section;
+        if (error)
+            *error = lstf_vm_loader_error_no_code_section;
         goto error_cleanup;
     }
 

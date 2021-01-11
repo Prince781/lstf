@@ -85,7 +85,7 @@ enum _lstf_vm_opcode {
 
     // --- input/output
     /**
-     * `print <value>` - pops the stack and prints the value to standard output
+     * `print` - pops the stack and prints the value to standard output
      */
     lstf_vm_op_print,
 

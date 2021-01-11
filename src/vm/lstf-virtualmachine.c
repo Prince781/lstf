@@ -137,6 +137,9 @@ lstf_vm_op_load_dataoffset_exec(lstf_virtualmachine *vm)
 {
     lstf_vm_status status = lstf_vm_status_continue;
     uint64_t data_offset;
+    char *expression_string = NULL;
+    json_node *node = NULL;
+    lstf_vm_value value;
 
     if ((status = lstf_virtualmachine_read_integer(vm, &data_offset)))
         return status;
@@ -144,8 +147,14 @@ lstf_vm_op_load_dataoffset_exec(lstf_virtualmachine *vm)
     if (data_offset >= vm->program->data_size)
         return lstf_vm_status_invalid_data_offset;
 
-    status = lstf_vm_stack_push_string(vm->stack,
-            string_new_with_data((char *)vm->program->data + data_offset));
+    expression_string = (char *)vm->program->data + data_offset;
+
+    if (!(node = json_parser_parse_string(expression_string)))
+        return lstf_vm_status_invalid_expression;
+
+    value = lstf_vm_value_from_json_node(node);
+    if ((status = lstf_vm_stack_push_value(vm->stack, &value)))
+        lstf_vm_value_clear(&value);
 
     return status;
 }

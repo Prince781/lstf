@@ -59,7 +59,7 @@ string *string_new(void)
     return sb;
 }
 
-string *string_new_with_data(const char *data)
+string *string_new_with_static_data(const char *data)
 {
     string *sb = calloc(1, sizeof *sb);
 
@@ -74,9 +74,39 @@ string *string_new_with_data(const char *data)
     return sb;
 }
 
-string *string_dup(const string *sb)
+string *string_new_copy_data(const char *data)
 {
-    return string_new_with_data(sb->buffer);
+    string *sb = calloc(1, sizeof *sb);
+
+    if (!sb)
+        return NULL;
+
+    sb->buffer = strdup(data);
+    sb->buffer_size = strlen(sb->buffer);
+    sb->floating = true;
+
+    return sb;
+}
+
+string *string_new_take_data(char *data)
+{
+    string *sb = calloc(1, sizeof *sb);
+
+    if (!sb)
+        return NULL;
+
+    sb->buffer = data;
+    sb->buffer_size = strlen(data);
+    sb->floating = true;
+
+    return sb;
+}
+
+string *string_dup(string *sb)
+{
+    string *new_sb = string_new_with_static_data(sb->buffer);
+    sb->copy_on_write = true;
+    return new_sb;
 }
 
 string *string_append_va(string *sb, const char *format, va_list args)

@@ -51,9 +51,9 @@ inputstream *inputstream_new_from_const_string(const char *str);
 char inputstream_read_char(inputstream *stream);
 
 /**
- * Unreads a character. Returns `EOF` on error.
+ * Unreads a character. Returns `true` on success, `false` on error.
  */
-int inputstream_unread_char(inputstream *stream);
+bool inputstream_unread_char(inputstream *stream);
 
 /**
  * Returns `true` and `integer` is set to the integer that was read. Otherwise
@@ -72,6 +72,12 @@ bool inputstream_read_uint64(inputstream *stream, uint64_t *integer);
  * was successful, `false` otherwise.
  */
 bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size);
+
+/**
+ * Advances the stream by `bytes` bytes. Returns `true` if the operation was
+ * successful, `false` otherwise.
+ */
+bool inputstream_skip(inputstream *stream, size_t bytes);
 
 bool inputstream_has_data(inputstream *stream);
 

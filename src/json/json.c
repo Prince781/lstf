@@ -565,6 +565,17 @@ json_node *json_string_new(const char *value)
     return (json_node *)node;
 }
 
+char *json_string_destroy(json_node *node)
+{
+    assert(node->node_type == json_node_type_string &&
+            node->floating && node->refcount == 0);
+
+    char *buffer = ((json_string *)node)->value;
+    ((json_string *)node)->value = NULL;
+    free(node);
+    return buffer;
+}
+
 json_node *json_array_new(void)
 {
     json_array *node = calloc(1, sizeof *node);
