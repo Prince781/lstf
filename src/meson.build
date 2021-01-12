@@ -130,7 +130,8 @@ vm_lib = static_library('vm',
     'vm/lstf-vm-program.c',
     'vm/lstf-vm-stack.c',
   ],
-  c_args: c_args
+  c_args: c_args,
+  dependencies: [cc.find_library('Ws2_32')]
 )
 
 vm = declare_dependency(
