@@ -68,9 +68,9 @@
 
 ### Accessing Members of Structured Types
 - `get <object|array> <index: string|integer>` - accesses (reads) the member
-  `<index>` of the object/array
+  `<index>` of the object/array at the top of the stack
 - `set <object|array> <index: string|integer> <value: any>` - writes the value
-  `<value>` to the member `<index>` of the object/array
+  `<value>` to the member `<index>` of the object/array at the top of the stack
 
 ### Calling and Returning from Functions
 - `call <label>` - calls a function
