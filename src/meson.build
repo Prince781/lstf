@@ -123,6 +123,13 @@ compiler = declare_dependency(
   link_with: [compiler_lib],
 )
 
+vm_deps = []
+if cc.get_id() == 'msvc' or host_machine.system() == 'windows'
+  if not cc.has_function('htonl', prefix: '#include <winsock.h>')
+    vm_deps += cc.find_library('Ws2_32')
+  endif
+endif
+
 vm_lib = static_library('vm',
   [
     'vm/lstf-virtualmachine.c',
@@ -131,7 +138,7 @@ vm_lib = static_library('vm',
     'vm/lstf-vm-stack.c',
   ],
   c_args: c_args,
-  dependencies: [cc.find_library('Ws2_32')]
+  dependencies: vm_deps
 )
 
 vm = declare_dependency(
