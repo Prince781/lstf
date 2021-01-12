@@ -84,6 +84,7 @@ int main(int argc, char *argv[])
     retval = strcmp(serialized_string, loaded_json->buffer) != 0;
 
     json_node_unref(object);
+    json_node_unref(object);    // break cyclic reference
     free(serialized_string);
     fclose(file_to_compare_to);
     free(string_destroy(loaded_json));

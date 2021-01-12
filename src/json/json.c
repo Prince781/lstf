@@ -66,10 +66,11 @@ json_node *json_node_ref(json_node *node)
 
 static void json_node_destroy(json_node *node)
 {
-    if (!node)
+    if (!node || node->visiting)
         return;
     assert(node->floating || node->refcount == 0);
 
+    node->visiting = true;
     if (node->node_type == json_node_type_string) {
         json_string *string_node = (json_string *)node;
         free(string_node->value);
@@ -92,12 +93,13 @@ static void json_node_destroy(json_node *node)
         array->buffer_size = 0;
     }
 
+    node->visiting = false;
     free(node);
 }
 
 void json_node_unref(json_node *node)
 {
-    if (!node)
+    if (!node || node->visiting)
         return;
     assert(node->floating || node->refcount > 0);
     if (node->floating || --node->refcount == 0)
