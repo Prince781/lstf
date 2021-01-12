@@ -19,7 +19,11 @@ int main(void) {
     ptr_hashmap_insert(map, "key1", json_object_new());
     ptr_hashmap_insert(map, "key2", json_boolean_new(true));
     ptr_hashmap_insert(map, "key3", json_string_new("example"));
-    ptr_hashmap_insert(map, "key1", json_integer_new(34));
+    ptr_hashmap_insert(map, "key1", json_integer_new(32));
+
+    ptr_hashmap_entry *key1_entry = ptr_hashmap_get(map, "key1");
+    ptr_hashmap_insert(map, key1_entry->key, json_integer_new(33));
+    ptr_hashmap_entry_set_value(map, key1_entry, json_integer_new(34));
 
     json_node *object = json_object_new();
     for (iterator it = ptr_hashmap_iterator_create(map);

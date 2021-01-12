@@ -113,12 +113,16 @@ ptr_hashmap_entry *ptr_hashmap_insert(ptr_hashmap *map, void *new_key, void *new
     ptr_hashmap_entry *entry = NULL;
 
     if ((entry = ptr_hashmap_get(map, new_key))) {
-        if (map->key_unref_func)
-            map->key_unref_func(entry->key);
-        if (map->value_unref_func)
-            map->value_unref_func(entry->value);
+        void *old_key = entry->key;
+        void *old_value = entry->value;
+
         entry->key = map->key_ref_func ? map->key_ref_func(new_key) : new_key;
         entry->value = map->value_ref_func ? map->value_ref_func(new_value) : new_value;
+
+        if (map->key_unref_func)
+            map->key_unref_func(old_key);
+        if (map->value_unref_func)
+            map->value_unref_func(old_value);
     } else {
         unsigned hash = map->key_hash_func(new_key) % map->num_bucket_places;
         ptr_hashmap_bucket *bucket = NULL;
