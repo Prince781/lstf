@@ -73,12 +73,3 @@ static inline uint32_t htonl(uint32_t hostint) {
         return swap_uint32(hostint);
     return hostint;
 }
-
-static inline uint8_t htonb(uint8_t netint) {
-    return netint;
-}
-
-/**
- * Converts an integer from host to network byte order.
- */
-#define hton(netint) _Generic((netint), uint64_t: htonll, uint32_t: htonl, uint8_t: htonb)(netint)

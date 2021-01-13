@@ -3,7 +3,19 @@
 #include "lstf-vm-program.h"
 #include <stddef.h>
 
-#define LSTFC_MAGIC_HEADER (char[]){'\x89', 'L', 'S', 'T', 'F', '\x01', '\x0A', '\x00'}
+#define LSTFC_MAGIC_HEADER_BYTE0 '\x89'
+#define LSTFC_MAGIC_HEADER_BYTE1 'L'
+#define LSTFC_MAGIC_HEADER_BYTE2 'S'
+#define LSTFC_MAGIC_HEADER_BYTE3 'T'
+#define LSTFC_MAGIC_HEADER_BYTE4 'F'
+#define LSTFC_MAGIC_HEADER_BYTE5 '\x01'
+#define LSTFC_MAGIC_HEADER_BYTE6 '\x0A'
+#define LSTFC_MAGIC_HEADER_BYTE7 '\x00'
+
+#define LSTFC_MAGIC_HEADER (char[]){\
+    LSTFC_MAGIC_HEADER_BYTE0, LSTFC_MAGIC_HEADER_BYTE1, LSTFC_MAGIC_HEADER_BYTE2, LSTFC_MAGIC_HEADER_BYTE3,\
+    LSTFC_MAGIC_HEADER_BYTE4, LSTFC_MAGIC_HEADER_BYTE5, LSTFC_MAGIC_HEADER_BYTE6, LSTFC_MAGIC_HEADER_BYTE7,\
+}
 
 enum _lstf_vm_loader_error {
     lstf_vm_loader_error_none,

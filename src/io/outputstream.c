@@ -124,19 +124,18 @@ static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_
     return true;
 }
 
-#define int_ref(i) _Generic((i), uint64_t: &(uint64_t){i}, uint32_t: &(uint32_t){i}, uint8_t: &(uint8_t){i})
-
-#define outputstream_write_integer(stream, integer)\
+#define outputstream_write_integer(stream, integer, hton)\
 {\
+    integer = hton(integer);\
     switch (stream->stream_type) {\
     case outputstream_type_file:\
-        return fwrite(int_ref(hton(integer)), sizeof integer, 1, stream->file);\
+        return fwrite(&integer, sizeof integer, 1, stream->file);\
     case outputstream_type_buffer:\
         if (stream->buffer_offset + sizeof integer >= stream->buffer_size) {\
             if (!outputstream_resize_buffer(stream, stream->buffer_offset + sizeof integer))\
                 return 0;\
         }\
-        memcpy(stream->buffer + stream->buffer_offset, int_ref(hton(integer)), sizeof integer);\
+        memcpy(stream->buffer + stream->buffer_offset, &integer, sizeof integer);\
         stream->buffer_offset += sizeof integer;\
         return sizeof integer;\
     }\
@@ -145,14 +144,16 @@ static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_
     abort();\
 }
 
+static inline uint8_t htonb(uint8_t hostint) { return hostint; }
+
 size_t outputstream_write_byte(outputstream *stream, uint8_t byte)
 {
-    outputstream_write_integer(stream, byte);
+    outputstream_write_integer(stream, byte, htonb);
 }
 
 size_t outputstream_write_uint64(outputstream *stream, uint64_t integer)
 {
-    outputstream_write_integer(stream, integer);
+    outputstream_write_integer(stream, integer, htonll);
 }
 
 size_t outputstream_write_int64(outputstream *stream, int64_t integer)
@@ -162,7 +163,7 @@ size_t outputstream_write_int64(outputstream *stream, int64_t integer)
 
 size_t outputstream_write_uint32(outputstream *stream, uint32_t integer)
 {
-    outputstream_write_integer(stream, integer);
+    outputstream_write_integer(stream, integer, htonl);
 }
 
 size_t outputstream_write_string(outputstream *stream, const char *str)

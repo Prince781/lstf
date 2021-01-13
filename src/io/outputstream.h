@@ -12,8 +12,8 @@ enum _outputstream_type {
 typedef enum _outputstream_type outputstream_type;
 
 struct _outputstream {
-    outputstream_type stream_type : 1;
-    unsigned long refcount : sizeof(unsigned long) - (1 + 1 + 1);
+    outputstream_type stream_type;
+    unsigned long refcount : sizeof(unsigned long) - (1 + 1);
     bool floating : 1;
     bool close_or_free_on_destruction : 1;
     union {

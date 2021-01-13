@@ -2,8 +2,10 @@
 
 #include "vm/lstf-vm-opcodes.h"
 #include "json/json.h"
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -266,6 +268,9 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
     case lstf_vm_op_exit:
         return sizeof(uint8_t) + sizeof(uint8_t);
     }
+
+    fprintf(stderr, "%s: unreachable code: unexpected VM opcode `%d'\n", __func__, instruction->opcode);
+    abort();
 }
 
 static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
