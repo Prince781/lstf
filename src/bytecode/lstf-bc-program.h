@@ -20,19 +20,19 @@ struct _lstf_bc_program {
     char *source_filename;
 
     /**
-     * Maps `(instruction: lstf_bc_instruction *) -> (entry: lstf_bc_debugentry *)`
+     * Maps `(function: lstf_bc_function *) -> ((instruction: lstf_bc_instruction *) -> (entry: lstf_bc_debugentry *))`
      */
     ptr_hashmap *debug_sourcemap;
 
     /**
-     * Maps `(instruction: lstf_bc_instruction *) -> (name: char *)`
+     * Maps `(function: lstf_bc_function *) -> ((instruction: lstf_bc_instruction *) -> (name: char *))`
      */
     ptr_hashmap *debug_symbols;
 
     // --- comments
 
     /**
-     * Maps `(instruction: lstf_bc_instruction *) -> (comment: char *)`
+     * Maps `(function: lstf_bc_function *) -> ((instruction: lstf_bc_instruction *) -> (name: char *))`
      */
     ptr_hashmap *comments;
 
@@ -58,6 +58,11 @@ struct _lstf_bc_program {
      * Maps `(name: char *) -> (function: lstf_bc_function *)`
      */
     ptr_hashmap *functions;
+
+    /**
+     * Maps `(function: lstf_bc_function *) -> (uint64_t[])`
+     */
+    ptr_hashmap *code_offsets;
 };
 typedef struct _lstf_bc_program lstf_bc_program;
 
@@ -76,6 +81,7 @@ void lstf_bc_program_destroy(lstf_bc_program *program);
  * Associates the `instruction` with the line and column of `source_filename`.
  */
 void lstf_bc_program_add_sourcemap(lstf_bc_program     *program,
+                                   lstf_bc_function    *function,
                                    lstf_bc_instruction *instruction,
                                    uint32_t             line,
                                    uint32_t             column);
@@ -84,6 +90,7 @@ void lstf_bc_program_add_sourcemap(lstf_bc_program     *program,
  * Associates the `instruction` with the symbol name.
  */
 void lstf_bc_program_add_symbol(lstf_bc_program     *program,
+                                lstf_bc_function    *function,
                                 lstf_bc_instruction *instruction,
                                 const char          *symbol_name);
 
@@ -94,28 +101,28 @@ void lstf_bc_program_add_symbol(lstf_bc_program     *program,
  * `instruction`.
  */
 void lstf_bc_program_add_comment(lstf_bc_program     *program,
+                                 lstf_bc_function    *function,
                                  lstf_bc_instruction *instruction,
                                  const char          *comment);
 
 // --- data
 
 /**
- * Adds `data` to the program's data, taking ownership of the buffer. `data`
- * must not be referenced after this function returns.
+ * Adds `data_string` to the program's data.
  *
  * @param data the buffer to add to the program's data section
  *
  * @return a pointer to the string relative to the start of the program's data
  *   section
+ *
+ * @see lstf_bc_instruction_load_dataoffset_new
  */
-char *lstf_bc_program_add_data(lstf_bc_program *program, char *data_string);
+char *lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string);
 
 // --- code
 
 /**
  * Adds a new function to the program bytecode.
- *
- * @return `true` on success, `false` on failure if the function already exists
  */
-bool lstf_bc_program_add_function(lstf_bc_program  *program,
+void lstf_bc_program_add_function(lstf_bc_program  *program,
                                   lstf_bc_function *function);

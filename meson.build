@@ -29,7 +29,8 @@ else
       '-Wformat-overflow=2',
       '-Wstrict-aliasing=3',
       '-Wcast-qual',
-      '-Wuninitialized'
+      '-Wuninitialized',
+      '-Wunreachable-code'
     ])
 endif
 

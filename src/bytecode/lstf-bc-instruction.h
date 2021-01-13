@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct _lstf_bc_function;
 typedef struct _lstf_bc_function lstf_bc_function;
@@ -23,9 +24,9 @@ struct _lstf_bc_instruction {
         int64_t frame_offset;
 
         /**
-         * Used for data loads
+         * Used for data loads. Do not free.
          */
-        uint64_t data_offset;
+        char *data_offset;
 
         /**
          * Used by:
@@ -72,7 +73,7 @@ static inline lstf_bc_instruction lstf_bc_instruction_load_frameoffset_new(int64
     };
 }
 
-static inline lstf_bc_instruction lstf_bc_instruction_load_dataoffset_new(uint64_t data_offset)
+static inline lstf_bc_instruction lstf_bc_instruction_load_dataoffset_new(char *data_offset)
 {
     return (lstf_bc_instruction) {
         .opcode = lstf_vm_op_load_dataoffset,
@@ -221,6 +222,50 @@ static inline lstf_bc_instruction lstf_bc_instruction_exit_new(uint8_t exit_code
         .opcode = lstf_vm_op_exit,
         .exit_code = exit_code
     };
+}
+
+static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instruction)
+{
+    switch (instruction->opcode) {
+    case lstf_vm_op_load_frameoffset:
+        return sizeof(uint8_t) + sizeof(instruction->frame_offset);
+    case lstf_vm_op_load_dataoffset:
+        return sizeof(uint8_t) + sizeof(instruction->data_offset);
+    case lstf_vm_op_load_codeoffset:
+        return sizeof(uint8_t) + sizeof(uint64_t);
+    case lstf_vm_op_load_expression:
+        return sizeof(uint8_t) + strlen(instruction->json_expression) + 1;
+    case lstf_vm_op_store:
+        return sizeof(uint8_t) + sizeof(instruction->frame_offset);
+    case lstf_vm_op_get:
+        return sizeof(uint8_t);
+    case lstf_vm_op_set:
+        return sizeof(uint8_t);
+    case lstf_vm_op_call:
+        return sizeof(uint8_t) + sizeof(uint64_t);
+    case lstf_vm_op_indirect:
+        return sizeof(uint8_t);
+    case lstf_vm_op_return:
+        return sizeof(uint8_t);
+    case lstf_vm_op_vmcall:
+        return sizeof(uint8_t) + sizeof(uint8_t);
+    case lstf_vm_op_if:
+        return sizeof(uint8_t) + sizeof(uint64_t);
+    case lstf_vm_op_jump:
+        return sizeof(uint8_t) + sizeof(uint64_t);
+    case lstf_vm_op_bool:
+        return sizeof(uint8_t);
+    case lstf_vm_op_land:
+        return sizeof(uint8_t);
+    case lstf_vm_op_lor:
+        return sizeof(uint8_t);
+    case lstf_vm_op_lnot:
+        return sizeof(uint8_t);
+    case lstf_vm_op_print:
+        return sizeof(uint8_t);
+    case lstf_vm_op_exit:
+        return sizeof(uint8_t) + sizeof(uint8_t);
+    }
 }
 
 static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)

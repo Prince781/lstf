@@ -73,7 +73,10 @@ void ptr_hashmap_delete(ptr_hashmap *map, void *key);
 
 bool ptr_hashmap_is_empty(const ptr_hashmap *map);
 
-unsigned ptr_hashmap_num_elements(const ptr_hashmap *map);
+static inline size_t ptr_hashmap_num_elements(const ptr_hashmap *map)
+{
+    return map->entries_list->length;
+}
 
 /**
  * Returns an iterator on the entries of the hash map.

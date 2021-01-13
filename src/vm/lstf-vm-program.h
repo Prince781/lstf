@@ -14,8 +14,8 @@ struct _lstf_vm_program {
 
     // --- important sections
     // --- debug info fields (optional)
-    uint8_t *debug;                     // mapped debug section (optional)
-    uint64_t debug_size;
+    uint8_t *debuginfo;                 // mapped debug section (optional)
+    uint64_t debuginfo_size;
     char *source_filename;
     /**
      * maps `(uint8_t *) -> (lstf_vm_debugentry *)`

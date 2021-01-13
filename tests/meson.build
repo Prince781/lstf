@@ -1,3 +1,4 @@
+subdir('bytecode')
 subdir('compiler')
 subdir('data-structures')
 subdir('json')

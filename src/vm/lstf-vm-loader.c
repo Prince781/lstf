@@ -13,32 +13,6 @@
 #include <errno.h>
 #include "util.h"
 
-#if (_WIN32 || _WIN64)
-#include <winsock2.h>
-#else
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-uint64_t ntohll(uint64_t netint) {
-    if (((unsigned char *)&netint)[0] != (netint >> 56)) {
-        uint64_t hostint = 0;
-
-        // host byte order is little-endian, so we have to swap bytes in `netint`
-        hostint = (hostint << CHAR_BIT) | ((netint >> (0*CHAR_BIT)) & 0xFF);
-        hostint = (hostint << CHAR_BIT) | ((netint >> (1*CHAR_BIT)) & 0xFF);
-        hostint = (hostint << CHAR_BIT) | ((netint >> (2*CHAR_BIT)) & 0xFF);
-        hostint = (hostint << CHAR_BIT) | ((netint >> (3*CHAR_BIT)) & 0xFF);
-        hostint = (hostint << CHAR_BIT) | ((netint >> (4*CHAR_BIT)) & 0xFF);
-        hostint = (hostint << CHAR_BIT) | ((netint >> (5*CHAR_BIT)) & 0xFF);
-        hostint = (hostint << CHAR_BIT) | ((netint >> (6*CHAR_BIT)) & 0xFF);
-        hostint = (hostint << CHAR_BIT) | ((netint >> (7*CHAR_BIT)) & 0xFF);
-
-        return hostint;
-    }
-    return netint;
-}
-#endif
-
 static lstf_vm_program *lstf_vm_program_create(void)
 {
     lstf_vm_program *program = calloc(1, sizeof *program);
@@ -64,7 +38,6 @@ static lstf_vm_program *lstf_vm_program_create(void)
 
 static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, lstf_vm_loader_error *error)
 {
-    const char magic[] = {'\x89', 'L', 'S', 'T', 'F', '\x01', '\x0A', '\x00'};
     lstf_vm_program *program = NULL;
     uint64_t entry_point_offset = 0;
     char byte = 0;
@@ -76,12 +49,12 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         *error = lstf_vm_loader_error_none;
 
     // load magic header
-    for (unsigned i = 0; i < sizeof magic; i++) {
+    for (unsigned i = 0; i < sizeof LSTFC_MAGIC_HEADER; i++) {
         if (!inputstream_has_data(istream)) {
             if (error)
                 *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
-        } else if ((byte = inputstream_read_char(istream)) != magic[i]) {
+        } else if ((byte = inputstream_read_char(istream)) != LSTFC_MAGIC_HEADER[i]) {
             if (error)
                 *error = lstf_vm_loader_error_invalid_magic_value;
             goto error_cleanup;
@@ -144,8 +117,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             goto error_cleanup;
         }
 
-        if (strcmp(section_name, "debug_info") == 0) {
-            program->debug_size = section_size;
+        if (strcmp(section_name, "debuginfo") == 0) {
+            program->debuginfo_size = section_size;
         } else if (strcmp(section_name, "comments") == 0) {
             comments_size = section_size;
         } else if (strcmp(section_name, "data") == 0) {
@@ -170,25 +143,25 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
     }
 
     // parse optional debug section
-    if (program->debug_size > 0) {
-        program->debug = calloc(program->debug_size, sizeof *program->debug);
+    if (program->debuginfo_size > 0) {
+        program->debuginfo = calloc(program->debuginfo_size, sizeof *program->debuginfo);
 
-        if (!program->debug) {
+        if (!program->debuginfo) {
             if (error)
                 *error = lstf_vm_loader_error_out_of_memory;
             goto error_cleanup;
         }
 
-        if (!inputstream_read(istream, program->debug, program->debug_size)) {
+        if (!inputstream_read(istream, program->debuginfo, program->debuginfo_size)) {
             if (error)
                 *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
         }
 
         // read source filename
-        program->source_filename = (char *) program->debug;
-        char *nb_ptr = memchr(program->debug, '\0', program->debug_size);
-        if (!nb_ptr || nb_ptr - (char *)program->debug > FILENAME_MAX) {
+        program->source_filename = (char *) program->debuginfo;
+        char *nb_ptr = memchr(program->debuginfo, '\0', program->debuginfo_size);
+        if (!nb_ptr || nb_ptr - (char *)program->debuginfo > FILENAME_MAX) {
             if (error)
                 *error = lstf_vm_loader_error_source_filename_too_long;
             goto error_cleanup;
@@ -203,8 +176,8 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
         debug_entries = ptr_list_new(NULL, NULL);
 
-        uint8_t *offset = program->debug;
-        while (n_debug_entries > 0 && (uint64_t)(offset - program->debug) < program->debug_size) {
+        uint8_t *offset = program->debuginfo;
+        while (n_debug_entries > 0 && (uint64_t)(offset - program->debuginfo) < program->debuginfo_size) {
             lstf_vm_debugentry *entry = (lstf_vm_debugentry *)offset;
 
             // aliasing memory means we have to convert the byte order to host byte order
@@ -236,9 +209,9 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         debug_symbols = ptr_list_new(NULL, NULL);
 
         offset += sizeof n_debug_symbols;
-        while (n_debug_symbols > 0 && (uint64_t)(offset - program->debug) < program->debug_size) {
+        while (n_debug_symbols > 0 && (uint64_t)(offset - program->debuginfo) < program->debuginfo_size) {
             lstf_vm_debugsym *symbol = (lstf_vm_debugsym *)offset;
-            nb_ptr = memchr(offset, '\0', program->debug_size - (offset - program->debug));
+            nb_ptr = memchr(offset, '\0', program->debuginfo_size - (offset - program->debuginfo));
 
             if (!nb_ptr) {
                 if (error)

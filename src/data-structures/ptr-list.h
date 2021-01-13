@@ -3,6 +3,7 @@
 #include "data-structures/collection.h"
 #include "iterator.h"
 #include <stdbool.h>
+#include <stddef.h>
 
 struct _ptr_list_node {
     void *data;
@@ -18,7 +19,7 @@ typedef struct _ptr_list_node ptr_list_node;
 struct _ptr_list {
     ptr_list_node *head;
     ptr_list_node *tail;
-    unsigned length;
+    size_t length;
     collection_item_ref_func data_ref_func;
     collection_item_unref_func data_unref_func;
 };

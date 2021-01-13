@@ -3,6 +3,8 @@
 #include "lstf-vm-program.h"
 #include <stddef.h>
 
+#define LSTFC_MAGIC_HEADER (char[]){'\x89', 'L', 'S', 'T', 'F', '\x01', '\x0A', '\x00'}
+
 enum _lstf_vm_loader_error {
     lstf_vm_loader_error_none,
 

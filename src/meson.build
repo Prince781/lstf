@@ -123,13 +123,6 @@ compiler = declare_dependency(
   link_with: [compiler_lib],
 )
 
-vm_deps = []
-if cc.get_id() == 'msvc' or host_machine.system() == 'windows'
-  if not cc.has_function('htonl', prefix: '#include <winsock.h>')
-    vm_deps += cc.find_library('Ws2_32')
-  endif
-endif
-
 vm_lib = static_library('vm',
   [
     'vm/lstf-virtualmachine.c',
@@ -137,8 +130,7 @@ vm_lib = static_library('vm',
     'vm/lstf-vm-program.c',
     'vm/lstf-vm-stack.c',
   ],
-  c_args: c_args,
-  dependencies: vm_deps
+  c_args: c_args
 )
 
 vm = declare_dependency(
@@ -146,8 +138,22 @@ vm = declare_dependency(
   link_with: [vm_lib]
 )
 
+bytecode_lib = static_library('bytecode',
+  [
+    'bytecode/lstf-bc-function.c',
+    'bytecode/lstf-bc-program.c',
+    'bytecode/lstf-bc-serialize.c',
+  ],
+  c_args: c_args
+)
+
+bytecode = declare_dependency(
+  dependencies: [data_structures, util, json, io, vm],
+  link_with: [bytecode_lib]
+)
+
 lstf = executable('lstf',
-  dependencies: [compiler, vm],
+  dependencies: [compiler, vm, bytecode],
   c_args: c_args,
   sources: ['lstf.c'],
   install: true)

@@ -29,7 +29,7 @@ static void lstf_vm_program_destroy(lstf_vm_program *prog)
 
     assert(prog->floating || prog->refcount == 0);
 
-    free(prog->debug);
+    free(prog->debuginfo);
     ptr_hashmap_destroy(prog->debug_entries);
     ptr_hashmap_destroy(prog->debug_symbols);
     free(prog->data);

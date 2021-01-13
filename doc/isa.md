@@ -18,7 +18,7 @@
 - header terminated with one `\x00` (NUL) byte
 - `[section name]` cannot be longer than 128 bytes, including the trailing NUL byte
 
-### `debug_info` section
+### `debuginfo` section
 - `source_filename` - is a string containing the path to the source file, terminated with a NUL byte
 - `n_debug_entries` - number of debug entries
 - `debug_entries` - is a list of `(uint64_t instruction_offset, uint32_t line, uint32_t column)`
@@ -26,7 +26,7 @@
 - `debug_syms` - debug symbols `(uint64_t instruction_offset, char[] name)`
 
 ### `comments` section
-- is a list of `(uint64_t instruction_offset, char[] comment)`
+- then, a list of `(uint64_t instruction_offset, char[] comment)`
 
 ### `data` section
 - essentially a contiguous block of NUL-terminated strings

@@ -1,4 +1,5 @@
 #include "outputstream.h"
+#include "util.h"
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
@@ -81,7 +82,6 @@ outputstream *outputstream_new_from_buffer(void *buffer, size_t initial_size, bo
         buffer = malloc(initial_size ? initial_size : (initial_size = BUFSIZ));
         if (!buffer)
             return NULL;
-        free_on_destroy = true;
     }
 
     outputstream *stream = calloc(1, sizeof *stream);
@@ -124,49 +124,48 @@ static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_
     return true;
 }
 
-int outputstream_write_byte(outputstream *stream, uint8_t byte)
-{
-    switch (stream->stream_type) {
-    case outputstream_type_file:
-        return fwrite(&byte, sizeof byte, 1, stream->file);
-    case outputstream_type_buffer:
-        if (stream->buffer_offset + sizeof byte >= stream->buffer_size) {
-            if (!outputstream_resize_buffer(stream, stream->buffer_offset + sizeof byte))
-                return EOF;
-        }
-        stream->buffer[stream->buffer_offset++] = byte;
-        return sizeof byte;
-    }
+#define int_ref(i) _Generic((i), uint64_t: &(uint64_t){i}, uint32_t: &(uint32_t){i}, uint8_t: &(uint8_t){i})
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
-    abort();
+#define outputstream_write_integer(stream, integer)\
+{\
+    switch (stream->stream_type) {\
+    case outputstream_type_file:\
+        return fwrite(int_ref(hton(integer)), sizeof integer, 1, stream->file);\
+    case outputstream_type_buffer:\
+        if (stream->buffer_offset + sizeof integer >= stream->buffer_size) {\
+            if (!outputstream_resize_buffer(stream, stream->buffer_offset + sizeof integer))\
+                return 0;\
+        }\
+        memcpy(stream->buffer + stream->buffer_offset, int_ref(hton(integer)), sizeof integer);\
+        stream->buffer_offset += sizeof integer;\
+        return sizeof integer;\
+    }\
+\
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);\
+    abort();\
 }
 
-int outputstream_write_uint64(outputstream *stream, uint64_t integer)
+size_t outputstream_write_byte(outputstream *stream, uint8_t byte)
 {
-    switch (stream->stream_type) {
-    case outputstream_type_file:
-        return fwrite(&integer, sizeof integer, 1, stream->file);
-    case outputstream_type_buffer:
-        if (stream->buffer_offset + sizeof integer >= stream->buffer_size) {
-            if (!outputstream_resize_buffer(stream, stream->buffer_offset + sizeof integer))
-                return EOF;
-        }
-        memcpy(&stream->buffer[stream->buffer_offset], &integer, sizeof integer);
-        stream->buffer_offset += sizeof integer;
-        return sizeof integer;
-    }
-
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
-    abort();
+    outputstream_write_integer(stream, byte);
 }
 
-int outputstream_write_int64(outputstream *stream, int64_t integer)
+size_t outputstream_write_uint64(outputstream *stream, uint64_t integer)
+{
+    outputstream_write_integer(stream, integer);
+}
+
+size_t outputstream_write_int64(outputstream *stream, int64_t integer)
 {
     return outputstream_write_uint64(stream, integer);
 }
 
-int outputstream_write_string(outputstream *stream, const char *str)
+size_t outputstream_write_uint32(outputstream *stream, uint32_t integer)
+{
+    outputstream_write_integer(stream, integer);
+}
+
+size_t outputstream_write_string(outputstream *stream, const char *str)
 {
     size_t string_length = strlen(str);
     switch (stream->stream_type) {
@@ -175,11 +174,30 @@ int outputstream_write_string(outputstream *stream, const char *str)
     case outputstream_type_buffer:
         if (stream->buffer_offset + string_length >= stream->buffer_size) {
             if (!outputstream_resize_buffer(stream, stream->buffer_offset + string_length))
-                return EOF;
+                return 0;
         }
         memcpy(&stream->buffer[stream->buffer_offset], str, string_length);
         stream->buffer_offset += string_length;
         return string_length;
+    }
+
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    abort();
+}
+
+size_t outputstream_write(outputstream *stream, void *buffer, size_t buffer_size)
+{
+    switch (stream->stream_type) {
+    case outputstream_type_file:
+        return fwrite(buffer, buffer_size, 1, stream->file);
+    case outputstream_type_buffer:
+        if (stream->buffer_offset + buffer_size >= stream->buffer_size) {
+            if (!outputstream_resize_buffer(stream, stream->buffer_offset + buffer_size))
+                return 0;
+        }
+        memcpy(&stream->buffer[stream->buffer_offset], buffer, buffer_size);
+        stream->buffer_offset += buffer_size;
+        return buffer_size;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);

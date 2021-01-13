@@ -632,7 +632,7 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
 
     if (ft_paramtype_it.has_next && !call_argexpr_it.has_next) {
         lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
-            "expected %u arguments to function instead of only %u",
+            "expected %zu arguments to function instead of only %zu",
             call_ft->parameter_types->length,
             mcall->arguments->length);
         analyzer->num_errors++;
@@ -652,7 +652,7 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
         }
     } else if (!ft_paramtype_it.has_next && call_argexpr_it.has_next) {
         lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
-            "expected %u arguments to function instead of %u",
+            "expected %zu arguments to function instead of %zu",
             call_ft->parameter_types->length,
             mcall->arguments->length);
         analyzer->num_errors++;

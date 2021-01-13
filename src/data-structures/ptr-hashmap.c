@@ -212,11 +212,6 @@ bool ptr_hashmap_is_empty(const ptr_hashmap *map) {
     return ptr_list_is_empty(map->entries_list);
 }
 
-unsigned ptr_hashmap_num_elements(const ptr_hashmap *map)
-{
-    return map->entries_list->length;
-}
-
 iterator ptr_hashmap_iterator_create(ptr_hashmap *map)
 {
     return ptr_list_iterator_create(map->entries_list);
