@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
 
 struct _string {
     union {
@@ -54,6 +55,10 @@ string *string_appendf(string *sb, const char *format, ...)
 
 static inline bool string_is_empty(const string *sb) {
     return sb->length;
+}
+
+static inline bool string_is_equal_to(const string *sb1, const string *sb2) {
+    return strcmp(sb1->const_buffer, sb2->const_buffer) == 0;
 }
 
 string *string_clear(string *sb);

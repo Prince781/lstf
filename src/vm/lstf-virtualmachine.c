@@ -268,7 +268,6 @@ lstf_vm_op_get_exec(lstf_virtualmachine *vm)
     }
 
     lstf_vm_value_clear(&index);
-
     return status;
 }
 
@@ -313,7 +312,6 @@ lstf_vm_op_set_exec(lstf_virtualmachine *vm)
 
     lstf_vm_value_clear(&value);
     lstf_vm_value_clear(&index);
-
     return status;
 }
 
@@ -461,36 +459,29 @@ lstf_vm_op_bool_exec(lstf_virtualmachine *vm)
     case lstf_vm_value_type_array_ref:
     case lstf_vm_value_type_object_ref:
     case lstf_vm_value_type_pattern_ref:
-        if ((status = lstf_vm_stack_push_boolean(vm->stack, true)))
-            return status;
-        json_node_unref(value.data.json_node_ref);
+        status = lstf_vm_stack_push_boolean(vm->stack, true);
         break;
     case lstf_vm_value_type_boolean:
-        if ((status = lstf_vm_stack_push_boolean(vm->stack, value.data.boolean)))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack, value.data.boolean);
         break;
     case lstf_vm_value_type_code_address:
-        if ((status = lstf_vm_stack_push_boolean(vm->stack, value.data.address)))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack, value.data.address);
         break;
     case lstf_vm_value_type_double:
-        if ((status = lstf_vm_stack_push_boolean(vm->stack, value.data.double_value)))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack, value.data.double_value);
         break;
     case lstf_vm_value_type_integer:
-        if ((status = lstf_vm_stack_push_boolean(vm->stack, value.data.integer)))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack, value.data.integer);
         break;
     case lstf_vm_value_type_null:
-        if ((status = lstf_vm_stack_push_boolean(vm->stack, false)))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack, false);
         break;
     case lstf_vm_value_type_string:
-        if ((status = lstf_vm_stack_push_boolean(vm->stack, !string_is_empty(value.data.string))))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack, !string_is_empty(value.data.string));
         break;
     }
 
+    lstf_vm_value_clear(&value);
     return status;
 }
 
@@ -555,36 +546,40 @@ lstf_vm_op_## instruction_name ## _exec(lstf_virtualmachine *vm)\
     if ((status = lstf_vm_stack_pop_value(vm->stack, &operand2))) \
         return status; \
  \
-    if ((status = lstf_vm_stack_pop_value(vm->stack, &operand1))) \
+    if ((status = lstf_vm_stack_pop_value(vm->stack, &operand1))) { \
+        lstf_vm_value_clear(&operand2); \
         return status; \
+    } \
  \
     if (operand1.value_type != lstf_vm_value_type_integer && \
-            operand1.value_type != lstf_vm_value_type_double) \
+            operand1.value_type != lstf_vm_value_type_double) { \
+        lstf_vm_value_clear(&operand1); \
+        lstf_vm_value_clear(&operand2); \
         return lstf_vm_status_invalid_operand_type; \
+    } \
  \
     if (operand2.value_type != lstf_vm_value_type_integer && \
-            operand2.value_type != lstf_vm_value_type_double) \
+            operand2.value_type != lstf_vm_value_type_double) { \
+        lstf_vm_value_clear(&operand1); \
+        lstf_vm_value_clear(&operand2); \
         return lstf_vm_status_invalid_operand_type; \
+    } \
  \
     if (operand1.value_type == lstf_vm_value_type_integer) { \
         if (operand2.value_type == lstf_vm_value_type_integer) { \
-            if ((status = lstf_vm_stack_push_boolean(vm->stack, \
-                            operand1.data.integer operation operand2.data.integer))) \
-                return status; \
+            status = lstf_vm_stack_push_boolean(vm->stack, \
+                            operand1.data.integer operation operand2.data.integer); \
         } else { \
-            if ((status = lstf_vm_stack_push_boolean(vm->stack, \
-                            operand1.data.integer operation operand2.data.double_value))) \
-                return status; \
+            status = lstf_vm_stack_push_boolean(vm->stack, \
+                            operand1.data.integer operation operand2.data.double_value); \
         } \
     } else { \
         if (operand2.value_type == lstf_vm_value_type_integer) { \
-            if ((status = lstf_vm_stack_push_boolean(vm->stack, \
-                            operand1.data.double_value operation operand2.data.integer))) \
-                return status; \
+            status = lstf_vm_stack_push_boolean(vm->stack, \
+                            operand1.data.double_value operation operand2.data.integer); \
         } else { \
-            if ((status = lstf_vm_stack_push_boolean(vm->stack, \
-                            operand1.data.double_value operation operand2.data.double_value))) \
-                return status; \
+            status = lstf_vm_stack_push_boolean(vm->stack, \
+                            operand1.data.double_value operation operand2.data.double_value); \
         } \
     } \
  \
@@ -603,62 +598,57 @@ lstf_vm_op_equal_exec(lstf_virtualmachine *vm)
     if ((status = lstf_vm_stack_pop_value(vm->stack, &operand2)))
         return status;
 
-    if ((status = lstf_vm_stack_pop_value(vm->stack, &operand1)))
+    if ((status = lstf_vm_stack_pop_value(vm->stack, &operand1))) {
+        lstf_vm_value_clear(&operand2);
         return status;
+    }
 
     if (operand1.value_type == operand2.value_type) {
         switch (operand1.value_type) {
             case lstf_vm_value_type_array_ref:
             case lstf_vm_value_type_object_ref:
             case lstf_vm_value_type_pattern_ref:
-                if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                                json_node_equal_to(operand1.data.json_node_ref, operand2.data.json_node_ref))))
-                    return status;
+                status = lstf_vm_stack_push_boolean(vm->stack,
+                                json_node_equal_to(operand1.data.json_node_ref, operand2.data.json_node_ref));
                 break;
             case lstf_vm_value_type_boolean:
-                if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                                operand1.data.boolean == operand2.data.boolean)))
-                    return status;
+                status = lstf_vm_stack_push_boolean(vm->stack,
+                                operand1.data.boolean == operand2.data.boolean);
                 break;
             case lstf_vm_value_type_code_address:
-                if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                                operand1.data.address == operand2.data.address)))
-                    return status;
+                status = lstf_vm_stack_push_boolean(vm->stack,
+                                operand1.data.address == operand2.data.address);
                 break;
             case lstf_vm_value_type_double:
-                if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                                operand1.data.double_value == operand2.data.double_value)))
-                    return status;
+                status = lstf_vm_stack_push_boolean(vm->stack,
+                                operand1.data.double_value == operand2.data.double_value);
                 break;
             case lstf_vm_value_type_integer:
-                if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                                operand1.data.integer == operand2.data.integer)))
-                    return status;
+                status = lstf_vm_stack_push_boolean(vm->stack,
+                                operand1.data.integer == operand2.data.integer);
                 break;
             case lstf_vm_value_type_null:
-                if ((status = lstf_vm_stack_push_boolean(vm->stack, true)))
-                    return status;
+                status = lstf_vm_stack_push_boolean(vm->stack, true);
                 break;
             case lstf_vm_value_type_string:
-                if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                                strcmp(operand1.data.string->buffer, operand2.data.string->buffer) == 0)))
-                    return status;
+                status = lstf_vm_stack_push_boolean(vm->stack,
+                                string_is_equal_to(operand1.data.string, operand2.data.string));
                 break;
         }
     } else if (operand1.value_type == lstf_vm_value_type_integer &&
             operand2.value_type == lstf_vm_value_type_double) {
-        if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                        operand1.data.integer == operand2.data.double_value)))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack,
+                        operand1.data.integer == operand2.data.double_value);
     } else if (operand1.value_type == lstf_vm_value_type_double &&
             operand2.value_type == lstf_vm_value_type_integer) {
-        if ((status = lstf_vm_stack_push_boolean(vm->stack,
-                        operand1.data.double_value == operand2.data.integer)))
-            return status;
+        status = lstf_vm_stack_push_boolean(vm->stack,
+                        operand1.data.double_value == operand2.data.integer);
     } else {
-        return lstf_vm_status_invalid_operand_type;
+        status = lstf_vm_status_invalid_operand_type;
     }
 
+    lstf_vm_value_clear(&operand1);
+    lstf_vm_value_clear(&operand2);
     return status;
 }
 
@@ -675,36 +665,40 @@ lstf_vm_op_## instruction_name ## _exec(lstf_virtualmachine *vm)\
     if ((status = lstf_vm_stack_pop_value(vm->stack, &operand2))) \
         return status; \
  \
-    if ((status = lstf_vm_stack_pop_value(vm->stack, &operand1))) \
+    if ((status = lstf_vm_stack_pop_value(vm->stack, &operand1))) { \
+        lstf_vm_value_clear(&operand2); \
         return status; \
+    } \
  \
     if (operand1.value_type != lstf_vm_value_type_integer && \
-            operand1.value_type != lstf_vm_value_type_double) \
+            operand1.value_type != lstf_vm_value_type_double) { \
+        lstf_vm_value_clear(&operand1); \
+        lstf_vm_value_clear(&operand2); \
         return lstf_vm_status_invalid_operand_type; \
+    } \
  \
     if (operand2.value_type != lstf_vm_value_type_integer && \
-            operand2.value_type != lstf_vm_value_type_double) \
+            operand2.value_type != lstf_vm_value_type_double) { \
+        lstf_vm_value_clear(&operand1); \
+        lstf_vm_value_clear(&operand2); \
         return lstf_vm_status_invalid_operand_type; \
+    } \
  \
     if (operand1.value_type == lstf_vm_value_type_integer) { \
         if (operand2.value_type == lstf_vm_value_type_integer) { \
-            if ((status = lstf_vm_stack_push_integer(vm->stack, \
-                            operand1.data.integer operation operand2.data.integer))) \
-                return status; \
+            status = lstf_vm_stack_push_integer(vm->stack, \
+                            operand1.data.integer operation operand2.data.integer); \
         } else { \
-            if ((status = lstf_vm_stack_push_double(vm->stack, \
-                            operand1.data.integer operation operand2.data.double_value))) \
-                return status; \
+            status = lstf_vm_stack_push_double(vm->stack, \
+                            operand1.data.integer operation operand2.data.double_value); \
         } \
     } else { \
         if (operand2.value_type == lstf_vm_value_type_integer) { \
-            if ((status = lstf_vm_stack_push_double(vm->stack, \
-                            operand1.data.double_value operation operand2.data.integer))) \
-                return status; \
+            status = lstf_vm_stack_push_double(vm->stack, \
+                            operand1.data.double_value operation operand2.data.integer); \
         } else { \
-            if ((status = lstf_vm_stack_push_double(vm->stack, \
-                            operand1.data.double_value operation operand2.data.double_value))) \
-                return status; \
+            status = lstf_vm_stack_push_double(vm->stack, \
+                            operand1.data.double_value operation operand2.data.double_value); \
         } \
     } \
  \
@@ -733,7 +727,6 @@ lstf_vm_op_print_exec(lstf_virtualmachine *vm)
             char *json_representation = json_node_represent_string(value.data.json_node_ref, true);
             printf("%s\n", json_representation);
             free(json_representation);
-            json_node_unref(value.data.json_node_ref);      // cleanup value
         }   break;
         case lstf_vm_value_type_boolean:
             printf("%s\n", value.data.boolean ? "true" : "false");
@@ -752,10 +745,10 @@ lstf_vm_op_print_exec(lstf_virtualmachine *vm)
             break;
         case lstf_vm_value_type_string:
             printf("%s\n", value.data.string->buffer);
-            string_unref(value.data.string);                // cleanup
             break;
     }
 
+    lstf_vm_value_clear(&value);
     return status;
 }
 
