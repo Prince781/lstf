@@ -83,6 +83,19 @@ enum _lstf_vm_opcode {
     lstf_vm_op_lor,
     lstf_vm_op_lnot,
 
+    // --- comparison operations
+    lstf_vm_op_lessthan,
+    lstf_vm_op_lessthan_equal,
+    lstf_vm_op_equal,
+    lstf_vm_op_greaterthan,
+    lstf_vm_op_greaterthan_equal,
+
+    // --- arithmetic operations
+    lstf_vm_op_add,
+    lstf_vm_op_sub,
+    lstf_vm_op_mul,
+    lstf_vm_op_div,
+
     // --- input/output
     /**
      * `print` - pops the stack and prints the value to standard output

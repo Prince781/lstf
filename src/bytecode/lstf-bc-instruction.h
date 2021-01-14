@@ -3,6 +3,7 @@
 #include "vm/lstf-vm-opcodes.h"
 #include "json/json.h"
 #include <stdio.h>
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -159,6 +160,11 @@ static inline lstf_bc_instruction lstf_bc_instruction_vmcall_new(lstf_vm_vmcallc
 }
 
 
+/**
+ * Creates a new conditional jump instruction.
+ *
+ * @param instruction_ref pass `NULL` if the jump is unresolved
+ */
 static inline lstf_bc_instruction lstf_bc_instruction_if_new(lstf_bc_instruction *instruction_ref)
 {
     return (lstf_bc_instruction) {
@@ -167,6 +173,11 @@ static inline lstf_bc_instruction lstf_bc_instruction_if_new(lstf_bc_instruction
     };
 }
 
+/**
+ * Creates a new unconditional jump instruction.
+ *
+ * @param instruction_ref pass `NULL` if the jump is unresolved
+ */
 static inline lstf_bc_instruction lstf_bc_instruction_jump_new(lstf_bc_instruction *instruction_ref)
 {
     return (lstf_bc_instruction) {
@@ -175,6 +186,17 @@ static inline lstf_bc_instruction lstf_bc_instruction_jump_new(lstf_bc_instructi
     };
 }
 
+/**
+ * Resolves a conditional or unconditional jump instruction to the address of `instruction_ref`.
+ */
+static inline lstf_bc_instruction *lstf_bc_instruction_resolve_jump(lstf_bc_instruction *instruction, 
+                                                                    lstf_bc_instruction *instruction_ref)
+{
+    assert((instruction->opcode == lstf_vm_op_if || instruction->opcode == lstf_vm_op_jump) &&
+            !instruction->instruction_ref);
+    instruction->instruction_ref = instruction_ref;
+    return instruction;
+}
 
 static inline lstf_bc_instruction lstf_bc_instruction_bool_new(void)
 {
@@ -209,6 +231,80 @@ static inline lstf_bc_instruction lstf_bc_instruction_lnot_new(void)
 }
 
 
+static inline lstf_bc_instruction lstf_bc_instruction_lessthan_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_lessthan,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_lessthan_equal_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_lessthan_equal,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_equal_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_equal,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_greaterthan_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_greaterthan,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_greaterthan_equal_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_greaterthan_equal,
+        { 0 }
+    };
+}
+
+
+static inline lstf_bc_instruction lstf_bc_instruction_add_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_add,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_sub_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_sub,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_mul_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_mul,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_div_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_div,
+        { 0 }
+    };
+}
+
+
 static inline lstf_bc_instruction lstf_bc_instruction_print_new(void)
 {
     return (lstf_bc_instruction) {
@@ -216,7 +312,6 @@ static inline lstf_bc_instruction lstf_bc_instruction_print_new(void)
         { 0 }
     };
 }
-
 
 static inline lstf_bc_instruction lstf_bc_instruction_exit_new(uint8_t exit_code)
 {
@@ -263,6 +358,24 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t);
     case lstf_vm_op_lnot:
         return sizeof(uint8_t);
+    case lstf_vm_op_lessthan:
+        return sizeof(uint8_t);
+    case lstf_vm_op_lessthan_equal:
+        return sizeof(uint8_t);
+    case lstf_vm_op_equal:
+        return sizeof(uint8_t);
+    case lstf_vm_op_greaterthan:
+        return sizeof(uint8_t);
+    case lstf_vm_op_greaterthan_equal:
+        return sizeof(uint8_t);
+    case lstf_vm_op_add:
+        return sizeof(uint8_t);
+    case lstf_vm_op_sub:
+        return sizeof(uint8_t);
+    case lstf_vm_op_mul:
+        return sizeof(uint8_t);
+    case lstf_vm_op_div:
+        return sizeof(uint8_t);
     case lstf_vm_op_print:
         return sizeof(uint8_t);
     case lstf_vm_op_exit:
@@ -296,6 +409,15 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_land:
     case lstf_vm_op_lor:
     case lstf_vm_op_lnot:
+    case lstf_vm_op_lessthan:
+    case lstf_vm_op_lessthan_equal:
+    case lstf_vm_op_equal:
+    case lstf_vm_op_greaterthan:
+    case lstf_vm_op_greaterthan_equal:
+    case lstf_vm_op_add:
+    case lstf_vm_op_sub:
+    case lstf_vm_op_mul:
+    case lstf_vm_op_div:
     case lstf_vm_op_print:
     case lstf_vm_op_exit:
         break;

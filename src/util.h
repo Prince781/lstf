@@ -24,7 +24,6 @@ static inline uint64_t swap_uint64(uint64_t integer)
 {
     uint64_t swapped = 0;
 
-    // host byte order is little-endian, so we have to swap bytes in `netint`
     swapped = (swapped << CHAR_BIT) | ((integer >> (0*CHAR_BIT)) & 0xFF);
     swapped = (swapped << CHAR_BIT) | ((integer >> (1*CHAR_BIT)) & 0xFF);
     swapped = (swapped << CHAR_BIT) | ((integer >> (2*CHAR_BIT)) & 0xFF);
@@ -41,7 +40,6 @@ static inline uint32_t swap_uint32(uint32_t integer)
 {
     uint32_t swapped = 0;
 
-    // host byte order is little-endian, so we have to swap bytes in `netint`
     swapped = (swapped << CHAR_BIT) | ((integer >> (0*CHAR_BIT)) & 0xFF);
     swapped = (swapped << CHAR_BIT) | ((integer >> (1*CHAR_BIT)) & 0xFF);
     swapped = (swapped << CHAR_BIT) | ((integer >> (2*CHAR_BIT)) & 0xFF);

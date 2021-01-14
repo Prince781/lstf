@@ -45,6 +45,12 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
     ptr_list *debug_symbols = NULL;
     uint64_t comments_size = 0;
 
+    if (!istream) {
+        if (error)
+            *error = lstf_vm_loader_error_read;
+        return NULL;
+    }
+
     if (error)
         *error = lstf_vm_loader_error_none;
 

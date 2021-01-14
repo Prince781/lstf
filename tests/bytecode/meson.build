@@ -5,4 +5,4 @@ lstf_bc_serialize_test = executable('lstf-bc-serialize-test',
   install: false,
 )
 
-test('serialize-hello-world', lstf_bc_serialize_test, suite: 'bytecode')
+test('hello-world', lstf_bc_serialize_test, suite: 'bytecode')

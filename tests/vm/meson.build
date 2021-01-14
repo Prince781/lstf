@@ -1,2 +1,2 @@
-test('hello-world', lstf, suite: 'vm',
+test('hello-world.lstfc', lstf, suite: 'vm',
   args: [meson.source_root() + '/tests/vm/hello-world.lstfc'])

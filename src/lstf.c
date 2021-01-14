@@ -12,6 +12,13 @@
 #include "vm/lstf-vm-program.h"
 #include "vm/lstf-vm-status.h"
 
+static inline char *suffix(const char *str)
+{
+    char *ext = strchr(str, '.');
+
+    return ext != NULL ? (*(ext + 1) ? ext + 1 : NULL) : NULL;
+}
+
 const char usage_message[] =
 "usage: %s script.lstf\n"
 "        runs a LSTF script\n"
@@ -133,9 +140,11 @@ static int run_program(lstf_vm_program *program)
         }
 
         lstf_report_error(NULL, "VM hit an exception: %s", exception_message);
+        return_code = 1;
+    } else {
+        return_code = vm->return_code;
     }
 
-    return_code = vm->return_code;
     lstf_virtualmachine_destroy(vm);
     return return_code;
 }
@@ -212,31 +221,34 @@ int main(int argc, char *argv[])
         return compile_lstf_script(argv[0], argv[2]);
     } else if (strcmp(argv[1], "-a") == 0) {
         // TODO: assemble
+        lstf_report_error(NULL, "assembler not implemented");
+        return 1;
     } else if (strcmp(argv[1], "-d") == 0) {
         // TODO: disassemble
+        lstf_report_error(NULL, "disassembly not implemented");
+        return 1;
     } else {
-        char *suffix_ptr = strchr(argv[1], '.');
+        char *suffix_ptr = suffix(argv[1]);
 
-        if (suffix_ptr)
-            suffix_ptr++;
-
-        if (!suffix_ptr || !*suffix_ptr) {
-            lstf_report_error(NULL, "%s: filename must have a suffix\n", argv[0]);
+        if (!suffix_ptr) {
+            lstf_report_error(NULL, "%s: filename must have a suffix", argv[0]);
             return 1;
         }
 
         if (strcmp(suffix_ptr, "lstf") == 0) {
             if (argc > 2) {
-                lstf_report_error(NULL, "%s: extra arguments\n", argv[0]);
+                lstf_report_error(NULL, "%s: extra arguments", argv[0]);
                 return 1;
             }
             return compile_lstf_script(argv[0], argv[1]);
         } else if (strcmp(suffix_ptr, "lstfa") == 0) {
             // TODO: assemble
+            lstf_report_error(NULL, "assembler not implemented");
+            return 1;
         } else if (strcmp(suffix_ptr, "lstfc") == 0) {
             return load_and_run_file(argv[0], argv[1]);
         } else {
-            lstf_report_error(NULL, "%s: filename must end with one of '.lstf', '.lstfa', '.lstfc'\n", argv[1]);
+            lstf_report_error(NULL, "%s: filename must end with one of '.lstf', '.lstfa', '.lstfc'", argv[1]);
             return 1;
         }
     }
