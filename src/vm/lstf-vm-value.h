@@ -61,12 +61,12 @@ static_assert(sizeof(json_integer) - sizeof(json_node) >= sizeof(uint8_t *),
         "json_integer must be able to hold a code address");
 
 struct _lstf_vm_value {
-    lstf_vm_value_type value_type : 4;
+    lstf_vm_value_type value_type;
 
     /**
      * Whether this value owns the object.
      */
-    bool takes_ownership : 1;
+    bool takes_ownership;
     union {
         int64_t integer;
 

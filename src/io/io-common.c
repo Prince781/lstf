@@ -1,5 +1,6 @@
 #include "io/io-common.h"
 #include "data-structures/string-builder.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 #if (_WIN32 || _WIN64)
