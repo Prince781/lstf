@@ -32,6 +32,11 @@ struct _lstf_bc_instruction {
         char *data_offset;
 
         /**
+         * Used by `params`
+         */
+        uint8_t num_parameters;
+
+        /**
          * Used by:
          * - `lstf_vm_op_load_codeoffset`
          * - `lstf_vm_op_call`
@@ -94,10 +99,13 @@ static inline lstf_bc_instruction lstf_bc_instruction_load_codeoffset_new(lstf_b
 
 static inline lstf_bc_instruction lstf_bc_instruction_load_expression_new(json_node *expression)
 {
-    return (lstf_bc_instruction) {
+    json_node_ref(expression);
+    lstf_bc_instruction instruction = {
         .opcode = lstf_vm_op_load_expression,
         .json_expression = json_node_to_string(expression, false)
     };
+    json_node_unref(expression);
+    return instruction;
 }
 
 static inline lstf_bc_instruction lstf_bc_instruction_store_new(int64_t frame_offset)
@@ -125,6 +133,14 @@ static inline lstf_bc_instruction lstf_bc_instruction_set_new(void)
     };
 }
 
+
+static inline lstf_bc_instruction lstf_bc_instruction_params_new(uint8_t num_parameters)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_params,
+        .num_parameters = num_parameters
+    };
+}
 
 static inline lstf_bc_instruction lstf_bc_instruction_call_new(lstf_bc_function *function_ref)
 {
@@ -165,10 +181,10 @@ static inline lstf_bc_instruction lstf_bc_instruction_vmcall_new(lstf_vm_vmcallc
  *
  * @param instruction_ref pass `NULL` if the jump is unresolved
  */
-static inline lstf_bc_instruction lstf_bc_instruction_if_new(lstf_bc_instruction *instruction_ref)
+static inline lstf_bc_instruction lstf_bc_instruction_else_new(lstf_bc_instruction *instruction_ref)
 {
     return (lstf_bc_instruction) {
-        .opcode = lstf_vm_op_if,
+        .opcode = lstf_vm_op_else,
         .instruction_ref = instruction_ref
     };
 }
@@ -192,7 +208,7 @@ static inline lstf_bc_instruction lstf_bc_instruction_jump_new(lstf_bc_instructi
 static inline lstf_bc_instruction *lstf_bc_instruction_resolve_jump(lstf_bc_instruction *instruction, 
                                                                     lstf_bc_instruction *instruction_ref)
 {
-    assert((instruction->opcode == lstf_vm_op_if || instruction->opcode == lstf_vm_op_jump) &&
+    assert((instruction->opcode == lstf_vm_op_else || instruction->opcode == lstf_vm_op_jump) &&
             !instruction->instruction_ref);
     instruction->instruction_ref = instruction_ref;
     return instruction;
@@ -338,6 +354,8 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t);
     case lstf_vm_op_set:
         return sizeof(uint8_t);
+    case lstf_vm_op_params:
+        return sizeof(uint8_t) + sizeof(uint8_t);
     case lstf_vm_op_call:
         return sizeof(uint8_t) + sizeof(uint64_t);
     case lstf_vm_op_indirect:
@@ -346,7 +364,7 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t);
     case lstf_vm_op_vmcall:
         return sizeof(uint8_t) + sizeof(uint8_t);
-    case lstf_vm_op_if:
+    case lstf_vm_op_else:
         return sizeof(uint8_t) + sizeof(uint64_t);
     case lstf_vm_op_jump:
         return sizeof(uint8_t) + sizeof(uint64_t);
@@ -399,11 +417,12 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_store:
     case lstf_vm_op_get:
     case lstf_vm_op_set:
+    case lstf_vm_op_params:
     case lstf_vm_op_call:
     case lstf_vm_op_indirect:
     case lstf_vm_op_return:
     case lstf_vm_op_vmcall:
-    case lstf_vm_op_if:
+    case lstf_vm_op_else:
     case lstf_vm_op_jump:
     case lstf_vm_op_bool:
     case lstf_vm_op_land:

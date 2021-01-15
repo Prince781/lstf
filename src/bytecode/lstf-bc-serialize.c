@@ -287,6 +287,10 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
             case lstf_vm_op_get:
             case lstf_vm_op_set:
                 break;
+            case lstf_vm_op_params:
+                if (!outputstream_write_byte(ostream, instruction->num_parameters))
+                    return false;
+                break;
             case lstf_vm_op_call:
                 if (!outputstream_write_uint64(ostream,
                             lstf_bc_program_get_instruction_offset(program,
@@ -301,7 +305,7 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
                 if (!outputstream_write_byte(ostream, instruction->vmcall_code))
                     return false;
                 break;
-            case lstf_vm_op_if:
+            case lstf_vm_op_else:
             case lstf_vm_op_jump:
                 assert(instruction->instruction_ref && "cannot serialize unresolved jump instruction!");
                 if (!outputstream_write_uint64(ostream,

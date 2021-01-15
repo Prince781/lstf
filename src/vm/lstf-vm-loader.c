@@ -338,9 +338,9 @@ lstf_vm_program *lstf_vm_loader_load_from_path(const char *path, lstf_vm_loader_
     return lstf_vm_loader_load_from_stream(inputstream_new_from_path(path, "rb"), error);
 }
 
-lstf_vm_program *lstf_vm_loader_load_from_buffer(char                 *buffer,
+lstf_vm_program *lstf_vm_loader_load_from_buffer(const void           *buffer,
                                                  size_t                buffer_size,
                                                  lstf_vm_loader_error *error)
 {
-    return lstf_vm_loader_load_from_stream(inputstream_new_from_buffer(buffer, buffer_size, true), error);
+    return lstf_vm_loader_load_from_stream(inputstream_new_from_const_buffer(buffer, buffer_size), error);
 }

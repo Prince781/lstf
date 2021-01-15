@@ -22,14 +22,16 @@ else
       '-Werror',
       '-Wextra',
       '-Wpedantic',
+      '-pedantic-errors',
+      '-Warray-bounds=2',
+      '-Wcast-qual',
       '-Wshadow',
       '-Wno-cast-function-type',
       '-Wformat=2',
-      '-Wformat-truncation=2',
       '-Wformat-overflow=2',
-      '-Wstrict-aliasing=3',
-      '-Wcast-qual',
-      '-Wuninitialized',
+      #      '-Wformat-signedness',
+      '-Wformat-truncation=2',
+      #      '-Wswitch-enum',
       '-Wunreachable-code'
     ])
 endif

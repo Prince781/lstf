@@ -44,6 +44,12 @@ enum _lstf_vm_opcode {
     // --- calling/returning from functions
 
     /**
+     * `params <integer: 0-255>` - loads N params from the parent stack frame,
+     *     which will later be popped by the `return` operation
+     */
+    lstf_vm_op_params,
+
+    /**
      * `call <address>` - calls a function
      */
     lstf_vm_op_call,
@@ -67,10 +73,10 @@ enum _lstf_vm_opcode {
     // --- control flow
 
     /**
-     * `if <address>` - jumps to the address if the previous expression
-     *     evaluated to `true`
+     * `else <address>` - jumps to the address if the previous expression
+     *     evaluated to `false`
      */
-    lstf_vm_op_if,
+    lstf_vm_op_else,
 
     /**
      * `jump <address>` - jumps to the address unconditionally

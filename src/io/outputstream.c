@@ -1,5 +1,7 @@
 #include "outputstream.h"
+#include "io-common.h"
 #include "util.h"
+#include "data-structures/string-builder.h"
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
@@ -199,6 +201,20 @@ size_t outputstream_write(outputstream *stream, void *buffer, size_t buffer_size
         memcpy(&stream->buffer[stream->buffer_offset], buffer, buffer_size);
         stream->buffer_offset += buffer_size;
         return buffer_size;
+    }
+
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    abort();
+}
+
+char *outputstream_get_name(outputstream *stream)
+{
+    switch (stream->stream_type) {
+    case outputstream_type_file:
+        return io_get_filename_from_fd(fileno(stream->file));
+    case outputstream_type_buffer:
+        return string_destroy(string_appendf(string_new(), 
+                    "<outputstream: buffer @ 0x%p>", (void *)stream->buffer)); 
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);

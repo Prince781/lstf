@@ -82,7 +82,7 @@
 	1. pops an offset relative to the beginning of the `code` section from the current stack frame
 	2. sets up a new stack frame
 	3. pushes the current instruction pointer onto the stack (as the return address)
-	4. jumps to the function pointer (computed from the start of `code`
+	4. jumps to the function pointer (computed from the start of `code`)
 - `return` - returns from a function
 	1. pops an address (the return address) from the current stack
 	2. tears down the existing stack frame
@@ -97,7 +97,7 @@
 | `03` | `diagnostics` | `async diagnostics(string filename): PublishDiagnosticsParams` | Will wait for diagnostics as they are expected to come in.
 
 ### Control Flow
-- `if <label>` - jumps to the label if the previous expression evaluated to `true`
+- `else <label>` - jumps to the label if the previous expression evaluated to `false`
 	- this gets encoded as an offset in the bytecode
 - `jump <label>` - unconditional jump; doesn't change the stack
 	- this gets encoded as an offset in the bytecode

@@ -316,21 +316,41 @@ lstf_vm_op_set_exec(lstf_virtualmachine *vm)
 }
 
 static lstf_vm_status
+lstf_vm_op_params_exec(lstf_virtualmachine *vm)
+{
+    lstf_vm_status status = lstf_vm_status_continue;
+    uint8_t num_parameters;
+
+    if ((status = lstf_virtualmachine_read_byte(vm,&num_parameters)))
+        return status;
+
+    for (uint8_t i = 0; i < num_parameters; i++) {
+        int64_t fp_offset = -(num_parameters - i);
+        lstf_vm_value parameter;
+
+        if ((status = lstf_vm_stack_get_value(vm->stack, fp_offset, &parameter)))
+            return status;
+
+        if ((status = lstf_vm_stack_push_value(vm->stack, &parameter)))
+            return status;
+    }
+
+    return lstf_vm_stack_frame_set_parameters(vm->stack, num_parameters);
+}
+
+static lstf_vm_status
 lstf_vm_op_call_exec(lstf_virtualmachine *vm)
 {
     lstf_vm_status status = lstf_vm_status_continue;
     uint64_t code_offset;
 
-    // read code offset
+    // read code offset immediate value
     if ((status = lstf_virtualmachine_read_integer(vm, &code_offset)))
         return status;
 
     // set up a new stack frame
-    if ((status = lstf_vm_stack_setup_frame(vm->stack)))
-        return status;
-
-    // save return address
-    if ((status = lstf_vm_stack_push_code_address(vm->stack, vm->pc)))
+    // the saved return address is the current PC
+    if ((status = lstf_vm_stack_setup_frame(vm->stack, vm->pc)))
         return status;
 
     // jump to new address
@@ -343,21 +363,19 @@ static lstf_vm_status
 lstf_vm_op_indirect_exec(lstf_virtualmachine *vm)
 {
     lstf_vm_status status = lstf_vm_status_continue;
-    int64_t code_offset;
+    uint8_t *code_address;
 
-    if ((status = lstf_vm_stack_pop_integer(vm->stack, &code_offset)))
+    // get the code address saved by the last instruction
+    if ((status = lstf_vm_stack_pop_code_address(vm->stack, &code_address)))
         return status;
 
     // set up a new stack frame
-    if ((status = lstf_vm_stack_setup_frame(vm->stack)))
-        return status;
-
-    // save return address
-    if ((status = lstf_vm_stack_push_code_address(vm->stack, vm->pc)))
+    // the saved return address is the current PC
+    if ((status = lstf_vm_stack_setup_frame(vm->stack, vm->pc)))
         return status;
 
     // jump to new address
-    vm->pc = vm->program->code + code_offset;
+    vm->pc = code_address;
     
     return status;
 }
@@ -368,10 +386,7 @@ lstf_vm_op_return_exec(lstf_virtualmachine *vm)
     lstf_vm_status status = lstf_vm_status_continue;
     uint8_t *return_address;
 
-    if ((status = lstf_vm_stack_pop_code_address(vm->stack, &return_address)))
-        return status;
-
-    if ((status = lstf_vm_stack_teardown_frame(vm->stack)))
+    if ((status = lstf_vm_stack_teardown_frame(vm->stack, &return_address)))
         return status;
 
     vm->pc = return_address;
@@ -403,7 +418,7 @@ lstf_vm_op_vmcall_exec(lstf_virtualmachine *vm)
 }
 
 static lstf_vm_status
-lstf_vm_op_if_exec(lstf_virtualmachine *vm)
+lstf_vm_op_else_exec(lstf_virtualmachine *vm)
 {
     lstf_vm_status status = lstf_vm_status_continue;
     bool expression_result;
@@ -412,8 +427,8 @@ lstf_vm_op_if_exec(lstf_virtualmachine *vm)
         return status;
 
     // early exit, and continue to the next instruction if the expression
-    // result did not evaluate to `true`
-    if (!expression_result)
+    // result did not evaluate to `false`
+    if (expression_result)
         // discard the immediate value
         return lstf_virtualmachine_read_integer(vm, NULL);
 
@@ -432,13 +447,10 @@ lstf_vm_op_jump_exec(lstf_virtualmachine *vm)
         return status;
 
     // verify code offset
-    uint8_t *new_pc = vm->pc + code_offset;
-    if (new_pc < vm->program->code || new_pc >= vm->program->code + vm->program->code_size)
+    if (code_offset > vm->program->code_size)
         return lstf_vm_status_invalid_code_offset;
 
-    // save current PC
-    if ((status = lstf_vm_stack_push_code_address(vm->stack, vm->pc)))
-        return status;
+    uint8_t *new_pc = vm->program->code + code_offset;
 
     // jump to code offset
     vm->pc = new_pc;
@@ -780,13 +792,14 @@ static lstf_vm_status (*const instruction_table[256])(lstf_virtualmachine *) = {
     [lstf_vm_op_set]                = lstf_vm_op_set_exec,
 
     // --- functions
+    [lstf_vm_op_params]             = lstf_vm_op_params_exec,
     [lstf_vm_op_call]               = lstf_vm_op_call_exec,
     [lstf_vm_op_indirect]           = lstf_vm_op_indirect_exec,
     [lstf_vm_op_return]             = lstf_vm_op_return_exec,
     [lstf_vm_op_vmcall]             = lstf_vm_op_vmcall_exec,
 
     // --- control flow
-    [lstf_vm_op_if]                 = lstf_vm_op_if_exec,
+    [lstf_vm_op_else]               = lstf_vm_op_else_exec,
     [lstf_vm_op_jump]               = lstf_vm_op_jump_exec,
 
     // --- logical operations
@@ -829,7 +842,7 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
 
         if (vm->pc == vm->program->entry_point) {
             // setup initial stack frame
-            if ((vm->last_status = lstf_vm_stack_setup_frame(vm->stack)))
+            if ((vm->last_status = lstf_vm_stack_setup_frame(vm->stack, NULL)))
                 return false;
         }
 

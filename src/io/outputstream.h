@@ -46,3 +46,5 @@ size_t outputstream_write_uint32(outputstream *stream, uint32_t integer);
 size_t outputstream_write_string(outputstream *stream, const char *str);
 
 size_t outputstream_write(outputstream *stream, void *buffer, size_t buffer_size);
+
+char *outputstream_get_name(outputstream *stream);

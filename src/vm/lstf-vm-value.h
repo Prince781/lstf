@@ -118,6 +118,49 @@ lstf_vm_value_to_json_node(lstf_vm_value value)
     abort();
 }
 
+static inline int64_t json_integer_destroy(json_node *node)
+{
+    assert(node->node_type == json_node_type_integer &&
+            node->floating && node->refcount == 0);
+    int64_t value = ((json_integer *)node)->value;
+    json_node_unref(node);
+    return value;
+}
+
+static inline double json_double_destroy(json_node *node)
+{
+    assert(node->node_type == json_node_type_double &&
+            node->floating && node->refcount == 0);
+    double value = ((json_double *)node)->value;
+    json_node_unref(node);
+    return value;
+}
+
+static inline bool json_boolean_destroy(json_node *node)
+{
+    assert(node->node_type == json_node_type_boolean &&
+            node->floating && node->refcount == 0);
+    bool value = ((json_boolean *)node)->value;
+    json_node_unref(node);
+    return value;
+}
+
+/**
+ * Destroys a JSON string node, but not its data. The node must not be
+ * referenced.
+ */
+static inline char *json_string_destroy(json_node *node)
+{
+    assert(node->node_type == json_node_type_string &&
+            node->floating && node->refcount == 0);
+
+    char *buffer = ((json_string *)node)->value;
+    ((json_string *)node)->value = NULL;
+    free(node);
+    return buffer;
+}
+
+
 static inline string *
 string_new_from_json_string(json_node *node)
 {
@@ -142,7 +185,7 @@ lstf_vm_value_from_json_node(json_node *node)
         return (lstf_vm_value) {
             lstf_vm_value_type_pattern_ref,
             node->floating,
-            { .json_node_ref = node }
+            { .json_node_ref = node->floating ? json_node_ref(node) : node }
         };
 
     switch (node->node_type) {
@@ -150,27 +193,29 @@ lstf_vm_value_from_json_node(json_node *node)
         return (lstf_vm_value) {
             lstf_vm_value_type_array_ref,
             node->floating,
-            { .json_node_ref = node }
+            { .json_node_ref = node->floating ? json_node_ref(node) : node }
         };
     case json_node_type_boolean:
         return (lstf_vm_value) {
             lstf_vm_value_type_boolean,
             false,
-            { .boolean = ((json_boolean *)node)->value }
+            { .boolean = node->floating ? json_boolean_destroy(node) : ((json_boolean *)node)->value }
         };
     case json_node_type_double:
         return (lstf_vm_value) {
             lstf_vm_value_type_double,
             false,
-            { .double_value = ((json_double *)node)->value }
+            { .double_value = node->floating ? json_double_destroy(node) : ((json_double *)node)->value }
         };
     case json_node_type_integer:
         return (lstf_vm_value) {
             lstf_vm_value_type_integer,
             false,
-            { .integer = ((json_integer *)node)->value }
+            { .integer = node->floating ? json_integer_destroy(node) : ((json_integer *)node)->value }
         };
     case json_node_type_null:
+        if (node->floating)
+            json_node_unref(node);
         return (lstf_vm_value) {
             lstf_vm_value_type_null,
             false,
@@ -180,7 +225,7 @@ lstf_vm_value_from_json_node(json_node *node)
         return (lstf_vm_value) {
             lstf_vm_value_type_object_ref,
             node->floating,
-            { .json_node_ref = node }
+            { .json_node_ref = node->floating ? json_node_ref(node) : node }
         };
     case json_node_type_string:
         return (lstf_vm_value) {

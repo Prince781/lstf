@@ -91,55 +91,7 @@ static int run_program(lstf_vm_program *program)
 
     if (!lstf_virtualmachine_run(vm) &&
             vm->last_status && vm->last_status != lstf_vm_status_exited) {
-        const char *exception_message = "no exception";
-
-        switch (vm->last_status) {
-        case lstf_vm_status_continue:
-            break;
-        case lstf_vm_status_stack_overflow:
-            exception_message = "stack overflow";
-            break;
-        case lstf_vm_status_invalid_stack_offset:
-            exception_message = "invalid stack offset";
-            break;
-        case lstf_vm_status_invalid_push:
-            exception_message = "stack push before frame setup";
-            break;
-        case lstf_vm_status_frame_underflow:
-            exception_message = "stack pop past the beginning of stack frame";
-            break;
-        case lstf_vm_status_exited:
-            break;
-        case lstf_vm_status_index_out_of_bounds:
-            exception_message = "index out of bounds on array access";
-            break;
-        case lstf_vm_status_invalid_member_access:
-            exception_message = "invalid member access";
-            break;
-        case lstf_vm_status_invalid_code_offset:
-            exception_message = "invalid code offset";
-            break;
-        case lstf_vm_status_invalid_data_offset:
-            exception_message = "invalid data offset";
-            break;
-        case lstf_vm_status_invalid_expression:
-            exception_message = "could not parse JSON expression";
-            break;
-        case lstf_vm_status_invalid_instruction:
-            exception_message = "invalid instruction";
-            break;
-        case lstf_vm_status_invalid_operand_type:
-            exception_message = "invalid operand type";
-            break;
-        case lstf_vm_status_invalid_return:
-            exception_message = "return without stack frame";
-            break;
-        case lstf_vm_status_invalid_vmcall:
-            exception_message = "invalid VM call op-code";
-            break;
-        }
-
-        lstf_report_error(NULL, "VM hit an exception: %s", exception_message);
+        lstf_report_error(NULL, "VM hit an exception: %s", lstf_vm_status_to_string(vm->last_status));
         return_code = 1;
     } else {
         return_code = vm->return_code;

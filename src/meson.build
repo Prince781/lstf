@@ -25,6 +25,7 @@ data_structures = declare_dependency(
 io_lib = static_library('io',
   [
     'io/inputstream.c',
+    'io/io-common.c',
     'io/outputstream.c'
   ],
   c_args: c_args,

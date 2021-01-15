@@ -141,12 +141,6 @@ json_node *json_boolean_new(bool value);
 
 json_node *json_string_new(const char *value);
 
-/**
- * Destroys a JSON string node, but not its data. The node must not be
- * referenced.
- */
-char *json_string_destroy(json_node *node);
-
 json_node *json_array_new(void);
 
 /**

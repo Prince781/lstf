@@ -14,19 +14,18 @@
 main:
     load 0
 <comparison>:
-    load frame(0)
+    load frame(1)
     load 10
     compare <
-    not
-    if <termination>
+    else <termination>
 <body>:
-    load frame(0)
+    load frame(1)
     print
 <post>:
-    load frame(0)
+    load frame(1)
     load 1
     add
-    store frame(0)
+    store frame(1)
     jump <comparison>
 <termination>:
     exit 0

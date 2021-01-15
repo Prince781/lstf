@@ -3,7 +3,11 @@
 #include "lstf-vm-value.h"
 #include "lstf-vm-status.h"
 #include "json/json.h"
+#include <limits.h>
 #include <stdint.h>
+
+typedef struct _lstf_vm_stack lstf_vm_stack;
+typedef struct _lstf_vm_stackframe lstf_vm_stackframe;
 
 struct _lstf_vm_stack {
     /**
@@ -17,12 +21,23 @@ struct _lstf_vm_stack {
     /**
      * Growable array of frame pointers.
      */
-    lstf_vm_value **frame_pointers;
+    lstf_vm_stackframe *frames;
 
-    unsigned n_frame_pointers;
-    unsigned frame_pointers_buffer_size;
+    unsigned n_frames;
+    unsigned frames_buffer_size;
 };
-typedef struct _lstf_vm_stack lstf_vm_stack;
+
+struct _lstf_vm_stackframe {
+    /**
+     * The base of the current stack frame, as an offset within the stack.
+     */
+    uint64_t offset;
+
+    /**
+     * The number of parameters to pop on return.
+     */
+    uint8_t parameters;
+};
 
 lstf_vm_stack *lstf_vm_stack_new(void);
 
@@ -79,6 +94,9 @@ lstf_vm_status lstf_vm_stack_set_value(lstf_vm_stack *stack,
 
 // --- popping the last value off of the stack
 
+/**
+ * You can pass in NULL for `value`
+ */
 lstf_vm_status lstf_vm_stack_pop_value(lstf_vm_stack *stack,
                                        lstf_vm_value *value);
 
@@ -146,16 +164,30 @@ lstf_vm_status lstf_vm_stack_push_pattern(lstf_vm_stack *stack,
 // --- calling and returning from functions
 
 /**
- * Pops the last frame pointer from the frame pointers stack. Will check that
- * the current local stack frame is "empty" (that is, the stack is back to
- * where the current frame pointer is). This is used by the `return`
- * instruction.
+ * Pops the last stack frame from the stack frame list. Will pop off the number
+ * of parameters previously established for this stack frame by the `params`
+ * instruction. Will check that the current local stack frame is "empty" (that
+ * is, the stack is back to where the current frame pointer is). This is used
+ * by the `return` instruction.
+ *
+ * The `return_address` is where the saved return address is written to.
  */
-lstf_vm_status lstf_vm_stack_teardown_frame(lstf_vm_stack *stack);
+lstf_vm_status lstf_vm_stack_teardown_frame(lstf_vm_stack *stack,
+                                            uint8_t      **return_address);
+
+/**
+ * Establishes the number of parameters that will be popped when the current
+ * stack frame is torn down.
+ */
+lstf_vm_status lstf_vm_stack_frame_set_parameters(lstf_vm_stack *stack,
+                                                  uint8_t        parameters);
 
 /**
  * Establishes a new local stack frame pointing past the last value on the
  * stack.  Essentially, pushes the current stack pointer onto the frame
  * pointers stack.  This is used by the `call` instruction.
+ *
+ * The `return_address` is saved.
  */
-lstf_vm_status lstf_vm_stack_setup_frame(lstf_vm_stack *stack);
+lstf_vm_status lstf_vm_stack_setup_frame(lstf_vm_stack *stack,
+                                         uint8_t       *return_address);
