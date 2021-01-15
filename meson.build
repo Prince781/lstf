@@ -1,7 +1,7 @@
 project('lstf', 'c',
   version: '0.0.1',
   license: 'GPLv3+',
-  default_options: ['c_std=c11', 'buildtype=debugoptimized'])
+  default_options: ['c_std=c11', 'buildtype=debugoptimized', 'werror=true'])
 
 cc = meson.get_compiler('c')
 
@@ -15,11 +15,9 @@ if cc.get_id() == 'msvc'
         '/D_CRT_SECURE_NO_WARNINGS',
         '/wd4996',      # suppress POSIX name deprecation warnings
         '/wd4706',      # suppress assignment within conditional expression
-        '/WX',          # make warnings fatal
     ])
 else
     c_args = cc.get_supported_arguments([
-      '-Werror',
       '-Wextra',
       '-Wpedantic',
       '-pedantic-errors',
