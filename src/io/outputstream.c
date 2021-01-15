@@ -82,18 +82,19 @@ outputstream *outputstream_new_from_buffer(void *buffer, size_t initial_size, bo
 {
     if (!buffer) {
         buffer = malloc(initial_size ? initial_size : (initial_size = BUFSIZ));
-        if (!buffer)
-            return NULL;
+        if (!buffer) {
+            fprintf(stderr, "%s: failed to allocate %zu B buffer: %s\n",
+                    __func__, initial_size, strerror(errno));
+            abort();
+        }
     }
 
     outputstream *stream = calloc(1, sizeof *stream);
 
     if (!stream) {
-        int last_errno = errno;
-        if (free_on_destroy)
-            free(buffer);
-        errno = last_errno;
-        return NULL;
+        fprintf(stderr, "%s: failed to allocate outputstream struct: %s\n",
+                __func__, strerror(errno));
+        abort();
     }
 
     stream->stream_type = outputstream_type_buffer;

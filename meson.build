@@ -18,18 +18,19 @@ if cc.get_id() == 'msvc'
     ])
 else
     c_args = cc.get_supported_arguments([
+      '-pedantic-errors',
       '-Wextra',
       '-Wpedantic',
-      '-pedantic-errors',
       '-Warray-bounds=2',
       '-Wcast-qual',
       '-Wshadow',
       '-Wno-cast-function-type',
       '-Wformat=2',
+      '-Wformat-nonliteral',
       '-Wformat-overflow=2',
+      '-Wformat-security',
       '-Wformat-signedness',
       '-Wformat-truncation=2',
-      #      '-Wswitch-enum',
       '-Wunreachable-code'
     ])
 endif

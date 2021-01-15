@@ -133,7 +133,10 @@ ptr_hashmap_entry *ptr_hashmap_insert(ptr_hashmap *map, void *new_key, void *new
         }
 
         if (!(bucket = map->buckets[hash])) {
-            bucket = calloc(1, sizeof *bucket);
+            if (!(bucket = calloc(1, sizeof *bucket))) {
+                perror("failed to create bucket for hash map");
+                abort();
+            }
             bucket->entries_list = ptr_list_new(NULL, NULL);
             bucket->node_in_buckets_list = ptr_list_append(map->buckets_list, bucket);
             map->buckets[hash] = bucket;
