@@ -400,7 +400,7 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t) + sizeof(uint8_t);
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected VM opcode `%d'\n", __func__, instruction->opcode);
+    fprintf(stderr, "%s: unreachable code: unexpected VM opcode `%u'\n", __func__, instruction->opcode);
     abort();
 }
 

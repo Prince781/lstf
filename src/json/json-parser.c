@@ -62,7 +62,7 @@ json_node *json_parser_parse_node(json_parser *parser)
     {
         string *sb = string_new();
 
-        string_appendf(sb, "%s:%d:%d: error: unexpected %s (`%s') at start of parsing JSON node",
+        string_appendf(sb, "%s:%u:%u: error: unexpected %s (`%s') at start of parsing JSON node",
                 parser->scanner->filename,
                 parser->scanner->source_location.line, parser->scanner->source_location.column,
                 json_token_to_string(token),
@@ -98,7 +98,7 @@ json_node *json_parser_parse_node(json_parser *parser)
             token = json_scanner_next(parser->scanner);
             if (!(token == json_token_comma || token == json_token_closebracket)) {
                 string *sb = string_new();
-                string_appendf(sb, "%s:%d:%d: error: expected comma or close bracket", 
+                string_appendf(sb, "%s:%u:%u: error: expected comma or close bracket", 
                         parser->scanner->filename, 
                         parser->scanner->source_location.line, parser->scanner->source_location.column);
                 ptr_list_append(parser->messages, string_destroy(sb));
@@ -113,7 +113,7 @@ json_node *json_parser_parse_node(json_parser *parser)
 
         if (parser->scanner->last_token != json_token_closebracket) {
             string *sb = string_new();
-            string_appendf(sb, "%s:%d:%d: error: expected close bracket at end of array",
+            string_appendf(sb, "%s:%u:%u: error: expected close bracket at end of array",
                     parser->scanner->filename,
                     parser->scanner->source_location.line, parser->scanner->source_location.column);
             ptr_list_append(parser->messages, string_destroy(sb));
@@ -125,7 +125,7 @@ json_node *json_parser_parse_node(json_parser *parser)
         if (((json_array *)array)->num_elements > 0 &&
                 token != json_token_closebracket) {
             string *sb = string_new();
-            string_appendf(sb, "%s:%d:%d: error: trailing %s",
+            string_appendf(sb, "%s:%u:%u: error: trailing %s",
                     parser->scanner->filename,
                     last_sourceloc.line, last_sourceloc.column,
                     json_token_to_string(token));
@@ -147,7 +147,7 @@ json_node *json_parser_parse_node(json_parser *parser)
 
             if (json_scanner_next(parser->scanner) != json_token_colon) {
                 string *sb = string_new();
-                string_appendf(sb, "%s:%d:%d: error: expected colon",
+                string_appendf(sb, "%s:%u:%u: error: expected colon",
                         parser->scanner->filename,
                         parser->scanner->source_location.line, parser->scanner->source_location.column);
                 ptr_list_append(parser->messages, string_destroy(sb));
@@ -160,7 +160,7 @@ json_node *json_parser_parse_node(json_parser *parser)
             json_node *member_value = json_parser_parse_node(parser);
             if (!member_value) {
                 string *sb = string_new();
-                string_appendf(sb, "%s:%d:%d: error: expected JSON value for property `%s'",
+                string_appendf(sb, "%s:%u:%u: error: expected JSON value for property `%s'",
                         parser->scanner->filename,
                         parser->scanner->source_location.line, parser->scanner->source_location.column,
                         member_name);
@@ -177,7 +177,7 @@ json_node *json_parser_parse_node(json_parser *parser)
             token = json_scanner_next(parser->scanner);
             if (!(token == json_token_comma || token == json_token_closebrace)) {
                 string *sb = string_new();
-                string_appendf(sb, "%s:%d:%d: error: expected comma or close brace", 
+                string_appendf(sb, "%s:%u:%u: error: expected comma or close brace", 
                         parser->scanner->filename, 
                         parser->scanner->last_token_begin.line, parser->scanner->last_token_begin.column);
                 ptr_list_append(parser->messages, string_destroy(sb));
@@ -195,7 +195,7 @@ json_node *json_parser_parse_node(json_parser *parser)
 
         if (parser->scanner->last_token != json_token_closebrace) {
             string *sb = string_new();
-            string_appendf(sb, "%s:%d:%d: error: expected close brace at end of object",
+            string_appendf(sb, "%s:%u:%u: error: expected close brace at end of object",
                     parser->scanner->filename,
                     parser->scanner->source_location.line, parser->scanner->source_location.column);
             ptr_list_append(parser->messages, string_destroy(sb));
@@ -207,7 +207,7 @@ json_node *json_parser_parse_node(json_parser *parser)
         if (!ptr_hashmap_is_empty(((json_object *)object)->members) &&
                 token != json_token_closebrace) {
             string *sb = string_new();
-            string_appendf(sb, "%s:%d:%d: error: trailing %s",
+            string_appendf(sb, "%s:%u:%u: error: trailing %s",
                     parser->scanner->filename,
                     last_sourceloc.line, last_sourceloc.column,
                     json_token_to_string(token));
@@ -221,7 +221,7 @@ json_node *json_parser_parse_node(json_parser *parser)
     }
     }
 
-    fprintf(stderr, "invalid JSON token `%d'", token);
+    fprintf(stderr, "invalid JSON token `%u'", token);
     abort();
 }
 

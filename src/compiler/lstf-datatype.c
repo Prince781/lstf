@@ -46,7 +46,7 @@ const char *lstf_datatype_type_to_string(lstf_datatype_type datatype_type)
             return "voidtype";
     }
 
-    fprintf(stderr, "%s: invalid datatype %d", __func__, datatype_type);
+    fprintf(stderr, "%s: invalid datatype `%u'", __func__, datatype_type);
     abort();
 }
 

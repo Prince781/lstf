@@ -17,7 +17,7 @@ static const char *lstf_report_domain_to_string(lstf_report_domain domain)
             return "warning";
     }
 
-    fprintf(stderr, "%s: invalid domain %d\n", __func__, domain);
+    fprintf(stderr, "%s: invalid domain `%u'\n", __func__, domain);
     abort();
 }
 
@@ -75,7 +75,7 @@ void lstf_report(const lstf_sourceref *source_ref, lstf_report_domain domain, co
     }
 
     if (source_ref) {
-        unsigned lines_log10 = 0;
+        int lines_log10 = 0;
 
         for (unsigned total_lines = source_ref->file->total_lines; total_lines > 0; total_lines /= 10)
             lines_log10++;
@@ -84,7 +84,7 @@ void lstf_report(const lstf_sourceref *source_ref, lstf_report_domain domain, co
 
         // print context and arrows for errors across a single line
         if (source_ref->begin.line && source_ref->begin.line == source_ref->end.line) {
-            fprintf(stderr, "%s%s:%d.%d-%d.%d: %s%s:%s ", bold_begin,
+            fprintf(stderr, "%s%s:%u.%u-%u.%u: %s%s:%s ", bold_begin,
                     source_ref->file->filename,
                     source_ref->begin.line, source_ref->begin.column,
                     source_ref->end.line, source_ref->end.column,
@@ -143,7 +143,7 @@ void lstf_report(const lstf_sourceref *source_ref, lstf_report_domain domain, co
             fprintf(stderr, "\n");
         } else {
             // TODO: print context for errors across multiple lines
-            fprintf(stderr, "%s%s:%d.%d-%d.%d: %s%s:%s ", bold_begin,
+            fprintf(stderr, "%s%s:%u.%u-%u.%u: %s%s:%s ", bold_begin,
                     source_ref->file->filename,
                     source_ref->begin.line, source_ref->begin.column,
                     source_ref->end.line, source_ref->end.column,

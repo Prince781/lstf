@@ -27,7 +27,7 @@ else
       '-Wno-cast-function-type',
       '-Wformat=2',
       '-Wformat-overflow=2',
-      #      '-Wformat-signedness',
+      '-Wformat-signedness',
       '-Wformat-truncation=2',
       #      '-Wswitch-enum',
       '-Wunreachable-code'

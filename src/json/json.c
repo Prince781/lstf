@@ -236,7 +236,7 @@ static void json_node_build_string(json_node *root_node,
         string_appendf(sb, "...");
         break;
     default:
-        fprintf(stderr, "%s: invalid node type `%d'", __func__, node->node_type);
+        fprintf(stderr, "%s: invalid node type `%u'", __func__, node->node_type);
         abort();
         break;
     }
@@ -433,7 +433,7 @@ bool json_node_equal_to(json_node *node1, json_node *node2)
         return true;
     }
 
-    fprintf(stderr, "%s: unexpected JSON node type `%d'\n", __func__, node1->node_type);
+    fprintf(stderr, "%s: unexpected JSON node type `%u'\n", __func__, node1->node_type);
     abort();
 }
 

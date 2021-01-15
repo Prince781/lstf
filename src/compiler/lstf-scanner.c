@@ -104,7 +104,7 @@ const char *lstf_token_to_string(lstf_token token)
             break;
     }
 
-    fprintf(stderr, "%s: unexpected LSTF token %d\n",
+    fprintf(stderr, "%s: unexpected LSTF token `%u'\n",
             __func__, token);
     abort();
 }

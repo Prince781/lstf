@@ -60,7 +60,7 @@ static bool lstf_patterntype_is_supertype_of(lstf_datatype *self, lstf_datatype 
             return true;
     }
 
-    fprintf(stderr, "%s: unexpected data type %d\n", __func__, other->datatype_type);
+    fprintf(stderr, "%s: unexpected data type `%u'\n", __func__, other->datatype_type);
     abort();
 }
 

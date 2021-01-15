@@ -23,7 +23,7 @@ const char *lstf_expression_type_to_string(lstf_expression_type expr_type)
             return "object expression";
     }
 
-    fprintf(stderr, "%s: invalid value (%d) for lstf_expression_type", __func__, expr_type);
+    fprintf(stderr, "%s: invalid value `%u' for lstf_expression_type", __func__, expr_type);
     abort();
 }
 

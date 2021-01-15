@@ -142,7 +142,7 @@ static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_
         return sizeof integer;\
     }\
 \
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);\
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);\
     abort();\
 }
 
@@ -184,7 +184,7 @@ size_t outputstream_write_string(outputstream *stream, const char *str)
         return string_length;
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
 
@@ -203,7 +203,7 @@ size_t outputstream_write(outputstream *stream, void *buffer, size_t buffer_size
         return buffer_size;
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
 
@@ -217,6 +217,6 @@ char *outputstream_get_name(outputstream *stream)
                     "<outputstream: buffer @ 0x%p>", (void *)stream->buffer)); 
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }

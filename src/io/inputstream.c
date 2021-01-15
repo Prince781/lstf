@@ -140,7 +140,7 @@ char inputstream_read_char(inputstream *stream)
         return stream->buffer[stream->buffer_offset++];
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
 
@@ -158,7 +158,7 @@ bool inputstream_unread_char(inputstream *stream)
         return true;
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
 
@@ -207,7 +207,7 @@ bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
         return true;
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
 
@@ -226,7 +226,7 @@ bool inputstream_skip(inputstream *stream, size_t bytes)
         return true;
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
 
@@ -250,7 +250,7 @@ bool inputstream_has_data(inputstream *stream)
         return stream->buffer_offset < stream->buffer_size;
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
 
@@ -264,6 +264,6 @@ char *inputstream_get_name(inputstream *stream)
                     "<inputstream: buffer @ 0x%p>", (void *)stream->buffer)); 
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%d'\n", __func__, stream->stream_type);
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }

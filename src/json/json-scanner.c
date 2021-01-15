@@ -42,7 +42,7 @@ const char *json_token_to_string(json_token token)
         return "null keyword";
     }
 
-    fprintf(stderr, "%s: unexpected value %d for json_token\n", __func__, token);
+    fprintf(stderr, "%s: unexpected value `%u' for json_token\n", __func__, token);
     abort();
 }
 
@@ -152,7 +152,7 @@ static void
 json_scanner_report_message(json_scanner *scanner, json_sourceloc source_location, const char *format, ...)
 {
     string *sb = string_new();
-    string_appendf(sb, "%s:%d:%d: ",
+    string_appendf(sb, "%s:%u:%u: ",
             scanner->filename, 
             source_location.line, source_location.column);
     va_list args;
@@ -351,7 +351,7 @@ json_token json_scanner_next(json_scanner *scanner)
     default:
     {
         string *sb = string_new();
-        string_appendf(sb, "%s:%d:%d: error: unexpected character `%c'",
+        string_appendf(sb, "%s:%u:%u: error: unexpected character `%c'",
                 scanner->filename,
                 scanner->source_location.line, scanner->source_location.column,
                 current_char);
