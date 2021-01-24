@@ -74,9 +74,9 @@ ptr_list_node *ptr_list_replace(ptr_list                     *list,
     return found_node;
 }
 
-ssize_t ptr_list_index_of(ptr_list                     *list,
-                          const void                   *query,
-                          collection_item_equality_func comparator)
+long ptr_list_index_of(ptr_list                     *list,
+                       const void                   *query,
+                       collection_item_equality_func comparator)
 {
     for (iterator it = ptr_list_iterator_create(list);
             it.has_next;
@@ -86,7 +86,7 @@ ssize_t ptr_list_index_of(ptr_list                     *list,
     return -1;
 }
 
-ptr_list_node *ptr_list_nth_element(ptr_list *list, size_t index)
+ptr_list_node *ptr_list_nth_element(ptr_list *list, unsigned long index)
 {
     if (index >= list->length)
         return NULL;

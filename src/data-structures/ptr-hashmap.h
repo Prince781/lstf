@@ -32,7 +32,7 @@ struct _ptr_hashmap {
      */
     ptr_list *entries_list;
 
-    unsigned num_bucket_places;
+    unsigned long num_bucket_places;
 
     collection_item_hash_func key_hash_func;
     collection_item_ref_func key_ref_func;
@@ -73,7 +73,8 @@ void ptr_hashmap_delete(ptr_hashmap *map, void *key);
 
 bool ptr_hashmap_is_empty(const ptr_hashmap *map);
 
-static inline size_t ptr_hashmap_num_elements(const ptr_hashmap *map)
+static inline unsigned long
+ptr_hashmap_num_elements(const ptr_hashmap *map)
 {
     return map->entries_list->length;
 }

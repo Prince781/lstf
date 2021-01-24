@@ -1406,7 +1406,7 @@ lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *v
                         "explicit parameter type required in this context");
                 analyzer->num_errors++;
             } else {
-                const ssize_t param_idx = ptr_list_index_of(parent_lambda->parameters, variable, NULL);
+                const long param_idx = ptr_list_index_of(parent_lambda->parameters, variable, NULL);
                 // parameter type node (we will be inferring this type)
                 ptr_list_node *pt_node = ptr_list_nth_element(function_et->parameter_types, param_idx);
 

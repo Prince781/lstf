@@ -46,7 +46,7 @@ int main(void) {
     }
     free(seen);
 
-    printf("there are %zu buckets in the map for %zu elements\n", 
+    printf("there are %lu buckets in the map for %lu elements\n",
             map->buckets_list->length, ptr_hashmap_num_elements(map));
     printf("current buffer size is %u * sizeof(ptr_hashmap_entry *)\n", map->num_bucket_places);
     double occupancy = map->buckets_list->length / (double) map->num_bucket_places;

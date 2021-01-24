@@ -2,10 +2,7 @@
 
 #include "data-structures/collection.h"
 #include "iterator.h"
-#include <stdio.h>
 #include <stdbool.h>
-#include <stddef.h>
-
 
 struct _ptr_list_node {
     void *data;
@@ -21,7 +18,7 @@ typedef struct _ptr_list_node ptr_list_node;
 struct _ptr_list {
     ptr_list_node *head;
     ptr_list_node *tail;
-    size_t length;
+    unsigned long length;
     collection_item_ref_func data_ref_func;
     collection_item_unref_func data_unref_func;
 };
@@ -50,11 +47,11 @@ ptr_list_node *ptr_list_replace(ptr_list                     *list,
 /**
  * Returns `-1` if [query] is not found.
  */
-ssize_t ptr_list_index_of(ptr_list                     *list,
-                          const void                   *query,
-                          collection_item_equality_func comparator);
+long ptr_list_index_of(ptr_list                     *list,
+                       const void                   *query,
+                       collection_item_equality_func comparator);
 
-ptr_list_node *ptr_list_nth_element(ptr_list *list, size_t index);
+ptr_list_node *ptr_list_nth_element(ptr_list *list, unsigned long index);
 
 void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node);
 

@@ -1,4 +1,5 @@
 #include "lstf-sourceref.h"
+#include "util.h"
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
