@@ -16,9 +16,9 @@ struct _lstf_file {
      */
     char *content;
 
-    unsigned total_lines;
-
     lstf_block *main_block;
+
+    unsigned total_lines;
 };
 typedef struct _lstf_file lstf_file;
 

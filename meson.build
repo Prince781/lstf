@@ -26,7 +26,6 @@ else
       '-Wcast-align',         # supported by Clang and GCC (but not enough for GCC)
       '-Wcast-align=strict',  # needed by GCC, unsupported by Clang
       '-Wcast-qual',
-      '-Wshadow',
       '-Wno-cast-function-type',
       '-Wduplicated-branches',
       '-Wduplicated-cond',
@@ -39,6 +38,8 @@ else
       '-Wimplicit-fallthrough',
       '-Wlogical-op',
       '-Wmissing-include-dirs',
+      '-Wmissing-declarations',
+      '-Wshadow',
       '-Wstrict-overflow',
       '-Wsuggest-attribute=malloc',
       '-Wtautological-compare',

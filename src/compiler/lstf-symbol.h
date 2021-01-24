@@ -38,8 +38,8 @@ lstf_symbol_type_to_string(lstf_symbol_type symbol_type)
 struct _lstf_symbol {
     lstf_codenode parent_struct;
     lstf_symbol_type symbol_type;
-    bool is_builtin;
     char *name;
+    bool is_builtin;
 };
 typedef struct _lstf_symbol lstf_symbol;
 

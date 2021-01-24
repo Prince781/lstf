@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int *int_new(int value) {
+static int *int_new(int value) {
     int *p = malloc(sizeof *p);
     if (!p) {
         perror("failed to alloc() int");
