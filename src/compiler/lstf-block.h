@@ -33,6 +33,7 @@ static inline lstf_block *lstf_block_cast(void *node)
 
 lstf_block *lstf_block_new(void);
 
-void lstf_block_add_statement(lstf_block *block, lstf_statement *stmt);
+void lstf_block_add_statement(lstf_block *block, lstf_statement *stmt)
+    __attribute__((nonnull (1, 2)));
 
 void lstf_block_clear_statements(lstf_block *block);

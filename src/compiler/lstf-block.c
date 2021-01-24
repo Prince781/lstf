@@ -8,6 +8,7 @@
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
 #include "lstf-file.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_block_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -58,6 +59,11 @@ static const lstf_codenode_vtable block_vtable = {
 lstf_block *lstf_block_new(void)
 {
     lstf_block *block = calloc(1, sizeof *block);
+
+    if (!block) {
+        perror("failed to create lstf_block");
+        abort();
+    }
 
     lstf_codenode_construct((lstf_codenode *)block, 
             &block_vtable,

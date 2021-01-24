@@ -25,6 +25,10 @@ lstf_file *lstf_file_load(const char *filename)
         return NULL;
 
     file = calloc(1, sizeof *file);
+    if (!file) {
+        perror("failed to create lstf_file");
+        abort();
+    }
     file->filename = strdup(filename);
 
     // read in entire file

@@ -3,6 +3,7 @@
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
 #include "lstf-uniontype.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -65,6 +66,11 @@ static const lstf_datatype_vtable nulltype_datatype_vtable = {
 lstf_datatype *lstf_nulltype_new(const lstf_sourceref *source_reference)
 {
     lstf_nulltype *null_type = calloc(1, sizeof *null_type);
+
+    if (!null_type) {
+        perror("failed to create lstf_nulltype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)null_type,
             &nulltype_vtable,

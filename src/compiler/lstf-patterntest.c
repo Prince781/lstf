@@ -2,6 +2,7 @@
 #include "compiler/lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-statement.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_patterntest_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -40,6 +41,11 @@ lstf_statement *lstf_patterntest_new(const lstf_sourceref     *source_reference,
                                      lstf_expression          *expression)
 {
     lstf_patterntest *stmt = calloc(1, sizeof *stmt);
+
+    if (!stmt) {
+        perror("failed to create lstf_patterntest");
+        abort();
+    }
 
     lstf_statement_construct((lstf_statement *)stmt,
             &patterntest_vtable,

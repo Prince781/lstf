@@ -9,6 +9,7 @@
 #include "data-structures/ptr-hashmap.h"
 #include "util.h"
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,8 +41,6 @@ static lstf_codenode_vtable scope_vtable = {
 
 lstf_scope *lstf_scope_new(lstf_codenode *owner)
 {
-    lstf_scope *scope = calloc(1, sizeof *scope);
-
     assert((owner->codenode_type == lstf_codenode_type_block ||
                 (owner->codenode_type == lstf_codenode_type_symbol &&
                  (((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_function ||
@@ -49,6 +48,13 @@ lstf_scope *lstf_scope_new(lstf_codenode *owner)
                 (owner->codenode_type == lstf_codenode_type_expression &&
                  ((lstf_expression *)owner)->expr_type == lstf_expression_type_lambda)) && 
             "scope owner must be block, function, type symbol, or lambda expression");
+
+    lstf_scope *scope = calloc(1, sizeof *scope);
+
+    if (!scope) {
+        perror("failed to create lstf_scope");
+        abort();
+    }
 
     lstf_codenode_construct((lstf_codenode *)scope, 
             &scope_vtable,

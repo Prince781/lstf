@@ -2,6 +2,7 @@
 #include "compiler/lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-expression.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_ellipsis_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -30,6 +31,11 @@ static const lstf_codenode_vtable ellipsis_vtable = {
 lstf_expression *lstf_ellipsis_new(const lstf_sourceref *source_reference)
 {
     lstf_ellipsis *ellipsis = calloc(1, sizeof *ellipsis);
+
+    if (!ellipsis) {
+        perror("failed to create lstf_ellipsis");
+        abort();
+    }
 
     lstf_expression_construct(
         (lstf_expression *)ellipsis,

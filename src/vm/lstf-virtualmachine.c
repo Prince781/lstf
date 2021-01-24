@@ -19,6 +19,11 @@ lstf_virtualmachine_new(lstf_vm_program *program, bool debug)
 {
     lstf_virtualmachine *vm = calloc(1, sizeof *vm);
 
+    if (!vm) {
+        perror("failed to create lstf_virtualmachine");
+        abort();
+    }
+
     vm->stack = lstf_vm_stack_new();
     vm->program = lstf_vm_program_ref(program);
     vm->pc = program->entry_point;
@@ -736,7 +741,7 @@ lstf_vm_op_print_exec(lstf_virtualmachine *vm)
         case lstf_vm_value_type_object_ref:
         case lstf_vm_value_type_pattern_ref:
         {
-            char *json_representation = json_node_represent_string(value.data.json_node_ref, true);
+            char *json_representation = json_node_to_string(value.data.json_node_ref, true);
             printf("%s\n", json_representation);
             free(json_representation);
         }   break;

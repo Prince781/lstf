@@ -9,16 +9,21 @@ lstf_bc_function *lstf_bc_function_new(const char *name)
 {
     lstf_bc_function *function = calloc(1, sizeof *function);
 
-    if (!function)
-        return NULL;
+    if (!function) {
+        perror("failed to create lstf_bc_function");
+        abort();
+    }
 
-    function->name = strdup(name);
+    if (!(function->name = strdup(name))) {
+        perror("failed to save function name");
+        abort();
+    }
     function->instructions_bufsize = 1024;
     function->instructions = calloc(function->instructions_bufsize, sizeof *function->instructions);
 
     if (!function->instructions) {
-        free(function);
-        return NULL;
+        perror("failed to create buffer for lstf_bc_function instructions");
+        abort();
     }
 
     return function;
@@ -28,7 +33,7 @@ void lstf_bc_function_destroy(lstf_bc_function *function)
 {
     free(function->name);
     function->name = NULL;
-    for (size_t i = 0; i < function->instructions_length; i++)
+    for (unsigned long i = 0; i < function->instructions_length; i++)
         lstf_bc_instruction_clear(&function->instructions[i]);
     free(function->instructions);
     function->instructions = NULL;

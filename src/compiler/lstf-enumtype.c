@@ -3,6 +3,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -65,6 +66,11 @@ lstf_datatype *lstf_enumtype_new(const lstf_sourceref *source_reference,
                                  lstf_enum            *enum_symbol)
 {
     lstf_enumtype *enum_type = calloc(1, sizeof *enum_type);
+
+    if (!enum_type) {
+        perror("failed to create lstf_enumtype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)enum_type,
             &enumtype_vtable,

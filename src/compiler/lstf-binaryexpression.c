@@ -2,6 +2,7 @@
 #include "lstf-codenode.h"
 #include "lstf-expression.h"
 #include "lstf-codevisitor.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_binaryexpression_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -39,6 +40,11 @@ lstf_expression *lstf_binaryexpression_new(const lstf_sourceref *source_referenc
                                            lstf_expression      *right)
 {
     lstf_binaryexpression *expr = calloc(1, sizeof *expr);
+
+    if (!expr) {
+        perror("failed to create lstf_binaryexpression");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *)expr,
             &binaryexpression_vtable,

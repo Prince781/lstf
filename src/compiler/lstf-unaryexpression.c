@@ -2,6 +2,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-expression.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_unaryexpression_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -36,6 +37,11 @@ lstf_expression *lstf_unaryexpression_new(const lstf_sourceref *source_reference
                                           lstf_expression      *inner)
 {
     lstf_unaryexpression *expr = calloc(1, sizeof *expr);
+
+    if (!expr) {
+        perror("failed to create lstf_unaryexpression");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *)expr,
             &unaryexpression_vtable,

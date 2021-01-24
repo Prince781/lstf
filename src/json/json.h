@@ -106,18 +106,19 @@ void json_node_unref(json_node *node);
 
 /**
  * Returns a new string that is a representation of a JSON node. You must
- * free() this string afterwards. The JSON node must not contain any cycles.
+ * free() this string afterwards.
  *
  * @param pretty    if `true`, then the string will be formatted and indented
  *                  across multiple lines
  */
 char *json_node_to_string(json_node *node, bool pretty);
 
-
 /**
- * Does the same thing as `json_node_to_string()`, except will tolerate cycles.
+ * Returns the size of what would be the stringified form of this JSON node.
+ *
+ * @see json_node_to_string
  */
-char *json_node_represent_string(json_node *node, bool pretty);
+size_t json_node_to_string_length(json_node *node, bool pretty);
 
 /**
  * Compares two JSON nodes for strict equality.

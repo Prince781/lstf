@@ -3,6 +3,7 @@
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -65,6 +66,11 @@ lstf_datatype *lstf_unresolvedtype_new(const lstf_sourceref *source_reference,
                                        const char           *name)
 {
     lstf_unresolvedtype *type = calloc(1, sizeof *type);
+
+    if (!type) {
+        perror("failed to create lstf_unresolvedtype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)type,
             &unresolvedtype_vtable,

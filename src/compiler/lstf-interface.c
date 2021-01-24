@@ -11,6 +11,7 @@
 #include "lstf-typesymbol.h"
 #include "lstf-sourceref.h"
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -47,6 +48,11 @@ lstf_interfaceproperty *lstf_interfaceproperty_new(const lstf_sourceref *source_
                                                    bool                  is_builtin)
 {
     lstf_interfaceproperty *property = calloc(1, sizeof *property);
+
+    if (!property) {
+        perror("failed to create lstf_interfaceproperty");
+        abort();
+    }
 
     lstf_symbol_construct((lstf_symbol *)property,
             &interfaceproperty_vtable,
@@ -126,6 +132,11 @@ lstf_interface *lstf_interface_new(const lstf_sourceref *source_reference,
 {
     assert(!name == is_anonymous);
     lstf_interface *interface = calloc(1, sizeof *interface);
+
+    if (!interface) {
+        perror("failed to create lstf_interface");
+        abort();
+    }
 
     lstf_typesymbol_construct((lstf_typesymbol *)interface,
             &interface_vtable,

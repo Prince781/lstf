@@ -23,4 +23,5 @@ typedef struct _lstf_assignment lstf_assignment;
 
 lstf_statement *lstf_assignment_new(const lstf_sourceref *source_reference,
                                     lstf_expression      *lhs,
-                                    lstf_expression      *rhs);
+                                    lstf_expression      *rhs)
+    __attribute__((nonnull (2, 3)));

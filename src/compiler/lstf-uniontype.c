@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_uniontype_accept(lstf_codenode *node, lstf_codevisitor *visitor)
@@ -110,6 +111,11 @@ lstf_datatype *lstf_uniontype_new(const lstf_sourceref *source_reference,
                                   ...)
 {
     lstf_uniontype *union_type = calloc(1, sizeof *union_type);
+
+    if (!union_type) {
+        perror("failed to create lstf_uniontype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)union_type,
             &uniontype_vtable,

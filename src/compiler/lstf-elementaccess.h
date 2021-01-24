@@ -20,4 +20,5 @@ typedef struct _lstf_elementaccess lstf_elementaccess;
 
 lstf_expression *lstf_elementaccess_new(const lstf_sourceref *source_reference,
                                         lstf_expression      *container,
-                                        ptr_list             *arguments);
+                                        ptr_list             *arguments)
+    __attribute__((nonnull (2, 3)));

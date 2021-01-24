@@ -3,6 +3,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-symbol.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -44,6 +45,11 @@ lstf_symbol *lstf_variable_new(const lstf_sourceref *source_reference,
                                bool                  is_builtin)
 {
     lstf_variable *variable = calloc(1, sizeof *variable);
+
+    if (!variable) {
+        perror("failed to create lstf_variable");
+        abort();
+    }
 
     lstf_symbol_construct((lstf_symbol *)variable, 
             &variable_vtable,

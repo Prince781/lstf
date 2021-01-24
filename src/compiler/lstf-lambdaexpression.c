@@ -5,6 +5,7 @@
 #include "lstf-expression.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_lambdaexpression_accept(lstf_codenode *node, lstf_codevisitor *visitor)
@@ -51,6 +52,11 @@ static lstf_expression *lstf_lambdaexpression_new(const lstf_sourceref *source_r
                                                   bool                  is_async)
 {
     lstf_lambdaexpression *expr = calloc(1, sizeof *expr);
+
+    if (!expr) {
+        perror("failed to create lstf_lambdaexpression");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *)expr,
             &lambdaexpression_vtable,

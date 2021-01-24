@@ -2,6 +2,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-statement.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_assignment_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -36,6 +37,11 @@ lstf_statement *lstf_assignment_new(const lstf_sourceref *source_reference,
                                     lstf_expression      *rhs)
 {
     lstf_assignment *stmt = calloc(1, sizeof *stmt);
+
+    if (!stmt) {
+        perror("failed to create lstf_assignment");
+        abort();
+    }
 
     lstf_statement_construct((lstf_statement *)stmt,
             &assignment_vtable,

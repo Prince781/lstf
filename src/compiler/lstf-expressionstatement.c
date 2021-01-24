@@ -2,6 +2,7 @@
 #include "compiler/lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-statement.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_expressionstatement_accept(lstf_codenode *node, lstf_codevisitor *visitor)
@@ -33,6 +34,11 @@ lstf_statement *lstf_expressionstatement_new(const lstf_sourceref *source_refere
                                              lstf_expression      *expression)
 {
     lstf_expressionstatement *stmt = calloc(1, sizeof *stmt);
+
+    if (!stmt) {
+        perror("failed to create lstf_expressionstatement");
+        abort();
+    }
 
     lstf_statement_construct((lstf_statement *) stmt, 
             &expressionstatement_vtable,

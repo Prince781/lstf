@@ -157,7 +157,7 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
 
     if (!scanner) {
         perror("could not create LSTF scanner");
-        exit(EXIT_FAILURE);
+        abort();
     }
 
     lstf_sourceloc current = { 1, 1, script->content };

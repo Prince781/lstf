@@ -5,6 +5,7 @@
 #include "lstf-codenode.h"
 #include "lstf-symbol.h"
 #include "lstf-typesymbol.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -38,6 +39,11 @@ lstf_symbol *lstf_enum_new(const lstf_sourceref *source_reference,
                            bool                  is_builtin)
 {
     lstf_enum *enum_symbol = calloc(1, sizeof *enum_symbol);
+
+    if (!enum_symbol) {
+        perror("failed to create lstf_enum");
+        abort();
+    }
 
     lstf_typesymbol_construct((lstf_typesymbol *)enum_symbol,
             &enum_vtable,

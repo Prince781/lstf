@@ -7,6 +7,7 @@
 #include "lstf-datatype.h"
 #include "lstf-uniontype.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -71,6 +72,11 @@ static const lstf_datatype_vtable numbertype_datatype_vtable = {
 lstf_datatype *lstf_numbertype_new(const lstf_sourceref *source_reference)
 {
     lstf_numbertype *number_type = calloc(1, sizeof *number_type);
+
+    if (!number_type) {
+        perror("failed to create lstf_numbertype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)number_type,
             &numbertype_vtable,

@@ -85,6 +85,11 @@ lstf_datatype *lstf_patterntype_new(const lstf_sourceref *source_reference)
 {
     lstf_patterntype *pattern_type = calloc(1, sizeof *pattern_type);
 
+    if (!pattern_type) {
+        perror("failed to create lstf_patterntype");
+        abort();
+    }
+
     lstf_datatype_construct((lstf_datatype *)pattern_type,
             &patterntype_vtable,
             source_reference,

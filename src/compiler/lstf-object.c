@@ -7,6 +7,7 @@
 #include "data-structures/ptr-hashmap.h"
 #include "data-structures/ptr-list.h"
 #include "lstf-expression.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -42,6 +43,11 @@ lstf_objectproperty_new(const lstf_sourceref *source_reference,
                         lstf_expression      *value)
 {
     lstf_objectproperty *prop = calloc(1, sizeof *prop);
+
+    if (!prop) {
+        perror("failed to create lstf_objectproperty");
+        abort();
+    }
 
     lstf_symbol_construct((lstf_symbol *) prop,
             &objectproperty_vtable,
@@ -89,6 +95,11 @@ static const lstf_codenode_vtable object_vtable = {
 lstf_object *lstf_object_new(const lstf_sourceref *source_reference, bool is_pattern)
 {
     lstf_object *object = calloc(1, sizeof *object);
+
+    if (!object) {
+        perror("failed to create lstf_object");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *) object, 
             &object_vtable,

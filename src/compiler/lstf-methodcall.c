@@ -4,6 +4,7 @@
 #include "compiler/lstf-expression.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_methodcall_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -41,6 +42,11 @@ lstf_expression *lstf_methodcall_new(const lstf_sourceref *source_reference,
                                      ptr_list             *arguments)
 {
     lstf_methodcall *expr = calloc(1, sizeof *expr);
+
+    if (!expr) {
+        perror("failed to create lstf_methodcall");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *)expr, 
             &methodcall_vtable,

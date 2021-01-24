@@ -4,6 +4,7 @@
 #include "data-structures/ptr-hashmap.h"
 #include "io/outputstream.h"
 #include "vm/lstf-vm-loader.h"
+#include "json/json.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdint.h>
@@ -274,6 +275,7 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
 
         for (size_t i = 0; i < function->instructions_length; i++) {
             lstf_bc_instruction *instruction = &function->instructions[i];
+            char *json_expression_string = NULL;
 
             if (!outputstream_write_byte(ostream, instruction->opcode))
                 return false;
@@ -295,9 +297,13 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
                     return false;
                 break;
             case lstf_vm_op_load_expression:
-                if (!outputstream_write_string(ostream, instruction->json_expression) ||
-                        !outputstream_write_byte(ostream, '\0'))
+                json_expression_string = json_node_to_string(instruction->json_expression, false);
+                if (!outputstream_write_string(ostream, json_expression_string) ||
+                        !outputstream_write_byte(ostream, '\0')) {
+                    free(json_expression_string);
                     return false;
+                }
+                free(json_expression_string);
                 break;
             case lstf_vm_op_store:
                 if (!outputstream_write_int64(ostream, instruction->frame_offset))

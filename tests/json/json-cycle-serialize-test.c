@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 
     json_object_set_member(object, "object-property", object_property);
 
-    char *serialized_string = json_node_represent_string(object, pretty_print);
+    char *serialized_string = json_node_to_string(object, pretty_print);
     printf("%s\n", serialized_string);
     int retval = 0;
     string *loaded_json = string_new();

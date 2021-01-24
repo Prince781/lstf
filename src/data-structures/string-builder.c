@@ -44,14 +44,17 @@ string *string_new(void)
 {
     string *sb = calloc(1, sizeof *sb);
 
-    if (!sb)
-        return NULL;
+    if (!sb) {
+        perror("failed to create string");
+        abort();
+    }
 
     const size_t initial_size = 8;
     sb->buffer = calloc(initial_size, sizeof *sb->buffer);
     if (!sb->buffer) {
         free(sb);
-        return NULL;
+        perror("failed to create string buffer");
+        abort();
     }
     sb->buffer_size = initial_size;
     sb->floating = true;
@@ -63,8 +66,10 @@ string *string_new_with_static_data(const char *data)
 {
     string *sb = calloc(1, sizeof *sb);
 
-    if (!sb)
-        return NULL;
+    if (!sb) {
+        perror("failed to create string");
+        abort();
+    }
 
     sb->const_buffer = data;
     sb->copy_on_write = true;
@@ -78,10 +83,15 @@ string *string_new_copy_data(const char *data)
 {
     string *sb = calloc(1, sizeof *sb);
 
-    if (!sb)
-        return NULL;
+    if (!sb) {
+        perror("failed to create string");
+        abort();
+    }
 
-    sb->buffer = strdup(data);
+    if (!(sb->buffer = strdup(data))) {
+        perror("failed to create string buffer from copied data");
+        abort();
+    }
     sb->buffer_size = strlen(sb->buffer);
     sb->floating = true;
 
@@ -92,8 +102,10 @@ string *string_new_take_data(char *data)
 {
     string *sb = calloc(1, sizeof *sb);
 
-    if (!sb)
-        return NULL;
+    if (!sb) {
+        perror("failed to create string");
+        abort();
+    }
 
     sb->buffer = data;
     sb->buffer_size = strlen(data);
@@ -161,7 +173,9 @@ string *string_clear(string *sb)
     sb->length = 0;
     sb->buffer_size = 8;
     if (sb->copy_on_write) {
-        sb->buffer = calloc(sb->buffer_size, sizeof *sb->buffer);
+        char *new_buffer = calloc(sb->buffer_size, sizeof *sb->buffer);
+        // tolerate failure
+        sb->buffer = new_buffer ? new_buffer : sb->buffer;
         sb->copy_on_write = false;
     } else {
         sb->buffer = realloc(sb->buffer, sb->buffer_size);
@@ -187,11 +201,18 @@ char *string_destroy(string *sb)
     free(sb);
 
     if (copy_on_write) {
-        buffer = strdup(const_buffer);
+        if (!(buffer = strdup(const_buffer))) {
+            perror("failed to copy const buffer on string destruction");
+            abort();
+        }
     } else {
-        buffer = realloc(buffer, length + 1);
-        if (buffer)
+        char *new_buffer = realloc(buffer, length + 1);
+        if (new_buffer) {
+            new_buffer[length] = '\0';
+            buffer = new_buffer;
+        } else {
             buffer[length] = '\0';
+        }
     }
 
     return buffer;

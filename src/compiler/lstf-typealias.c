@@ -3,6 +3,7 @@
 #include "lstf-datatype.h"
 #include "lstf-codenode.h"
 #include "lstf-typesymbol.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -36,6 +37,11 @@ lstf_typesymbol *lstf_typealias_new(const lstf_sourceref *source_reference,
                                     bool                  is_builtin)
 {
     lstf_typealias *type_alias = calloc(1, sizeof *type_alias);
+
+    if (!type_alias) {
+        perror("failed to create lstf_typealias");
+        abort();
+    }
 
     lstf_typesymbol_construct((lstf_typesymbol *)type_alias,
             &typealias_vtable,

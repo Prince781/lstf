@@ -5,6 +5,7 @@
 #include "lstf-datatype.h"
 #include "lstf-uniontype.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_arraytype_accept(lstf_codenode *node, lstf_codevisitor *visitor)
@@ -88,6 +89,11 @@ lstf_datatype *lstf_arraytype_new(const lstf_sourceref *source_reference,
                                    lstf_datatype       *element_type)
 {
     lstf_arraytype *array_type = calloc(1, sizeof *array_type);
+
+    if (!array_type) {
+        perror("failed to create lstf_arraytype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)array_type,
             &arraytype_vtable,

@@ -4,6 +4,7 @@
 #include "lstf-datatype.h"
 #include "lstf-uniontype.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -65,6 +66,11 @@ static const lstf_datatype_vtable booleantype_datatype_vtable = {
 lstf_datatype *lstf_booleantype_new(const lstf_sourceref *source_reference)
 {
     lstf_booleantype *bool_type = calloc(1, sizeof *bool_type);
+
+    if (!bool_type) {
+        perror("failed to create lstf_booleantype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)bool_type,
             &booleantype_vtable,

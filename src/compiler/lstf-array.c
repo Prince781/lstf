@@ -7,6 +7,7 @@
 #include "data-structures/ptr-hashmap.h"
 #include "data-structures/ptr-list.h"
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_array_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -41,6 +42,11 @@ static const lstf_codenode_vtable array_vtable = {
 lstf_expression *lstf_array_new(const lstf_sourceref *source_reference, bool is_pattern)
 {
     lstf_array *array = calloc(1, sizeof *array);
+
+    if (!array) {
+        perror("failed to create lstf_array");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *) array, 
             &array_vtable, 

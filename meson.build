@@ -18,7 +18,6 @@ if cc.get_id() == 'msvc'
     ])
 else
     c_args = cc.get_supported_arguments([
-      # '-fanalyzer',
       '-pedantic-errors',
       '-Wall',
       '-Wextra',
@@ -37,8 +36,8 @@ else
       '-Wformat-security',
       '-Wformat-signedness',
       '-Wformat-truncation=2',
-      '-Wlogical-op',
       '-Wimplicit-fallthrough',
+      '-Wlogical-op',
       '-Wmissing-include-dirs',
       '-Wstrict-overflow',
       '-Wsuggest-attribute=malloc',

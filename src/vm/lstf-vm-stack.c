@@ -47,6 +47,11 @@ lstf_vm_stack *lstf_vm_stack_new(void)
 {
     lstf_vm_stack *stack = calloc(1, sizeof *stack);
 
+    if (!stack) {
+        perror("failed to create lstf_vm_stack");
+        abort();
+    }
+
     // use 1 MB for each
     if (!lstf_vm_stack_resize_values(stack, 1024 * 1024 / sizeof(*stack->values)) ||
             !lstf_vm_stack_resize_frame_pointers(stack, 1024 * 1024 / sizeof(*stack->frames))) {

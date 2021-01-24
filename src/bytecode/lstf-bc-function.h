@@ -15,8 +15,8 @@ struct _lstf_bc_function {
      */
     lstf_bc_instruction *instructions;
 
-    size_t instructions_length;
-    size_t instructions_bufsize;
+    unsigned long instructions_length;
+    unsigned long instructions_bufsize;
 };
 typedef struct _lstf_bc_function lstf_bc_function;
 

@@ -2,6 +2,7 @@
 #include "compiler/lstf-codenode.h"
 #include "compiler/lstf-codevisitor.h"
 #include "compiler/lstf-expression.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -40,6 +41,11 @@ lstf_expression *lstf_memberaccess_new(const lstf_sourceref *source_reference,
                                        const char *member_name)
 {
     lstf_memberaccess *ma = calloc(1, sizeof *ma);
+
+    if (!ma) {
+        perror("failed to create lstf_memberaccess");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *)ma,
             &memberaccess_vtable,

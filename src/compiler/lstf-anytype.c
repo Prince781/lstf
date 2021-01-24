@@ -3,6 +3,7 @@
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -56,6 +57,11 @@ static const lstf_datatype_vtable anytype_datatype_vtable = {
 lstf_datatype *lstf_anytype_new(const lstf_sourceref *source_reference)
 {
     lstf_anytype *anytype = calloc(1, sizeof *anytype);
+
+    if (!anytype) {
+        perror("failed to create lstf_anytype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)anytype,
             &anytype_vtable,

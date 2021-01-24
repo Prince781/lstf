@@ -53,7 +53,7 @@ struct _lstf_bc_instruction {
         /**
          * Used by: `lstf_vm_op_load_expression`
          */
-        char *json_expression;
+        json_node *json_expression;
 
         /**
          * Used by:
@@ -99,13 +99,10 @@ static inline lstf_bc_instruction lstf_bc_instruction_load_codeoffset_new(lstf_b
 
 static inline lstf_bc_instruction lstf_bc_instruction_load_expression_new(json_node *expression)
 {
-    json_node_ref(expression);
-    lstf_bc_instruction instruction = {
+    return (lstf_bc_instruction) {
         .opcode = lstf_vm_op_load_expression,
-        .json_expression = json_node_to_string(expression, false)
+        .json_expression = json_node_ref(expression)
     };
-    json_node_unref(expression);
-    return instruction;
 }
 
 static inline lstf_bc_instruction lstf_bc_instruction_store_new(int64_t frame_offset)
@@ -347,7 +344,7 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
     case lstf_vm_op_load_codeoffset:
         return sizeof(uint8_t) + sizeof(uint64_t);
     case lstf_vm_op_load_expression:
-        return sizeof(uint8_t) + strlen(instruction->json_expression) + 1;
+        return sizeof(uint8_t) + json_node_to_string_length(instruction->json_expression, false) + 1;
     case lstf_vm_op_store:
         return sizeof(uint8_t) + sizeof(instruction->frame_offset);
     case lstf_vm_op_get:
@@ -412,7 +409,7 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_load_codeoffset:
         break;
     case lstf_vm_op_load_expression:
-        free(instruction->json_expression);
+        json_node_unref(instruction->json_expression);
         break;
     case lstf_vm_op_store:
     case lstf_vm_op_get:

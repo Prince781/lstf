@@ -55,6 +55,11 @@ lstf_parser *lstf_parser_create(lstf_file *file)
 {
     lstf_parser *parser = calloc(1, sizeof *parser);
 
+    if (!parser) {
+        perror("failed to create lstf_parser");
+        abort();
+    }
+
     parser->scanner = lstf_scanner_create(file);
     parser->file = file;
 

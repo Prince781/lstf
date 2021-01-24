@@ -150,12 +150,9 @@ static void json_node_build_string_tabulate(string *sb, unsigned tabulation) {
 static void json_node_build_string(json_node *root_node,
                                    json_node *node,
                                    bool pretty,
-                                   bool expect_cycles,
                                    unsigned tabulation,
                                    string *sb)
 {
-    assert(!(node->visiting && !expect_cycles) && "invalid JSON: circular reference detected!");
-
     if (node->visiting) {
         if (node == root_node)
             string_appendf(sb, "[Circular *1]");
@@ -195,7 +192,7 @@ static void json_node_build_string(json_node *root_node,
             } else if (i > 0) {
                 string_appendf(sb, " ");
             }
-            json_node_build_string(root_node, array->elements[i], pretty, expect_cycles, tabulation + 1, sb);
+            json_node_build_string(root_node, array->elements[i], pretty, tabulation + 1, sb);
             if (i < array->num_elements - 1)
                 string_appendf(sb, ",");
         }
@@ -222,7 +219,7 @@ static void json_node_build_string(json_node *root_node,
                 string_appendf(sb, " ");
             }
             string_appendf(sb, "\"%s\": ", member_name);
-            json_node_build_string(root_node, member_value, pretty, expect_cycles, tabulation + 1, sb);
+            json_node_build_string(root_node, member_value, pretty, tabulation + 1, sb);
             if (iterator_next(it).has_next)
                 string_appendf(sb, ",");
         }
@@ -247,18 +244,20 @@ char *json_node_to_string(json_node *node, bool pretty)
 {
     string *sb = string_new();
 
-    json_node_build_string(node, node, pretty, false, 0, sb);
+    json_node_build_string(node, node, pretty, 0, sb);
 
     return string_destroy(sb);
 }
 
-char *json_node_represent_string(json_node *node, bool pretty)
+size_t json_node_to_string_length(json_node *node, bool pretty)
 {
     string *sb = string_new();
 
-    json_node_build_string(node, node, pretty, true, 0, sb);
+    json_node_build_string(node, node, pretty, 0, sb);
+    size_t length = sb->length;
 
-    return string_destroy(sb);
+    string_unref(sb);
+    return length;
 }
 
 bool json_node_equal_to(json_node *node1, json_node *node2)
@@ -674,6 +673,11 @@ json_node *json_object_new(void)
 {
     json_object *node = calloc(1, sizeof *node);
 
+    if (!node) {
+        perror("failed to create JSON object");
+        abort();
+    }
+
     ((json_node *)node)->node_type = json_node_type_object;
     ((json_node *)node)->floating = true;
     node->members = ptr_hashmap_new(
@@ -750,6 +754,11 @@ void json_object_pattern_set_is_partial_match(json_node *node)
 json_node *json_ellipsis_new(void)
 {
     json_node *node = calloc(1, sizeof *node);
+
+    if (!node) {
+        perror("failed to create JSON ellipsis node");
+        abort();
+    }
 
     node->node_type = json_node_type_ellipsis;
     node->floating = true;

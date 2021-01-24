@@ -2,6 +2,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-symbol.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -38,6 +39,11 @@ lstf_symbol *lstf_constant_new(const lstf_sourceref *source_reference,
                                lstf_expression      *expression)
 {
     lstf_constant *constant = calloc(1, sizeof *constant);
+
+    if (!constant) {
+        perror("failed to create lstf_constant");
+        abort();
+    }
 
     lstf_symbol_construct((lstf_symbol *)constant,
             &constant_vtable,

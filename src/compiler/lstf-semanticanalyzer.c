@@ -1494,6 +1494,11 @@ lstf_semanticanalyzer *lstf_semanticanalyzer_new(lstf_file *file)
 {
     lstf_semanticanalyzer *analyzer = calloc(1, sizeof *analyzer);
 
+    if (!analyzer) {
+        perror("failed to create lstf_semanticanalyzer");
+        abort();
+    }
+
     lstf_codevisitor_construct((lstf_codevisitor *)analyzer, &semanticanalyzer_vtable);
     analyzer->file = file;
     analyzer->scopes = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,

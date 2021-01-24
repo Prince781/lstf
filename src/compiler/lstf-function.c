@@ -8,6 +8,7 @@
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -60,6 +61,11 @@ lstf_symbol *lstf_function_new(const lstf_sourceref *source_reference,
                                bool                  is_async)
 {
     lstf_function *function = calloc(1, sizeof *function);
+
+    if (!function) {
+        perror("failed to create lstf_function");
+        abort();
+    }
 
     lstf_symbol_construct(((lstf_symbol *)function),
             &function_vtable,

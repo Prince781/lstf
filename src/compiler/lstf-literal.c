@@ -8,6 +8,7 @@
 #include "lstf-codenode.h"
 #include "lstf-expression.h"
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_literal_accept(lstf_codenode *code_node, lstf_codevisitor *visitor)
@@ -44,6 +45,11 @@ lstf_expression *lstf_literal_new(const lstf_sourceref *source_reference,
                                   lstf_literal_value    literal_value)
 {
     lstf_literal *lit = calloc(1, sizeof *lit);
+
+    if (!lit) {
+        perror("failed to create lstf_literal");
+        abort();
+    }
 
     lstf_expression_construct((lstf_expression *)lit,
             &literal_vtable,

@@ -2,6 +2,7 @@
 #include "lstf-codenode.h"
 #include "lstf-statement.h"
 #include "lstf-codevisitor.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_returnstatement_accept(lstf_codenode *node, lstf_codevisitor *visitor)
@@ -33,6 +34,11 @@ lstf_statement *lstf_returnstatement_new(const lstf_sourceref *source_reference,
                                          lstf_expression      *expression)
 {
     lstf_returnstatement *return_stmt = calloc(1, sizeof *return_stmt);
+
+    if (!return_stmt) {
+        perror("failed to create lstf_returnstatement");
+        abort();
+    }
 
     lstf_statement_construct((lstf_statement *)return_stmt,
             &returnstatement_vtable,

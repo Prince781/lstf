@@ -32,4 +32,5 @@ typedef struct _lstf_statement lstf_statement;
 void lstf_statement_construct(lstf_statement             *stmt,
                               const lstf_codenode_vtable *vtable,
                               const lstf_sourceref       *source_reference,
-                              lstf_statement_type         stmt_type);
+                              lstf_statement_type         stmt_type)
+    __attribute__((nonnull (1, 2)));

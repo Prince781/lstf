@@ -5,6 +5,7 @@
 #include "lstf-datatype.h"
 #include "lstf-uniontype.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -67,6 +68,11 @@ static const lstf_datatype_vtable objecttype_datatype_vtable = {
 lstf_datatype *lstf_objecttype_new(const lstf_sourceref *source_reference)
 {
     lstf_objecttype *object_type = calloc(1, sizeof *object_type);
+
+    if (!object_type) {
+        perror("failed to create lstf_objecttype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)object_type,
             &objecttype_vtable,

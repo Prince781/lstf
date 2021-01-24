@@ -12,6 +12,7 @@
 #include "lstf-uniontype.h"
 #include "util.h"
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -159,6 +160,11 @@ lstf_datatype *lstf_functiontype_new(const lstf_sourceref *source_reference,
                                      bool                  is_async)
 {
     lstf_functiontype *function_type = calloc(1, sizeof *function_type);
+
+    if (!function_type) {
+        perror("failed to create lstf_functiontype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)function_type,
             &functiontype_vtable,

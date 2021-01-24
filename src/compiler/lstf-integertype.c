@@ -4,6 +4,7 @@
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
 #include "lstf-uniontype.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -66,6 +67,11 @@ static const lstf_datatype_vtable integertype_datatype_vtable = {
 lstf_datatype *lstf_integertype_new(const lstf_sourceref *source_reference)
 {
     lstf_integertype *integer_type = calloc(1, sizeof *integer_type);
+
+    if (!integer_type) {
+        perror("failed to create lstf_integertype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)integer_type,
             &integertype_vtable,

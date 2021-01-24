@@ -2,6 +2,7 @@
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -53,6 +54,11 @@ static const lstf_datatype_vtable voidtype_datatype_vtable = {
 lstf_datatype *lstf_voidtype_new(const lstf_sourceref *source_reference)
 {
     lstf_voidtype *void_type = calloc(1, sizeof *void_type);
+
+    if (!void_type) {
+        perror("failed to create lstf_voidtype");
+        abort();
+    }
 
     lstf_datatype_construct((lstf_datatype *)void_type,
             &voidtype_vtable,

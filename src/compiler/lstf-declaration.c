@@ -5,6 +5,7 @@
 #include "lstf-sourceref.h"
 #include "lstf-symbol.h"
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static void lstf_declaration_accept(lstf_codenode *node, lstf_codevisitor *visitor)
@@ -38,6 +39,11 @@ lstf_declaration_new(const lstf_sourceref *source_reference,
     assert(symbol && "symbol must be non-NULL");
 
     lstf_declaration *decl = calloc(1, sizeof *decl);
+
+    if (!decl) {
+        perror("failed to create lstf_declaration");
+        abort();
+    }
 
     lstf_statement_construct((lstf_statement *)decl,
             &declaration_vtable,

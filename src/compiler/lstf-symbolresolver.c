@@ -505,6 +505,11 @@ lstf_symbolresolver *lstf_symbolresolver_new(lstf_file *file)
 {
     lstf_symbolresolver *resolver = calloc(1, sizeof *resolver);
 
+    if (!resolver) {
+        perror("failed to create lstf_symbolresolver");
+        abort();
+    }
+
     lstf_codevisitor_construct((lstf_codevisitor *)resolver, &symbolresolver_vtable);
     resolver->file = file;
     resolver->scopes = ptr_list_new((collection_item_ref_func) lstf_codenode_ref, 

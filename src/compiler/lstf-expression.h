@@ -114,4 +114,5 @@ void lstf_expression_construct(lstf_expression            *expr,
 
 void lstf_expression_destruct(lstf_codenode *node);
 
-void lstf_expression_set_value_type(lstf_expression *expression, lstf_datatype *data_type);
+void lstf_expression_set_value_type(lstf_expression *expression, lstf_datatype *data_type)
+    __attribute__((nonnull (1, 2)));

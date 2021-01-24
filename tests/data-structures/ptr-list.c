@@ -2,10 +2,15 @@
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 int *int_new(int value) {
     int *p = malloc(sizeof *p);
+    if (!p) {
+        perror("failed to alloc() int");
+        abort();
+    }
     *p = value;
     return p;
 }
