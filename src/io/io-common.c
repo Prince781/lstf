@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if (_WIN32 || _WIN64)
+#if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <io.h>
 char *io_get_filename_from_fd(int fd) {

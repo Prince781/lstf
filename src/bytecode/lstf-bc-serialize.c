@@ -1,4 +1,5 @@
 #include "lstf-bc-serialize.h"
+#include "bytecode/lstf-bc-program.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-hashmap.h"
 #include "io/outputstream.h"
@@ -9,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdalign.h>
 
 static uint64_t
 lstf_bc_program_get_instruction_offset(lstf_bc_program     *program,
@@ -165,8 +167,16 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
 
     // debuginfo section
     if (debuginfo_size > 0) {
-        if (!outputstream_write_string(ostream, program->source_filename) || !outputstream_write_byte(ostream, '\0'))
+        size_t filename_sz = 0;
+        if (!(filename_sz = outputstream_write_string(ostream, program->source_filename)) ||
+                !(filename_sz = outputstream_write_byte(ostream, '\0')))
             return false;
+        // pad to N-byte boundary (alignment of lstf_bc_debugentry)
+        if (filename_sz % alignof(lstf_bc_debugentry) > 0)
+            for (filename_sz = alignof(lstf_bc_debugentry) - filename_sz % alignof(lstf_bc_debugentry);
+                    filename_sz > 0; filename_sz--)
+                if (!outputstream_write_byte(ostream, '\0'))
+                return false;
         // n_debug_entries
         uint64_t n_debug_entries = 0;
         for (iterator it = ptr_hashmap_iterator_create(program->debug_sourcemap); it.has_next; it = iterator_next(it))
@@ -216,8 +226,17 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
                 if (!outputstream_write_uint64(ostream, instruction_offset))
                     return false;
 
-                if (!outputstream_write_string(ostream, symbol_name) || !outputstream_write_byte(ostream, '\0'))
+                size_t symbol_name_sz = 0;
+                if (!(symbol_name_sz = outputstream_write_string(ostream, symbol_name)) ||
+                        !(symbol_name_sz = outputstream_write_byte(ostream, '\0')))
                     return false;
+
+                // pad the symbol name to `lstf_vm_debugsym` boundary
+                if (symbol_name_sz % alignof(lstf_vm_debugsym) > 0)
+                    for (symbol_name_sz = alignof(lstf_vm_debugsym) - symbol_name_sz % alignof(lstf_vm_debugsym);
+                            symbol_name_sz > 0; symbol_name_sz--)
+                        if (!outputstream_write_byte(ostream, '\0'))
+                            return false;
             }
         }
     }

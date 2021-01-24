@@ -6,12 +6,27 @@
 #include "data-structures/string-builder.h"
 #include "io/inputstream.h"
 #include "lstf-vm-debug.h"
+#include <assert.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdalign.h>
 #include "util.h"
+
+static inline void *aligned(void *ptr, size_t alignment)
+{
+    if (alignment < 2)
+        return ptr;
+
+    size_t modulo = (uintptr_t)ptr % alignment;
+    if (modulo)
+        return (void *)((uintptr_t)ptr + (alignment - modulo));
+    
+    return ptr;
+}
 
 static lstf_vm_program *lstf_vm_program_create(void)
 {
@@ -173,17 +188,26 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             goto error_cleanup;
         }
 
-        uint64_t n_debug_entries = 0;
-        if (!inputstream_read_uint64(istream, &n_debug_entries)) {
+        // current offset
+        size_t source_filename_sz = nb_ptr - program->source_filename;
+        uint64_t *offset = aligned(program->debuginfo + source_filename_sz, alignof(lstf_vm_debugentry));
+
+        assert((uintptr_t)offset % alignof(lstf_vm_debugentry) == 0 && "offset must be aligned to lstf_vm_debugentry");
+        static_assert(alignof(uint64_t) == alignof(lstf_vm_debugentry),
+                "alignment of n_debug_entries must equal alignment of lstf_vm_debugentry");
+
+        if ((uint64_t)((uint8_t *)offset + sizeof(uint64_t) - program->debuginfo) > program->debuginfo_size) {
             if (error)
-                *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
+                *error = lstf_vm_loader_error_invalid_debug_size;
             goto error_cleanup;
         }
 
+        // read n_debug_entries
+        uint64_t n_debug_entries = htonll(*(uint64_t *)offset);
+
         debug_entries = ptr_list_new(NULL, NULL);
 
-        uint8_t *offset = program->debuginfo;
-        while (n_debug_entries > 0 && (uint64_t)(offset - program->debuginfo) < program->debuginfo_size) {
+        while (n_debug_entries > 0 && (uint64_t)((uint8_t *)offset - program->debuginfo) < program->debuginfo_size) {
             lstf_vm_debugentry *entry = (lstf_vm_debugentry *)offset;
 
             // aliasing memory means we have to convert the byte order to host byte order
@@ -193,7 +217,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
             ptr_list_append(debug_entries, entry);
 
-            offset += sizeof *entry;
+            offset = (uint64_t *)&entry[1];
             n_debug_entries--;
         }
         
@@ -214,10 +238,10 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
         debug_symbols = ptr_list_new(NULL, NULL);
 
-        offset += sizeof n_debug_symbols;
-        while (n_debug_symbols > 0 && (uint64_t)(offset - program->debuginfo) < program->debuginfo_size) {
+        offset = aligned((uint8_t *)offset + sizeof n_debug_symbols, alignof(lstf_vm_debugsym));
+        while (n_debug_symbols > 0 && (uint64_t)((uint8_t *)offset - program->debuginfo) < program->debuginfo_size) {
             lstf_vm_debugsym *symbol = (lstf_vm_debugsym *)offset;
-            nb_ptr = memchr(offset, '\0', program->debuginfo_size - (offset - program->debuginfo));
+            nb_ptr = memchr(offset, '\0', program->debuginfo_size - ((uint8_t *)offset - program->debuginfo));
 
             if (!nb_ptr) {
                 if (error)
@@ -229,7 +253,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             symbol->instruction_offset = ntohll(symbol->instruction_offset);
             ptr_list_append(debug_symbols, symbol);
 
-            offset += sizeof *symbol;
+            offset = aligned(nb_ptr, alignof(lstf_vm_debugsym));
             n_debug_symbols--;
         }
 

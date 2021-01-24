@@ -110,7 +110,7 @@ void lstf_bc_program_add_comment(lstf_bc_program     *program,
 /**
  * Adds `data_string` to the program's data.
  *
- * @param data the buffer to add to the program's data section
+ * @param data_string the buffer to add to the program's data section
  *
  * @return a pointer to the string relative to the start of the program's data
  *   section

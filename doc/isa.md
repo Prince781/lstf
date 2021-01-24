@@ -20,6 +20,7 @@
 
 ### `debuginfo` section
 - `source_filename` - is a string containing the path to the source file, terminated with a NUL byte
+	- padded to an 8-byte boundary
 - `n_debug_entries` - number of debug entries
 - `debug_entries` - is a list of `(uint64_t instruction_offset, uint32_t line, uint32_t column)`
 - `n_debug_syms` - number of debug symbols

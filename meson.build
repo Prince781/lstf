@@ -24,7 +24,8 @@ else
       '-Wextra',
       '-Wpedantic',
       '-Warray-bounds=2',
-      # '-Wcast-align=strict',
+      '-Wcast-align',         # supported by Clang and GCC (but not enough for GCC)
+      '-Wcast-align=strict',  # needed by GCC, unsupported by Clang
       '-Wcast-qual',
       '-Wshadow',
       '-Wno-cast-function-type',
@@ -41,7 +42,9 @@ else
       '-Wmissing-include-dirs',
       '-Wstrict-overflow',
       '-Wsuggest-attribute=malloc',
-      # '-Wundef',
+      '-Wtautological-compare',
+      '-Wundef',
+      '-Wuninitialized',
       '-Wunreachable-code',
       '-Wunused',
     ])
