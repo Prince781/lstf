@@ -1,12 +1,12 @@
 #include "lstf-function.h"
 #include "lstf-datatype.h"
 #include "lstf-codevisitor.h"
-#include "data-structures/iterator.h"
 #include "lstf-block.h"
 #include "lstf-codenode.h"
 #include "lstf-scope.h"
-#include "data-structures/ptr-list.h"
 #include "lstf-symbol.h"
+#include "data-structures/iterator.h"
+#include "data-structures/ptr-list.h"
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
@@ -22,13 +22,13 @@ static void lstf_function_accept_children(lstf_codenode *node, lstf_codevisitor 
 {
     lstf_function *function = (lstf_function *)node;
 
-    lstf_codevisitor_visit_data_type(visitor, function->return_type);
+    lstf_codenode_accept(function->return_type, visitor);
 
     for (iterator it = ptr_list_iterator_create(function->parameters); it.has_next; it = iterator_next(it))
-        lstf_codevisitor_visit_variable(visitor, lstf_variable_cast(iterator_get_item(it)));
+        lstf_codenode_accept(iterator_get_item(it), visitor);
 
     if (function->block) {
-        lstf_codevisitor_visit_block(visitor, function->block);
+        lstf_codenode_accept(function->block, visitor);
     } else {
         assert(((lstf_symbol *)function)->is_builtin && "non-builtin function must have block");
     }

@@ -1,6 +1,8 @@
 #include "lstf-scope.h"
-#include "compiler/lstf-function.h"
-#include "compiler/lstf-typesymbol.h"
+#include "lstf-expression.h"
+#include "lstf-function.h"
+#include "lstf-lambdaexpression.h"
+#include "lstf-typesymbol.h"
 #include "lstf-codenode.h"
 #include "lstf-symbol.h"
 #include "lstf-block.h"
@@ -43,8 +45,10 @@ lstf_scope *lstf_scope_new(lstf_codenode *owner)
     assert((owner->codenode_type == lstf_codenode_type_block ||
                 (owner->codenode_type == lstf_codenode_type_symbol &&
                  (((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_function ||
-                  ((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_typesymbol))) && 
-            "scope owner must be block, function, or type symbol");
+                  ((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_typesymbol)) ||
+                (owner->codenode_type == lstf_codenode_type_expression &&
+                 ((lstf_expression *)owner)->expr_type == lstf_expression_type_lambda)) && 
+            "scope owner must be block, function, type symbol, or lambda expression");
 
     lstf_codenode_construct((lstf_codenode *)scope, 
             &scope_vtable,
@@ -96,6 +100,10 @@ lstf_symbol *lstf_scope_lookup(lstf_scope *scope, const char *name)
         lstf_typesymbol *owner_parent_typesymbol = lstf_typesymbol_cast(owner_parent_node);
         if (owner_parent_typesymbol)
             return lstf_scope_lookup(owner_parent_typesymbol->scope, name);
+
+        lstf_lambdaexpression *owner_parent_lambda = lstf_lambdaexpression_cast(owner_parent_node);
+        if (owner_parent_lambda)
+            return lstf_scope_lookup(owner_parent_lambda->scope, name);
 
         owner_parent_node = owner_parent_node->parent_node;
     }

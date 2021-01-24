@@ -1,5 +1,9 @@
 #pragma once
 
+#include "lstf-conditionalexpression.h"
+#include "lstf-lambdaexpression.h"
+#include "lstf-unaryexpression.h"
+#include "lstf-binaryexpression.h"
 #include "lstf-returnstatement.h"
 #include "lstf-typealias.h"
 #include "lstf-declaration.h"
@@ -38,9 +42,19 @@ struct _lstf_codevisitor_vtable {
     void (*visit_assignment)(lstf_codevisitor *code_visitor, lstf_assignment *assign);
 
     /**
+     * Visits a binary expression
+     */
+    void (*visit_binary_expression)(lstf_codevisitor *code_visitor, lstf_binaryexpression *expr);
+
+    /**
      * Visits a block
      */
     void (*visit_block)(lstf_codevisitor *code_visitor, lstf_block *block);
+
+    /**
+     * Visits a conditional expression
+     */
+    void (*visit_conditional_expression)(lstf_codevisitor *code_visitor, lstf_conditionalexpression *expr);
 
     /**
      * Visits a constant
@@ -103,6 +117,11 @@ struct _lstf_codevisitor_vtable {
     void (*visit_interface_property)(lstf_codevisitor *code_visitor, lstf_interfaceproperty *property);
 
     /**
+     * Visits a lambda expression
+     */
+    void (*visit_lambda_expression)(lstf_codevisitor *code_visitor, lstf_lambdaexpression *expr);
+
+    /**
      * Visits a literal expression
      */
     void (*visit_literal)(lstf_codevisitor *code_visitor, lstf_literal *lit);
@@ -143,6 +162,11 @@ struct _lstf_codevisitor_vtable {
     void (*visit_type_alias)(lstf_codevisitor *code_visitor, lstf_typealias *alias);
 
     /**
+     * Visits a unary expression
+     */
+    void (*visit_unary_expression)(lstf_codevisitor *code_visitor, lstf_unaryexpression *expr);
+
+    /**
      * Visits a variable
      */
     void (*visit_variable)(lstf_codevisitor *code_visitor, lstf_variable *variable);
@@ -159,7 +183,11 @@ void lstf_codevisitor_visit_array(lstf_codevisitor *code_visitor, lstf_array *ar
 
 void lstf_codevisitor_visit_assignment(lstf_codevisitor *code_visitor, lstf_assignment *assign);
 
+void lstf_codevisitor_visit_binary_expression(lstf_codevisitor *code_visitor, lstf_binaryexpression *expr);
+
 void lstf_codevisitor_visit_block(lstf_codevisitor *code_visitor, lstf_block *block);
+
+void lstf_codevisitor_visit_conditional_expression(lstf_codevisitor *code_visitor, lstf_conditionalexpression *expr);
 
 void lstf_codevisitor_visit_constant(lstf_codevisitor *code_visitor, lstf_constant *constant);
 
@@ -185,6 +213,8 @@ void lstf_codevisitor_visit_interface(lstf_codevisitor *code_visitor, lstf_inter
 
 void lstf_codevisitor_visit_interface_property(lstf_codevisitor *code_visitor, lstf_interfaceproperty *property);
 
+void lstf_codevisitor_visit_lambda_expression(lstf_codevisitor *code_visitor, lstf_lambdaexpression *expr);
+
 void lstf_codevisitor_visit_literal(lstf_codevisitor *code_visitor, lstf_literal *lit);
 
 void lstf_codevisitor_visit_member_access(lstf_codevisitor *code_visitor, lstf_memberaccess *access);
@@ -200,5 +230,7 @@ void lstf_codevisitor_visit_pattern_test(lstf_codevisitor *code_visitor, lstf_pa
 void lstf_codevisitor_visit_return_statement(lstf_codevisitor *code_visitor, lstf_returnstatement *stmt);
 
 void lstf_codevisitor_visit_type_alias(lstf_codevisitor *code_visitor, lstf_typealias *alias);
+
+void lstf_codevisitor_visit_unary_expression(lstf_codevisitor *code_visitor, lstf_unaryexpression *expr);
 
 void lstf_codevisitor_visit_variable(lstf_codevisitor *code_visitor, lstf_variable *variable);

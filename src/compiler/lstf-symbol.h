@@ -14,6 +14,27 @@ enum _lstf_symbol_type {
 };
 typedef enum _lstf_symbol_type lstf_symbol_type;
 
+static inline const char *
+lstf_symbol_type_to_string(lstf_symbol_type symbol_type)
+{
+    switch (symbol_type) {
+        case lstf_symbol_type_constant:
+            return "constant";
+        case lstf_symbol_type_function:
+            return "function";
+        case lstf_symbol_type_interfaceproperty:
+            return "interface property";
+        case lstf_symbol_type_objectproperty:
+            return "object property";
+        case lstf_symbol_type_typesymbol:
+            return "type symbol";
+        case lstf_symbol_type_variable:
+            return "variable";
+    }
+    
+    return "<invalid symbol>";
+}
+
 struct _lstf_symbol {
     lstf_codenode parent_struct;
     lstf_symbol_type symbol_type;

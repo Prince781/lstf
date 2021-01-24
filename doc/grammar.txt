@@ -29,3 +29,22 @@
 <statement_list> -> [<statement> [<statement> ...]]
 <type_alias_declaration> -> 'type' identifier '=' <data_type> ';'
 <variable_declaration> -> 'let' identifier [':' <data_type> ] '=' <expression> ';'
+
+expressions:
+<expression> -> <lambda_expression> | <conditional_expression>
+<lambda_expression> -> ['async'] '(' [identifier [':' <data_type>] [',' [identifier [':' <data_type>] [',' ...]]]] ')' '=>' ('{' <statement_list> '}' | <expression>)
+<conditional_expression> -> <coalescing_expression> ['?' <expression> ':' <expression>]
+<coalescing_expression> -> <conditional_or_expression> ['??' <coalescing_expression>]*
+<conditional_or_expression> -> <conditional_and_expression> ['||' <conditional_and_expression>]*
+<conditional_and_expression> -> <in_expression> ['&&' <in_expression>]*
+<in_expression> -> <inclusive_or_expression> ['in' <inclusive_or_expression>]
+<inclusive_or_expression> -> <exclusive_or_expression> ['|' <exclusive_or_expression>]*
+<exclusive_or_expression> -> <and_expression> ['^' <and_expression>]*
+<and_expression> -> <equality_expression> ['&' <equality_expression>]*
+<equality_expression> -> <relational_expression> [('==' | '!=') <relational_expression>]*
+<relational_expression> -> <shift_expression> [([('<' | '<=' | '>' | '>=') <shift_expression>]* | 'is' <data_type> | 'as' <data_type>)]
+<shift_expression> -> <additive_expression> [('<<' | '>>') <additive_expression>]*
+<additive_expression> -> <multiplicative_expression> [('+' | '-') <multiplicative_expression>]*
+<multiplicative_expression> -> <unary_expression> [('*' | '/' | '%') <unary_expression>]*
+<unary_expression> -> ('-' | '!' | '~') <unary_expression> | <primary_expression>
+<primary_expression> -> <simple_name> | <literal_expression> | <array_expression> | <object_expression> | <ellipsis_expression> | <method_call_expression> | <await_expression> | <element_access_expression> | '(' <expression> ')'

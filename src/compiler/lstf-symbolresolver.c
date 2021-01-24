@@ -1,8 +1,11 @@
 #include "lstf-symbolresolver.h"
-#include "compiler/lstf-enum.h"
-#include "compiler/lstf-functiontype.h"
-#include "compiler/lstf-patterntype.h"
-#include "compiler/lstf-voidtype.h"
+#include "lstf-conditionalexpression.h"
+#include "lstf-lambdaexpression.h"
+#include "lstf-binaryexpression.h"
+#include "lstf-enum.h"
+#include "lstf-functiontype.h"
+#include "lstf-patterntype.h"
+#include "lstf-voidtype.h"
 #include "lstf-returnstatement.h"
 #include "lstf-uniontype.h"
 #include "lstf-declaration.h"
@@ -62,6 +65,12 @@ lstf_symbolresolver_visit_assignment(lstf_codevisitor *visitor, lstf_assignment 
 }
 
 static void
+lstf_symbolresolver_visit_binary_expression(lstf_codevisitor *visitor, lstf_binaryexpression *expr)
+{
+    lstf_codenode_accept_children(expr, visitor);
+}
+
+static void
 lstf_symbolresolver_visit_block(lstf_codevisitor *visitor, lstf_block *block)
 {
     lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
@@ -69,6 +78,12 @@ lstf_symbolresolver_visit_block(lstf_codevisitor *visitor, lstf_block *block)
     ptr_list_append(resolver->scopes, block->scope);
     lstf_codenode_accept_children(block, visitor);
     ptr_list_remove_last_link(resolver->scopes);
+}
+
+static void
+lstf_symbolresolver_visit_conditional_expression(lstf_codevisitor *visitor, lstf_conditionalexpression *expr)
+{
+    lstf_codenode_accept_children(expr, visitor);
 }
 
 static void
@@ -318,6 +333,16 @@ lstf_symbolresolver_visit_interface_property(lstf_codevisitor *visitor, lstf_int
 }
 
 static void
+lstf_symbolresolver_visit_lambda_expression(lstf_codevisitor *visitor, lstf_lambdaexpression *expr)
+{
+    lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
+
+    ptr_list_append(resolver->scopes, expr->scope);
+    lstf_codenode_accept_children(expr, visitor);
+    ptr_list_remove_last_link(resolver->scopes);
+}
+
+static void
 lstf_symbolresolver_visit_member_access(lstf_codevisitor *visitor, lstf_memberaccess *access)
 {
     lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
@@ -417,6 +442,12 @@ lstf_symbolresolver_visit_type_alias(lstf_codevisitor *visitor, lstf_typealias *
 }
 
 static void
+lstf_symbolresolver_visit_unary_expression(lstf_codevisitor *visitor, lstf_unaryexpression *expr)
+{
+    lstf_codenode_accept_children(expr, visitor);
+}
+
+static void
 lstf_symbolresolver_visit_variable(lstf_codevisitor *visitor, lstf_variable *variable)
 {
     lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
@@ -442,12 +473,14 @@ lstf_symbolresolver_visit_variable(lstf_codevisitor *visitor, lstf_variable *var
 static const lstf_codevisitor_vtable symbolresolver_vtable = {
     lstf_symbolresolver_visit_array,
     lstf_symbolresolver_visit_assignment,
+    lstf_symbolresolver_visit_binary_expression,
     lstf_symbolresolver_visit_block,
-    NULL,
+    lstf_symbolresolver_visit_conditional_expression,
+    /* visit_constant */ NULL,
     lstf_symbolresolver_visit_data_type,
     lstf_symbolresolver_visit_declaration,
     lstf_symbolresolver_visit_element_access,
-    NULL,
+    /* visit_ellipsis */ NULL,
     lstf_symbolresolver_visit_enum,
     lstf_symbolresolver_visit_expression,
     lstf_symbolresolver_visit_expression_statement,
@@ -455,7 +488,8 @@ static const lstf_codevisitor_vtable symbolresolver_vtable = {
     lstf_symbolresolver_visit_function,
     lstf_symbolresolver_visit_interface,
     lstf_symbolresolver_visit_interface_property,
-    NULL,
+    lstf_symbolresolver_visit_lambda_expression,
+    /* visit_literal */ NULL,
     lstf_symbolresolver_visit_member_access,
     lstf_symbolresolver_visit_method_call,
     lstf_symbolresolver_visit_object,
@@ -463,6 +497,7 @@ static const lstf_codevisitor_vtable symbolresolver_vtable = {
     lstf_symbolresolver_visit_pattern_test,
     lstf_symbolresolver_visit_return_statement,
     lstf_symbolresolver_visit_type_alias,
+    lstf_symbolresolver_visit_unary_expression,
     lstf_symbolresolver_visit_variable
 };
 

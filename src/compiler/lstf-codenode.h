@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 
 enum _lstf_codenode_type {
     lstf_codenode_type_statement,
@@ -58,11 +59,10 @@ struct _lstf_codenode {
 
 static inline lstf_codenode *lstf_codenode_cast(void *node)
 {
-    lstf_codenode *code_node = node;
-
-    if (!code_node)
+    if (!node)
         return NULL;
 
+    lstf_codenode *code_node = node;
     switch (code_node->codenode_type) {
     case lstf_codenode_type_statement:
     case lstf_codenode_type_expression:
@@ -80,10 +80,25 @@ void *lstf_codenode_ref(void *node);
 
 void lstf_codenode_unref(void *node);
 
+static inline lstf_codenode *
+lstf_codenode_set_parent(void *node, void *parent)
+{
+    return lstf_codenode_cast(node)->parent_node = lstf_codenode_cast(parent);
+}
+
+static inline void
+lstf_codenode_set_source_reference(void *node, const lstf_sourceref *source_reference)
+{
+    lstf_codenode *code_node = lstf_codenode_cast(node);
+
+    if (!source_reference)
+        memset(&code_node->source_reference, 0, sizeof code_node->source_reference);
+    else
+        code_node->source_reference = *source_reference;
+}
+
 void lstf_codenode_construct(lstf_codenode              *node, 
                              const lstf_codenode_vtable *vtable,
                              lstf_codenode_type          type,
                              const lstf_sourceref       *source_reference)
     __attribute__((nonnull (1, 2)));
-
-#define lstf_codenode_set_parent(node, parent) (lstf_codenode_cast(node))->parent_node = (lstf_codenode_cast(parent))

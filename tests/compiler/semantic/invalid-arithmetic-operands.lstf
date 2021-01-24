@@ -1,0 +1,7 @@
+server_path = '/usr/bin/vala-language-server';
+project_files = ['/dev/null'];
+
+let x = 3;
+let y = 1;
+let z = (x + y) * 3.14159;
+let w = z >> 3.14159;

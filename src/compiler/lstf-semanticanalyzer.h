@@ -22,6 +22,11 @@ struct _lstf_semanticanalyzer {
      */
     ptr_list *expected_return_types;
 
+    /**
+     * Stack of current functions
+     */
+    ptr_list *current_functions;
+
     unsigned num_errors;
 
     /**

@@ -22,6 +22,12 @@ test('semantic-not-callable', lstf, suite: 'compiler', should_fail: true,
 test('semantic-object-element-access', lstf, suite: 'compiler',
   args: [meson.source_root() + '/tests/compiler/semantic/object-element-access.lstf'])
 
+test('semantic-lambda-as-argument', lstf, suite: 'compiler',
+  args: [meson.source_root() + '/tests/compiler/semantic/passed-lambda-with-expression-body.lstf'])
+
+test('semantic-required-await', lstf, suite: 'compiler', should_fail: true,
+  args: [meson.source_root() + '/tests/compiler/semantic/required-await-in-async.lstf'])
+
 test('semantic-string-element-access', lstf, suite: 'compiler',
   args: [meson.source_root() + '/tests/compiler/semantic/string-element-access.lstf'])
 

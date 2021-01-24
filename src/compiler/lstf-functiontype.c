@@ -124,7 +124,7 @@ static char *lstf_functiontype_to_string(lstf_datatype *self_dt)
     lstf_functiontype *self = (lstf_functiontype *)self_dt;
     string *representation = string_new();
 
-    string_appendf(representation, "(");
+    string_appendf(representation, "%s(", self->is_async ? "async " : "");
     for (iterator it_name = ptr_list_iterator_create(self->parameter_names),
                   it_param = ptr_list_iterator_create(self->parameter_types); 
             it_name.has_next && it_param.has_next;

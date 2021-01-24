@@ -74,7 +74,11 @@ void lstf_datatype_construct(lstf_datatype              *datatype,
 
 void lstf_datatype_destruct(lstf_datatype *datatype);
 
-#define lstf_datatype_set_symbol(dt, sym) (lstf_datatype_cast(dt)->symbol = lstf_symbol_cast(sym))
+static inline lstf_symbol *
+lstf_datatype_set_symbol(void *self, void *symbol)
+{
+    return lstf_datatype_cast(self)->symbol = lstf_symbol_cast(symbol);
+}
 
 /**
  * determines whether @self can receive a type @other

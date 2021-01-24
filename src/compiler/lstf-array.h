@@ -15,11 +15,11 @@ typedef struct _lstf_array lstf_array;
 
 static inline lstf_array *lstf_array_cast(void *node)
 {
-    lstf_codenode *code_node = node;
+    lstf_expression *expression = lstf_expression_cast(node);
 
-    if (code_node && code_node->codenode_type == lstf_codenode_type_expression &&
-            ((lstf_expression *)code_node)->expr_type == lstf_expression_type_array)
-        return (lstf_array *)code_node;
+    if (expression && expression->expr_type == lstf_expression_type_array)
+        return node;
+
     return NULL;
 }
 

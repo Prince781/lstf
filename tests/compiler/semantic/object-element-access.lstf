@@ -3,4 +3,4 @@ project_files = ['/dev/null'];
 
 let o = { propertyName: false };
 o["property-name"] = true;
-o["propertyName"] = 2;
+o["propertyName"] = true;

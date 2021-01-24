@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 unsigned strhash(const char *str);
 
@@ -71,3 +73,16 @@ static inline uint32_t htonl(uint32_t hostint) {
         return swap_uint32(hostint);
     return hostint;
 }
+
+#if defined(_WIN32) || defined(_WIN64)
+static inline char *strndup(const char *str, size_t n)
+{
+    size_t string_length = strlen(str);
+    if (string_length < n)
+        n = string_length;
+    char *new_str = malloc(n + 1);
+    memcpy(new_str, str, n);
+    new_str[n] = '\0';
+    return new_str;
+}
+#endif

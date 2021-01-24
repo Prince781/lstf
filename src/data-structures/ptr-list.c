@@ -74,6 +74,31 @@ ptr_list_node *ptr_list_replace(ptr_list                     *list,
     return found_node;
 }
 
+ssize_t ptr_list_index_of(ptr_list                     *list,
+                          const void                   *query,
+                          collection_item_equality_func comparator)
+{
+    for (iterator it = ptr_list_iterator_create(list);
+            it.has_next;
+            it = iterator_next(it))
+        if (comparator ? comparator(query, iterator_get_item(it)) : query == iterator_get_item(it))
+            return it.counter;
+    return -1;
+}
+
+ptr_list_node *ptr_list_nth_element(ptr_list *list, size_t index)
+{
+    if (index >= list->length)
+        return NULL;
+
+    for (iterator it = ptr_list_iterator_create(list);
+            it.has_next;
+            it = iterator_next(it))
+        if (it.counter == index)
+            return (ptr_list_node *) it.data[0];
+    return NULL;
+}
+
 void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node)
 {
     if (!node)
@@ -136,6 +161,7 @@ static iterator ptr_list_iterator_iterate(iterator it)
         .data = { node->next, NULL /* unused */ },
         .is_first = false,
         .has_next = node->next != NULL && node->next != list->head,
+        .counter = it.counter + 1,
         .collection = list,
         .iterate = it.iterate,
         .get_item = it.get_item
@@ -160,6 +186,7 @@ iterator ptr_list_iterator_create(ptr_list *list)
         .data = { list->head, NULL /* unused */ },
         .is_first = true,
         .has_next = list->head != NULL,
+        .counter = 0,
         .collection = list,
         .iterate = ptr_list_iterator_iterate,
         .get_item = ptr_list_iterator_get_item

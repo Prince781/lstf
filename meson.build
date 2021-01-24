@@ -18,20 +18,32 @@ if cc.get_id() == 'msvc'
     ])
 else
     c_args = cc.get_supported_arguments([
+      # '-fanalyzer',
       '-pedantic-errors',
+      '-Wall',
       '-Wextra',
       '-Wpedantic',
       '-Warray-bounds=2',
+      # '-Wcast-align=strict',
       '-Wcast-qual',
       '-Wshadow',
       '-Wno-cast-function-type',
+      '-Wduplicated-branches',
+      '-Wduplicated-cond',
       '-Wformat=2',
       '-Wformat-nonliteral',
       '-Wformat-overflow=2',
       '-Wformat-security',
       '-Wformat-signedness',
       '-Wformat-truncation=2',
-      '-Wunreachable-code'
+      '-Wlogical-op',
+      '-Wimplicit-fallthrough',
+      '-Wmissing-include-dirs',
+      '-Wstrict-overflow',
+      '-Wsuggest-attribute=malloc',
+      # '-Wundef',
+      '-Wunreachable-code',
+      '-Wunused',
     ])
 endif
 

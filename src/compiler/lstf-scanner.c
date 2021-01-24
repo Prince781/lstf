@@ -30,6 +30,8 @@ const char *lstf_token_to_string(lstf_token token)
             return "`]'";
         case lstf_token_closeparen:
             return "`)'";
+        case lstf_token_coalescer:
+            return "`\?\?'";
         case lstf_token_colon:
             return "`:'";
         case lstf_token_comma:
@@ -42,14 +44,52 @@ const char *lstf_token_to_string(lstf_token token)
             return "`...'";
         case lstf_token_eof:
             return "end-of-file";
-        case lstf_token_equals:
+        case lstf_token_equal:
             return "`=='";
+        case lstf_token_notequal:
+            return "`!='";
         case lstf_token_identifier:
             return "identifier";
         case lstf_token_integer:
             return "integer";
         case lstf_token_verticalbar:
             return "`|'";
+        case lstf_token_ampersand:
+            return "`&'";
+        case lstf_token_bitwise_xor:
+            return "`^'";
+        case lstf_token_logical_and:
+            return "`&&'";
+        case lstf_token_logical_or:
+            return "`||'";
+        case lstf_token_exclamationpoint:
+            return "`!'";
+        case lstf_token_tilde:
+            return "`~'";
+        case lstf_token_leftangle:
+            return "`<'";
+        case lstf_token_rightangle:
+            return "`>'";
+        case lstf_token_leftshift:
+            return "`<<'";
+        case lstf_token_rightshift:
+            return "`>>'";
+        case lstf_token_lessthan_equal:
+            return "`<='";
+        case lstf_token_greaterthan_equal:
+            return "`>='";
+        case lstf_token_plus:
+            return "`+'";
+        case lstf_token_minus:
+            return "`-'";
+        case lstf_token_multiply:
+            return "`*'";
+        case lstf_token_divide:
+            return "`/'";
+        case lstf_token_exponentiation:
+            return "`**'";
+        case lstf_token_modulo:
+            return "`%'";
         case lstf_token_keyword_await:
             return "`await'";
         case lstf_token_keyword_const:
@@ -76,6 +116,8 @@ const char *lstf_token_to_string(lstf_token token)
             return "`fun'";
         case lstf_token_keyword_return:
             return "`return'";
+        case lstf_token_keyword_in:
+            return "`in'";
         case lstf_token_keyword_interface:
             return "`interface'";
         case lstf_token_keyword_extends:
@@ -170,6 +212,11 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
             current_token = lstf_token_questionmark;
             current.pos++;
             current.column++;
+            if (*current.pos == '?') {
+                current_token = lstf_token_coalescer;
+                current.pos++;
+                current.column++;
+            }
             break;
         case ':':
             current_token = lstf_token_colon;
@@ -201,7 +248,7 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
             current.pos++;
             current.column++;
             if (*current.pos == '=') {
-                current_token = lstf_token_equals;
+                current_token = lstf_token_equal;
                 current.pos++;
                 current.column++;
             } else if (*current.pos == '>') {
@@ -211,29 +258,47 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
             }
             break;
         case '<':
-            if (*(current.pos + 1) == '=' && *(current.pos + 2) == '>') {
-                current.pos += 3;
-                current.column += 3;
-                current_token = lstf_token_equivalent;   // TODO: support arithmetic ops
-            } else {
-                lstf_report_error(&lstf_sourceref_at_location(script, begin), "TODO: support comparison ops");
+            current_token = lstf_token_leftangle;
+            current.pos++;
+            current.column++;
+            if (*current.pos == '=') {
+                current_token = lstf_token_lessthan_equal;
                 current.pos++;
                 current.column++;
-                current_token = lstf_token_error;
-                scanner->num_errors++;
+                if (*current.pos == '>') {
+                    current_token = lstf_token_equivalent;
+                    current.pos++;
+                    current.column++;
+                }
+            } else if (*current.pos == '<') {
+                current_token = lstf_token_leftshift;
+                current.pos++;
+                current.column++;
             }
             break;
         case '>':
-            lstf_report_error(&lstf_sourceref_at_location(script, begin), "TODO: support comparison ops");
+            current_token = lstf_token_rightangle;
             current.pos++;
             current.column++;
-            current_token = lstf_token_error;
-            scanner->num_errors++;
+            if (*current.pos == '=') {
+                current_token = lstf_token_greaterthan_equal;
+                current.pos++;
+                current.column++;
+            } else if (*current.pos == '>') {
+                current_token = lstf_token_rightshift;
+                current.pos++;
+                current.column++;
+            }
             break;
         case '|':
             current_token = lstf_token_verticalbar;
             current.pos++;
             current.column++;
+            if (*current.pos == '|') {
+                current_token = lstf_token_logical_or;
+                current.pos++;
+                current.column++;
+            }
             break;
         case '-':
         case '0':
@@ -247,7 +312,7 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
         case '8':
         case '9':
             if (*current.pos == '-')
-                current_token = lstf_token_error;
+                current_token = lstf_token_minus;
             else
                 current_token = lstf_token_integer;
             current.pos++;
@@ -359,12 +424,55 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current.column += 2;
                 }
             } else {
-                lstf_report_error(&lstf_sourceref_at_location(script, begin), "TODO: support arithmetic ops");
+                current_token = lstf_token_divide;
                 current.pos++;
                 current.column++;
-                current_token = lstf_token_error;
-                scanner->num_errors++;
             }
+            break;
+        case '^':
+            current_token = lstf_token_bitwise_xor;
+            current.pos++;
+            current.column++;
+            break;
+        case '&':
+            current_token = lstf_token_ampersand;
+            current.pos++;
+            current.column++;
+            if (*current.pos == '&') {
+                current_token = lstf_token_logical_and;
+                current.pos++;
+                current.column++;
+            }
+            break;
+        case '+':
+            current_token = lstf_token_plus;
+            current.pos++;
+            current.column++;
+            break;
+        case '%':
+            current_token = lstf_token_modulo;
+            current.pos++;
+            current.column++;
+            break;
+        case '!':
+            current_token = lstf_token_exclamationpoint;
+            current.pos++;
+            current.column++;
+            if (*current.pos == '=') {
+                current_token = lstf_token_notequal;
+                current.pos++;
+                current.column++;
+            }
+            break;
+        case '~':
+            current_token = lstf_token_tilde;
+            current.pos++;
+            current.column++;
+            break;
+        case '*':
+            current_token = lstf_token_multiply;
+            current.pos++;
+            current.column++;
             break;
         case '\0':
             current_token = lstf_token_eof;
@@ -376,7 +484,9 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current.pos++;
                     current.column++;
                 }
-                if (strncmp(begin.pos, "true", max(sizeof "true" - 1, current.pos - begin.pos)) == 0)
+                if (strncmp(begin.pos, "async", max(sizeof "async" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_async;
+                else if (strncmp(begin.pos, "true", max(sizeof "true" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_true;
                 else if (strncmp(begin.pos, "false", max(sizeof "false" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_false;
@@ -390,7 +500,7 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current_token = lstf_token_keyword_of;
                 else if (strncmp(begin.pos, "const", max(sizeof "const" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_const;
-                else if (strncmp(begin.pos, "async", max(sizeof "async" - 1, current.pos - begin.pos)) == 0)
+                else if (strncmp(begin.pos, "as", max(sizeof "as" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_async;
                 else if (strncmp(begin.pos, "await", max(sizeof "await" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_await;
@@ -400,6 +510,8 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current_token = lstf_token_keyword_class;
                 else if (strncmp(begin.pos, "fun", max(sizeof "fun" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_fun;
+                else if (strncmp(begin.pos, "in", max(sizeof "in" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_in;
                 else if (strncmp(begin.pos, "interface", max(sizeof "interface" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_interface;
                 else if (strncmp(begin.pos, "extends", max(sizeof "extends" - 1, current.pos - begin.pos)) == 0)

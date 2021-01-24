@@ -1,4 +1,11 @@
 #include "lstf-semanticanalyzer.h"
+#include "lstf-voidtype.h"
+#include "lstf-lambdaexpression.h"
+#include "lstf-conditionalexpression.h"
+#include "lstf-unaryexpression.h"
+#include "lstf-numbertype.h"
+#include "lstf-scanner.h"
+#include "lstf-binaryexpression.h"
 #include "lstf-patterntest.h"
 #include "lstf-enumtype.h"
 #include "lstf-patterntype.h"
@@ -58,23 +65,54 @@ lstf_semanticanalyzer_get_current_expected_type(lstf_semanticanalyzer *analyzer)
 }
 
 static void
+lstf_semanticanalyzer_push_current_expected_type(lstf_semanticanalyzer *analyzer, lstf_datatype *expected_type)
+{
+    ptr_list_append(analyzer->expected_expression_types, expected_type);
+}
+
+static void
+lstf_semanticanalyzer_pop_current_expected_type(lstf_semanticanalyzer *analyzer)
+{
+    ptr_list_remove_last_link(analyzer->expected_expression_types);
+}
+
+static lstf_function *
+lstf_semanticanalyzer_get_current_function(lstf_semanticanalyzer *analyzer)
+{
+    if (ptr_list_is_empty(analyzer->current_functions))
+        return NULL;
+    return ptr_list_node_get_data(analyzer->current_functions->tail, lstf_function *);
+}
+
+static void
+lstf_semanticanalyzer_push_current_function(lstf_semanticanalyzer *analyzer, lstf_function *function)
+{
+    ptr_list_append(analyzer->current_functions, function);
+}
+
+static void
+lstf_semanticanalyzer_pop_current_function(lstf_semanticanalyzer *analyzer)
+{
+    ptr_list_remove_last_link(analyzer->current_functions);
+}
+
+static void
 lstf_semanticanalyzer_visit_array(lstf_codevisitor *visitor, lstf_array *array)
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
 
     lstf_datatype *old_expected_dt = lstf_semanticanalyzer_get_current_expected_type(analyzer);
     if (old_expected_dt && old_expected_dt->datatype_type == lstf_datatype_type_arraytype)
-        ptr_list_append(analyzer->expected_expression_types, 
-                lstf_arraytype_cast(old_expected_dt)->element_type);
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, lstf_arraytype_cast(old_expected_dt)->element_type);
     else
-        ptr_list_append(analyzer->expected_expression_types, NULL);
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
 
     // compute the [value_type]s of the element expressions first
     bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
     analyzer->ellipsis_allowed = array->is_pattern;
 
     lstf_codenode_accept_children(array, visitor);
-    ptr_list_remove_last_link(analyzer->expected_expression_types);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
     if (!array->is_pattern) {
         lstf_datatype *element_type = NULL;
@@ -130,9 +168,9 @@ lstf_semanticanalyzer_visit_assignment(lstf_codevisitor *visitor, lstf_assignmen
     bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
     analyzer->ellipsis_allowed = false;
     lstf_codenode_accept(assign->lhs, visitor);
-    ptr_list_append(analyzer->expected_expression_types, assign->lhs->value_type);
+    lstf_semanticanalyzer_push_current_expected_type(analyzer, assign->lhs->value_type);
     lstf_codenode_accept(assign->rhs, visitor);
-    ptr_list_remove_last_link(analyzer->expected_expression_types);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
     analyzer->ellipsis_allowed = old_ellipsis_allowed;
 
     if (assign->lhs->symbol_reference == lstf_scope_lookup(current_scope, "server_path"))
@@ -147,6 +185,276 @@ lstf_semanticanalyzer_visit_assignment(lstf_codevisitor *visitor, lstf_assignmen
 
     if (!assign->rhs->value_type) {
         return;
+    }
+}
+
+static void
+lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_binaryexpression *expr)
+{
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    lstf_codenode_accept_children(expr, visitor);
+
+    // NOTE: we accept that `expr->left->value_type` and/or
+    // `expr->right->value_type` could be NULL from this point on, since we
+    // want to show semantic errors for the other expression too (if there are
+    // any)
+
+    switch (expr->op) {
+    case lstf_binaryoperator_in:
+    {
+        if (!expr->right->value_type)
+            return;
+
+        // we want to ensure that the LHS is 
+        //  - a string or number if the RHS is an object
+        //  - a type that is a subtype of the element type of the RHS if it is an array
+
+        if (expr->right->value_type->datatype_type == lstf_datatype_type_objecttype ||
+                expr->right->value_type->datatype_type == lstf_datatype_type_interfacetype) {
+            if (!expr->left->value_type)
+                return;
+
+            lstf_datatype *string_type = lstf_stringtype_new(NULL);
+            lstf_datatype *number_type = lstf_numbertype_new(NULL);
+
+            if (!lstf_datatype_is_supertype_of(string_type, expr->left->value_type)) {
+                char *st_string = lstf_datatype_to_string(string_type);
+                char *nt_string = lstf_datatype_to_string(number_type);
+                lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
+                        "left-hand side of %s expression must be of type `%s' or `%s'",
+                        lstf_token_to_string(lstf_token_keyword_in),
+                        st_string,
+                        nt_string);
+                free(st_string);
+                free(nt_string);
+                lstf_codenode_unref(string_type);
+                lstf_codenode_unref(number_type);
+                return;
+            }
+
+            lstf_codenode_unref(string_type);
+            lstf_codenode_unref(number_type);
+        } else if (expr->right->value_type->datatype_type == lstf_datatype_type_arraytype) {
+            if (!expr->left->value_type)
+                return;
+
+            lstf_datatype *element_type = lstf_arraytype_cast(expr->right->value_type)->element_type;
+
+            if (!lstf_datatype_is_supertype_of(element_type, expr->left->value_type)) {
+                char *right_et_string = lstf_datatype_to_string(element_type);
+                lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
+                        "element-type must be compatible with `%s' here",
+                        right_et_string);
+                analyzer->num_errors++;
+                free(right_et_string);
+                return;
+            }
+        } else {
+            lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
+                    "right-hand side of %s expression must be an array or object",
+                    lstf_token_to_string(lstf_token_keyword_in));
+            analyzer->num_errors++;
+            return;
+        }
+
+        lstf_expression_set_value_type(lstf_expression_cast(expr),
+                lstf_booleantype_new(&lstf_codenode_cast(expr)->source_reference));
+    }   break;
+
+    case lstf_binaryoperator_plus:
+    case lstf_binaryoperator_minus:
+    case lstf_binaryoperator_multiply:
+    case lstf_binaryoperator_divide:
+    case lstf_binaryoperator_modulo:
+    case lstf_binaryoperator_exponent:
+    case lstf_binaryoperator_lessthan:
+    case lstf_binaryoperator_lessthan_equal:
+    case lstf_binaryoperator_greaterthan:
+    case lstf_binaryoperator_greaterthan_equal:
+    {
+        // for all of these expressions, the left-hand side must be a number
+
+        lstf_datatype *number_type = lstf_numbertype_new(NULL);
+
+        if (expr->left->value_type &&
+                !lstf_datatype_is_supertype_of(number_type, expr->left->value_type)) {
+            char *nt_string = lstf_datatype_to_string(number_type);
+            lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
+                    "expected `%s' for left-hand side of arithmetic expression", nt_string);
+            analyzer->num_errors++;
+            free(nt_string);
+        }
+
+        if (expr->right->value_type &&
+                !lstf_datatype_is_supertype_of(number_type, expr->right->value_type)) {
+            char *nt_string = lstf_datatype_to_string(number_type);
+            lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
+                    "expected `%s' for right-hand side of arithmetic expression", nt_string);
+            analyzer->num_errors++;
+            free(nt_string);
+        }
+
+        if (expr->op == lstf_binaryoperator_lessthan ||
+                expr->op == lstf_binaryoperator_lessthan_equal ||
+                expr->op == lstf_binaryoperator_greaterthan ||
+                expr->op == lstf_binaryoperator_greaterthan_equal) {
+            // for comparison expressions, the data type is boolean
+            lstf_expression_set_value_type(lstf_expression_cast(expr),
+                    lstf_booleantype_new(&lstf_codenode_cast(expr)->source_reference));
+        } else if (expr->left->value_type && expr->right->value_type) {
+            // for arithmetic expressions, the data type is a supertype of the
+            // sub-expressions
+
+            lstf_datatype *expression_type = NULL;
+            lstf_datatype *integer_type = lstf_integertype_new(NULL);
+            lstf_datatype *double_type = lstf_doubletype_new(NULL);
+
+            if (lstf_datatype_equals(expr->left->value_type, number_type) ||
+                    lstf_datatype_equals(expr->right->value_type, number_type)) {
+                expression_type = lstf_numbertype_new(&lstf_codenode_cast(expr)->source_reference);
+            } else if (lstf_datatype_equals(expr->left->value_type, double_type) ||
+                    lstf_datatype_equals(expr->right->value_type, double_type)) {
+                expression_type = lstf_doubletype_new(&lstf_codenode_cast(expr)->source_reference);
+            } else {
+                assert(lstf_datatype_is_supertype_of(integer_type, expr->left->value_type) &&
+                        lstf_datatype_is_supertype_of(integer_type, expr->right->value_type));
+                expression_type = lstf_integertype_new(&lstf_codenode_cast(expr)->source_reference);
+            }
+
+            lstf_expression_set_value_type(lstf_expression_cast(expr), expression_type);
+            lstf_codenode_unref(integer_type);
+            lstf_codenode_unref(double_type);
+        }
+
+        lstf_codenode_unref(number_type);
+    }   break;
+
+    case lstf_binaryoperator_leftshift:
+    case lstf_binaryoperator_rightshift:
+    case lstf_binaryoperator_bitwise_or:
+    case lstf_binaryoperator_bitwise_and:
+    case lstf_binaryoperator_bitwise_xor:
+    {
+        // bitwise operations require both sides of the expression to be integers
+
+        lstf_datatype *integer_type = lstf_integertype_new(NULL);
+
+        if (expr->left->value_type &&
+                !lstf_datatype_is_supertype_of(integer_type, expr->left->value_type)) {
+            char *it_string = lstf_datatype_to_string(integer_type);
+            lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
+                    "expected `%s' for left-hand side of bitwise expression", it_string);
+            analyzer->num_errors++;
+            free(it_string);
+        }
+
+        if (expr->right->value_type &&
+                !lstf_datatype_is_supertype_of(integer_type, expr->right->value_type)) {
+            char *it_string = lstf_datatype_to_string(integer_type);
+            lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
+                    "expected `%s' for right-hand side of bitwise expression", it_string);
+            analyzer->num_errors++;
+            free(it_string);
+        }
+
+        // the type of a bitwise operation is always an integer
+        lstf_expression_set_value_type(lstf_expression_cast(expr),
+                lstf_integertype_new(&lstf_codenode_cast(expr)->source_reference));
+
+        lstf_codenode_unref(integer_type);
+    }   break;
+
+    case lstf_binaryoperator_equal:
+    case lstf_binaryoperator_notequal:
+    {
+        if (!expr->left->value_type || !expr->right->value_type)
+            return;
+
+        if ((!lstf_datatype_is_supertype_of(expr->left->value_type, expr->right->value_type) &&
+                !lstf_datatype_is_supertype_of(expr->right->value_type, expr->left->value_type)) ||
+                expr->left->value_type->datatype_type == lstf_datatype_type_voidtype ||
+                expr->right->value_type->datatype_type == lstf_datatype_type_voidtype) {
+            char *ldt_string = lstf_datatype_to_string(expr->left->value_type);
+            char *rdt_string = lstf_datatype_to_string(expr->right->value_type);
+
+            lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                    "invalid operands to binary expression (`%s' and `%s')",
+                    ldt_string, rdt_string);
+            analyzer->num_errors++;
+
+            free(ldt_string);
+            free(rdt_string);
+        }
+
+        lstf_expression_set_value_type(lstf_expression_cast(expr),
+                lstf_booleantype_new(&lstf_codenode_cast(expr)->source_reference));
+    }   break;
+
+    case lstf_binaryoperator_logical_or:
+    case lstf_binaryoperator_logical_and:
+    {
+        lstf_datatype *boolean_type = lstf_booleantype_new(&lstf_codenode_cast(expr)->source_reference);
+
+        if (expr->left->value_type &&
+                !lstf_datatype_is_supertype_of(boolean_type, expr->left->value_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
+                    "left-hand side of bitwise expression must be a boolean");
+            analyzer->num_errors++;
+        }
+
+        if (expr->right->value_type &&
+                !lstf_datatype_is_supertype_of(boolean_type, expr->right->value_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
+                    "right-hand side of bitwise expression must be a boolean");
+            analyzer->num_errors++;
+        }
+
+        if (expr->left->value_type && expr->right->value_type) {
+            lstf_expression_set_value_type(lstf_expression_cast(expr), boolean_type);
+        } else {
+            lstf_codenode_unref(boolean_type);
+        }
+    }   break;
+
+    case lstf_binaryoperator_coalescer:
+    {
+        lstf_datatype *null_type = lstf_nulltype_new(NULL);
+
+        if (expr->left->value_type &&
+                !lstf_datatype_is_supertype_of(expr->left->value_type, null_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
+                    "left-hand side of coalescing expression must be nullable");
+            analyzer->num_errors++;
+        }
+
+        if (expr->right->value_type &&
+                !lstf_datatype_is_supertype_of(expr->right->value_type, null_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
+                    "right-hand side of coalescing expression must be nullable");
+            analyzer->num_errors++;
+        }
+
+        if (expr->left->value_type && expr->right->value_type) {
+            // set expression type to union of two sub-expression types
+            lstf_uniontype *union_type = (lstf_uniontype *)
+                lstf_uniontype_new(&lstf_codenode_cast(expr)->source_reference,
+                    expr->left->value_type,
+                    expr->right->value_type,
+                    NULL);
+
+            if (union_type->options->length == 1) {
+                lstf_expression_set_value_type(lstf_expression_cast(expr),
+                        iterator_get_item(ptr_list_iterator_create(union_type->options)));
+                lstf_codenode_unref(union_type);
+            } else {
+                lstf_expression_set_value_type(lstf_expression_cast(expr),
+                        (lstf_datatype *)union_type);
+            }
+        }
+
+        lstf_codenode_unref(null_type);
+    }   break;
     }
 }
 
@@ -166,6 +474,12 @@ lstf_semanticanalyzer_visit_block(lstf_codevisitor *visitor, lstf_block *block)
 }
 
 static void
+lstf_semanticanalyzer_visit_conditional_expression(lstf_codevisitor *visitor, lstf_conditionalexpression *expr)
+{
+    lstf_codenode_accept_children(expr, visitor);
+}
+
+static void
 lstf_semanticanalyzer_visit_constant(lstf_codevisitor *visitor, lstf_constant *constant)
 {
     lstf_codenode_accept_children(constant, visitor);
@@ -182,7 +496,10 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
 
+    // the expected type for the access's container is unknown at this moment
+    lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
     lstf_codenode_accept(access->container, visitor);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
     if (!access->container->value_type)
         return;
@@ -210,11 +527,11 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
     // expression
     if (access->container->value_type->datatype_type == lstf_datatype_type_arraytype) {
         // array indices must be integers
-        ptr_list_append(analyzer->expected_expression_types, lstf_integertype_new(NULL));
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, lstf_integertype_new(NULL));
         for (iterator it = ptr_list_iterator_create(access->arguments);
                 it.has_next; it = iterator_next(it))
             lstf_codenode_accept(iterator_get_item(it), visitor);
-        ptr_list_remove_last_link(analyzer->expected_expression_types);
+        lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
         if (access->arguments->length == 2) {
             // this is an array slice
@@ -230,11 +547,11 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
         }
     } else if (access->container->value_type->datatype_type == lstf_datatype_type_objecttype) {
         // object indices must be strings
-        ptr_list_append(analyzer->expected_expression_types, lstf_stringtype_new(NULL));
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, lstf_stringtype_new(NULL));
         for (iterator it = ptr_list_iterator_create(access->arguments);
                 it.has_next; it = iterator_next(it))
             lstf_codenode_accept(iterator_get_item(it), visitor);
-        ptr_list_remove_last_link(analyzer->expected_expression_types);
+        lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
         // unchecked access to plain 'object'
         if (access->arguments->length == 1) {
@@ -248,11 +565,11 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
         }
     } else if (access->container->value_type->datatype_type == lstf_datatype_type_interfacetype) {
         // interface (object) indices must be strings
-        ptr_list_append(analyzer->expected_expression_types, lstf_stringtype_new(NULL));
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, lstf_stringtype_new(NULL));
         for (iterator it = ptr_list_iterator_create(access->arguments);
                 it.has_next; it = iterator_next(it))
             lstf_codenode_accept(iterator_get_item(it), visitor);
-        ptr_list_remove_last_link(analyzer->expected_expression_types);
+        lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
         // checked access to interface
         if (access->arguments->length == 1) {
@@ -313,6 +630,23 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
                     return;
                 }
 
+                // otherwise, set the type of this expression to the found member
+                switch (found_member->symbol_type) {
+                    case lstf_symbol_type_constant:
+                    case lstf_symbol_type_function:
+                    case lstf_symbol_type_objectproperty:
+                    case lstf_symbol_type_typesymbol:
+                    case lstf_symbol_type_variable:
+                        fprintf(stderr, "%s: interface member must be an interface property!\n",
+                                __func__);
+                        abort();
+                        break;
+                    case lstf_symbol_type_interfaceproperty:
+                        lstf_expression_set_value_type(lstf_expression_cast(access),
+                                lstf_interfaceproperty_cast(found_member)->property_type);
+                        break;
+                }
+
                 ptr_list_destroy(interfaces_to_check);
                 free(canon_property_name);
             }
@@ -324,11 +658,11 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
         }
     } else if (access->container->value_type->datatype_type == lstf_datatype_type_stringtype) {
         // string (char array) indices must be integers
-        ptr_list_append(analyzer->expected_expression_types, lstf_integertype_new(NULL));
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, lstf_integertype_new(NULL));
         for (iterator it = ptr_list_iterator_create(access->arguments);
                 it.has_next; it = iterator_next(it))
             lstf_codenode_accept(iterator_get_item(it), visitor);
-        ptr_list_remove_last_link(analyzer->expected_expression_types);
+        lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
         if (access->arguments->length >= 1 && access->arguments->length <= 2) {
             // this is a string slice
@@ -435,7 +769,152 @@ lstf_semanticanalyzer_visit_file(lstf_codevisitor *visitor, lstf_file *file)
 static void
 lstf_semanticanalyzer_visit_function(lstf_codevisitor *visitor, lstf_function *function)
 {
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    lstf_semanticanalyzer_push_current_function(analyzer, function);
     lstf_codenode_accept_children(function, visitor);
+    lstf_semanticanalyzer_pop_current_function(analyzer);
+}
+
+struct lambdavisitor {
+    lstf_codevisitor parent_struct;
+
+    /**
+     * Contains `(lstf_returnstatement *)`
+     */
+    ptr_list *found_returns;
+};
+
+static void
+lambdavisitor_visit_block(lstf_codevisitor *visitor, lstf_block *block)
+{
+    lstf_codenode_accept_children(block, visitor);
+}
+
+static void
+lambdavisitor_visit_return_statement(lstf_codevisitor *visitor, lstf_returnstatement *stmt)
+{
+    struct lambdavisitor *lambda_visitor = (struct lambdavisitor *)visitor;
+
+    ptr_list_append(lambda_visitor->found_returns, stmt);
+}
+
+static const lstf_codevisitor_vtable lambdavisitor_vtable = {
+    .visit_block                = lambdavisitor_visit_block,
+    .visit_return_statement     = lambdavisitor_visit_return_statement
+};
+
+static void
+lstf_semanticanalyzer_visit_lambda_expression(lstf_codevisitor *visitor, lstf_lambdaexpression *expr)
+{
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+    lstf_datatype *expected_type = lstf_semanticanalyzer_get_current_expected_type(analyzer);
+    lstf_functiontype *expected_ft = lstf_functiontype_cast(expected_type);
+
+    // visit the parameters first
+    for (iterator it = ptr_list_iterator_create(expr->parameters); it.has_next; it = iterator_next(it))
+        lstf_codenode_accept(iterator_get_item(it), visitor);
+
+    // then, peel the expected function type and visit the body
+    if (expected_ft) {
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, expr->expression_body ? expected_ft->return_type : NULL);
+        ptr_list_append(analyzer->expected_return_types, expected_ft->return_type);
+    } else {
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
+        ptr_list_append(analyzer->expected_return_types, NULL);
+    }
+    if (expr->expression_body)
+        lstf_codenode_accept(expr->expression_body, visitor);
+    else
+        lstf_codenode_accept(expr->statements_body, visitor);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
+    ptr_list_remove_last_link(analyzer->expected_return_types);
+
+    lstf_datatype *return_type = NULL;
+
+    if (expr->expression_body) {
+        if (!expr->expression_body->value_type)
+            // there was an error computing the type of the expression body, so
+            // we exit early
+            return;
+        return_type = expr->expression_body->value_type;
+    } else {
+        // search for a return statement
+        struct lambdavisitor lambda_visitor = {
+            .found_returns = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
+                    (collection_item_unref_func) lstf_codenode_unref)
+        };
+        lstf_codevisitor_construct((lstf_codevisitor *)&lambda_visitor, &lambdavisitor_vtable);
+        lstf_codevisitor_visit_block((lstf_codevisitor *)&lambda_visitor, expr->statements_body);
+
+        if (ptr_list_is_empty(lambda_visitor.found_returns)) {
+            return_type = lstf_voidtype_new(&lstf_codenode_cast(expr)->source_reference);
+        } else if (lambda_visitor.found_returns->length == 1) {
+            lstf_returnstatement *rstmt = iterator_get_item(ptr_list_iterator_create(lambda_visitor.found_returns));
+            if (!rstmt->expression)
+                return_type = lstf_voidtype_new(&lstf_codenode_cast(expr)->source_reference);
+            else if (!rstmt->expression->value_type)
+                // early exit because we failed to compute the type of the
+                // returned expression
+                return;
+            else
+                return_type = rstmt->expression->value_type;
+        } else {
+            // create a return type that is the combination of all of the return types we found
+            lstf_uniontype *combined_rts = NULL;
+
+            for (iterator rstmt_it = ptr_list_iterator_create(lambda_visitor.found_returns);
+                    rstmt_it.has_next;
+                    rstmt_it = iterator_next(rstmt_it)) {
+                lstf_returnstatement *rstmt = iterator_get_item(rstmt_it);
+
+                if (!rstmt->expression) {
+                    if (!combined_rts) {
+                        combined_rts = (lstf_uniontype *)
+                            lstf_uniontype_new(&lstf_codenode_cast(expr)->source_reference,
+                                lstf_voidtype_new(&lstf_codenode_cast(expr)->source_reference),
+                                NULL);
+                    } else {
+                        lstf_uniontype_add_option(combined_rts, 
+                                lstf_voidtype_new(&lstf_codenode_cast(expr)->source_reference));
+                    }
+                } else if (!rstmt->expression->value_type) {
+                    // early exit because we failed to compute the type of the
+                    // returned expression
+                    lstf_codenode_unref(combined_rts);
+                    return;
+                } else {
+                    if (!combined_rts) {
+                        combined_rts = (lstf_uniontype *)
+                            lstf_uniontype_new(&lstf_codenode_cast(expr)->source_reference,
+                                    rstmt->expression->value_type,
+                                    NULL);
+                    } else {
+                        lstf_uniontype_add_option(combined_rts, rstmt->expression->value_type);
+                    }
+                }
+            }
+
+            return_type = lstf_datatype_cast(combined_rts);
+        }
+
+        ptr_list_destroy(lambda_visitor.found_returns);
+    }
+
+    lstf_functiontype *function_type = (lstf_functiontype *)
+        lstf_functiontype_new(&lstf_codenode_cast(expr)->source_reference, return_type, expr->is_async);
+
+    for (iterator it = ptr_list_iterator_create(expr->parameters); it.has_next; it = iterator_next(it)) {
+        lstf_variable *parameter = iterator_get_item(it);
+        if (!parameter->variable_type) {
+            lstf_codenode_unref(function_type);
+            return;
+        }
+        lstf_functiontype_add_parameter(function_type,
+                lstf_symbol_cast(parameter)->name, parameter->variable_type);
+    }
+
+    lstf_expression_set_value_type(lstf_expression_cast(expr), lstf_datatype_cast(function_type));
 }
 
 static void
@@ -560,33 +1039,38 @@ lstf_semanticanalyzer_visit_member_access(lstf_codevisitor *visitor, lstf_member
 
     // then, attempt to discover the expression's value type
     if (expr->symbol_reference && !expr->value_type) {
+        // the referenced data type from the referenced symbol
+        lstf_datatype *data_type = NULL;
         switch (expr->symbol_reference->symbol_type) {
             case lstf_symbol_type_constant:
-                lstf_expression_set_value_type(expr, 
-                        lstf_expression_cast(lstf_constant_cast(expr->symbol_reference)->expression)->value_type);
+                data_type = lstf_expression_cast(lstf_constant_cast(expr->symbol_reference)->expression)->value_type;
                 break;
             case lstf_symbol_type_function:
+                // we're creating a new data type instead of referencing an
+                // existing one
                 lstf_expression_set_value_type(expr, 
                         lstf_functiontype_new_from_function(&lstf_codenode_cast(expr)->source_reference,
                             lstf_function_cast(expr->symbol_reference)));
                 break;
             case lstf_symbol_type_interfaceproperty:
-                lstf_expression_set_value_type(expr,
-                        lstf_interfaceproperty_cast(expr->symbol_reference)->property_type);
+                data_type = lstf_interfaceproperty_cast(expr->symbol_reference)->property_type;
                 break;
             case lstf_symbol_type_objectproperty:
-                lstf_expression_set_value_type(expr,
-                        lstf_objectproperty_cast(expr->symbol_reference)->value->value_type);
+                data_type = lstf_objectproperty_cast(expr->symbol_reference)->value->value_type;
                 break;
             case lstf_symbol_type_typesymbol:
                 // the member access is an explicit reference to the type
                 // symbol, and so it should not get a value type
                 break;
             case lstf_symbol_type_variable:
-                lstf_expression_set_value_type(expr,
-                        lstf_variable_cast(expr->symbol_reference)->variable_type);
+                data_type = lstf_variable_cast(expr->symbol_reference)->variable_type;
                 break;
         }
+
+        // it's possible that the symbol's data type may be unresolved due to a
+        // semantic error, so we won't do anything here
+        if (data_type)
+            lstf_expression_set_value_type(expr, data_type);
     }
 }
 
@@ -595,7 +1079,9 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer*)visitor;
 
+    lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
     lstf_codenode_accept(mcall->call, visitor);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
     if (!mcall->call->value_type)
         return;
@@ -621,9 +1107,9 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
         lstf_datatype *param_type = iterator_get_item(ft_paramtype_it);
         lstf_expression *argument = iterator_get_item(call_argexpr_it);
 
-        ptr_list_append(analyzer->expected_expression_types, param_type);
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, param_type);
         lstf_codenode_accept(argument, visitor);
-        ptr_list_remove_last_link(analyzer->expected_expression_types);
+        lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
         ft_paramname_it = iterator_next(ft_paramname_it);
         ft_paramtype_it = iterator_next(ft_paramtype_it);
@@ -656,6 +1142,20 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
             call_ft->parameter_types->length,
             mcall->arguments->length);
         analyzer->num_errors++;
+    }
+
+    // check that await expression is not used in a synchronous context
+    if (mcall->is_awaited) {
+        lstf_function *current_function = lstf_semanticanalyzer_get_current_function(analyzer);
+
+        if (current_function && !current_function->is_async) {
+            lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
+                    "%s expressions are only allowed within %s functions and in the global scope",
+                    lstf_token_to_string(lstf_token_keyword_await),
+                    lstf_token_to_string(lstf_token_keyword_async));
+            analyzer->num_errors++;
+            return;
+        }
     }
 
     lstf_expression_set_value_type(lstf_expression_cast(mcall), call_ft->return_type);
@@ -716,7 +1216,7 @@ lstf_semanticanalyzer_visit_object(lstf_codevisitor *visitor, lstf_object *objec
             lstf_objectproperty *property = iterator_get_item(it);
 
             if (!expected_et || expected_et->datatype_type != lstf_datatype_type_interfacetype) {
-                ptr_list_append(analyzer->expected_expression_types, NULL);
+                lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
             } else {
                 lstf_interfacetype *expected_itype = lstf_interfacetype_cast(expected_et);
                 const char *property_name = lstf_symbol_cast(property)->name;
@@ -739,12 +1239,12 @@ lstf_semanticanalyzer_visit_object(lstf_codevisitor *visitor, lstf_object *objec
                 lstf_interfaceproperty *interface_property = lstf_interfaceproperty_cast(found_member);
 
                 if (interface_property)
-                    ptr_list_append(analyzer->expected_expression_types, interface_property->property_type);
+                    lstf_semanticanalyzer_push_current_expected_type(analyzer, interface_property->property_type);
                 else
-                    ptr_list_append(analyzer->expected_expression_types, NULL);
+                    lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
             }
             lstf_codenode_accept(property, visitor);
-            ptr_list_remove_last_link(analyzer->expected_expression_types);
+            lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
             if (!property->value->value_type) {
                 lstf_codenode_unref(anonymous_interface);
@@ -790,14 +1290,14 @@ lstf_semanticanalyzer_visit_return_statement(lstf_codevisitor *visitor, lstf_ret
         expression_rt = ptr_list_node_get_data(analyzer->expected_return_types->tail, lstf_datatype *);
 
     if (stmt->expression) {
-        if (!expression_rt || expression_rt->datatype_type == lstf_datatype_type_voidtype) {
+        if (expression_rt && expression_rt->datatype_type == lstf_datatype_type_voidtype) {
             lstf_report_error(&lstf_codenode_cast(stmt)->source_reference,
                     "return statement should not return a value here");
             analyzer->num_errors++;
         } else {
-            ptr_list_append(analyzer->expected_expression_types, expression_rt);
+            lstf_semanticanalyzer_push_current_expected_type(analyzer, expression_rt);
             lstf_codenode_accept_children(stmt, visitor);
-            ptr_list_remove_last_link(analyzer->expected_expression_types);
+            lstf_semanticanalyzer_pop_current_expected_type(analyzer);
         }
     } else if (expression_rt && expression_rt->datatype_type != lstf_datatype_type_voidtype) {
         char *expression_rt_to_string = lstf_datatype_to_string(expression_rt);
@@ -810,31 +1310,140 @@ lstf_semanticanalyzer_visit_return_statement(lstf_codevisitor *visitor, lstf_ret
 }
 
 static void
+lstf_semanticanalyzer_visit_unary_expression(lstf_codevisitor *visitor, lstf_unaryexpression *expr)
+{
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    lstf_codenode_accept_children(expr->inner, visitor);
+
+    switch (expr->op) {
+    case lstf_unaryoperator_logical_not:
+    {
+        // any kind of value may be cast to a boolean, but void-expressions
+        // don't have any value
+        if (expr->inner->value_type && expr->inner->value_type->datatype_type
+                == lstf_datatype_type_voidtype) {
+            char *dt_string = lstf_datatype_to_string(expr->inner->value_type);
+            lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                    "invalid operand for unary expression (`%s' not allowed)",
+                    dt_string);
+            analyzer->num_errors++;
+            free(dt_string);
+            return;
+        }
+
+        // set expression type to boolean
+        lstf_expression_set_value_type(lstf_expression_cast(expr),
+                lstf_booleantype_new(&lstf_codenode_cast(expr)->source_reference));
+    }   break;
+
+    case lstf_unaryoperator_bitwise_not:
+    {
+        if (!expr->inner->value_type)
+            return;
+
+        // bitwise not operator requires integer operand
+        lstf_datatype *integer_type = lstf_integertype_new(&lstf_codenode_cast(expr)->source_reference);
+
+        if (!lstf_datatype_is_supertype_of(integer_type, expr->inner->value_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                    "bitwise not operator requires integer-compatible expression");
+            analyzer->num_errors++;
+            lstf_codenode_unref(integer_type);
+            return;
+        }
+
+        // set expression type to integer
+        lstf_expression_set_value_type(lstf_expression_cast(expr), integer_type);
+    }   break;
+
+    case lstf_unaryoperator_negate:
+    {
+        if (!expr->inner->value_type)
+            return;
+
+        // negation operator requires number-compatible expression
+        lstf_datatype *number_type = lstf_numbertype_new(&lstf_codenode_cast(expr)->source_reference);
+
+        if (!lstf_datatype_is_supertype_of(number_type, expr->inner->value_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                    "negation operator requires number-compatible expression");
+            analyzer->num_errors++;
+            lstf_codenode_unref(number_type);
+            return;
+        }
+
+        if (lstf_datatype_equals(expr->inner->value_type, number_type)) {
+            // set expression type to number
+            lstf_expression_set_value_type(lstf_expression_cast(expr), number_type);
+        } else {
+            // set expression type to integer
+            lstf_expression_set_value_type(lstf_expression_cast(expr),
+                    lstf_integertype_new(&lstf_codenode_cast(expr)->source_reference));
+            lstf_codenode_unref(number_type);
+        }
+    }   break;
+    }
+}
+
+static void
 lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *variable)
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
 
     if (!variable->variable_type) {
-        // the variable does not have an explicit type, so set
-        // it to the type of the RHS
-        assert(variable->initializer && "untyped variable must have an initializer!");
+        // check whether this is actually a parameter for a lambda function,
+        // so its type can be inferred from the context it is used in
+        lstf_lambdaexpression *parent_lambda =
+            lstf_lambdaexpression_cast(lstf_codenode_cast(variable)->parent_node);
+        if (parent_lambda) {
+            // this is actually an untyped lambda function parameter
+            lstf_functiontype *function_et =
+                lstf_functiontype_cast(lstf_semanticanalyzer_get_current_expected_type(analyzer));
 
-        // resolve RHS first
-        bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
-        analyzer->ellipsis_allowed = false;
-        lstf_codenode_accept(variable->initializer, visitor);
-        analyzer->ellipsis_allowed = old_ellipsis_allowed;
+            if (!function_et) {
+                lstf_report_error(&lstf_codenode_cast(variable)->source_reference,
+                        "explicit parameter type required in this context");
+                analyzer->num_errors++;
+            } else {
+                const ssize_t param_idx = ptr_list_index_of(parent_lambda->parameters, variable, NULL);
+                // parameter type node (we will be inferring this type)
+                ptr_list_node *pt_node = ptr_list_nth_element(function_et->parameter_types, param_idx);
 
-        if (variable->initializer->value_type)
-            lstf_variable_set_variable_type(variable, variable->initializer->value_type);
+                if (!pt_node) {
+                    char *ft_string = lstf_datatype_to_string(lstf_datatype_cast(function_et));
+                    lstf_report_error(&lstf_codenode_cast(variable)->source_reference,
+                            "extra lambda parameter");
+                    lstf_report_note(&lstf_codenode_cast(parent_lambda)->source_reference,
+                            "expected lambda of type `%s' here", ft_string);
+                    analyzer->num_errors++;
+                    free(ft_string);
+                } else {
+                    lstf_variable_set_variable_type(variable, ptr_list_node_get_data(pt_node, lstf_datatype *));
+                }
+            }
+        } else {
+            // the variable does not have an explicit type, so set
+            // it to the type of the RHS
+            assert(variable->initializer && "untyped variable must have an initializer!");
+
+            // resolve RHS first
+            bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
+            analyzer->ellipsis_allowed = false;
+            lstf_codenode_accept(variable->initializer, visitor);
+            analyzer->ellipsis_allowed = old_ellipsis_allowed;
+
+            if (variable->initializer->value_type)
+                lstf_variable_set_variable_type(variable, variable->initializer->value_type);
+        }
     } else if (variable->initializer) {
         // the variable *does* have an explicit type
         // resolve RHS
         bool old_ellipsis_allowed = analyzer->ellipsis_allowed;
         analyzer->ellipsis_allowed = false;
-        ptr_list_append(analyzer->expected_expression_types, variable->variable_type);
+        lstf_semanticanalyzer_push_current_expected_type(analyzer, variable->variable_type);
         lstf_codenode_accept(variable->initializer, visitor);
-        ptr_list_remove_last_link(analyzer->expected_expression_types);
+        lstf_semanticanalyzer_pop_current_expected_type(analyzer);
         analyzer->ellipsis_allowed = old_ellipsis_allowed;
     }
     
@@ -853,7 +1462,9 @@ lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *v
 static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_array,
     lstf_semanticanalyzer_visit_assignment,
+    lstf_semanticanalyzer_visit_binary_expression,
     lstf_semanticanalyzer_visit_block,
+    lstf_semanticanalyzer_visit_conditional_expression,
     lstf_semanticanalyzer_visit_constant,
     NULL /* visit_data_type */,
     lstf_semanticanalyzer_visit_declaration,
@@ -866,6 +1477,7 @@ static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_function,
     NULL /* visit_interface */,
     NULL /* visit_interface_property */,
+    lstf_semanticanalyzer_visit_lambda_expression,
     lstf_semanticanalyzer_visit_literal,
     lstf_semanticanalyzer_visit_member_access,
     lstf_semanticanalyzer_visit_method_call,
@@ -874,6 +1486,7 @@ static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_pattern_test,
     lstf_semanticanalyzer_visit_return_statement,
     NULL /* visit_type_alias */,
+    lstf_semanticanalyzer_visit_unary_expression,
     lstf_semanticanalyzer_visit_variable
 };
 
@@ -888,6 +1501,8 @@ lstf_semanticanalyzer *lstf_semanticanalyzer_new(lstf_file *file)
     analyzer->expected_expression_types = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
             (collection_item_unref_func) lstf_codenode_unref);
     analyzer->expected_return_types = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
+            (collection_item_unref_func) lstf_codenode_unref);
+    analyzer->current_functions = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
             (collection_item_unref_func) lstf_codenode_unref);
 
     return analyzer;
@@ -907,5 +1522,7 @@ void lstf_semanticanalyzer_destroy(lstf_semanticanalyzer *analyzer)
     analyzer->expected_expression_types = NULL;
     ptr_list_destroy(analyzer->expected_return_types);
     analyzer->expected_return_types = NULL;
+    ptr_list_destroy(analyzer->current_functions);
+    analyzer->current_functions = NULL;
     free(analyzer);
 }

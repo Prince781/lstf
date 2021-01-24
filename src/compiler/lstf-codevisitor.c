@@ -18,10 +18,22 @@ void lstf_codevisitor_visit_assignment(lstf_codevisitor *code_visitor, lstf_assi
         code_visitor->vtable->visit_assignment(code_visitor, assign);
 }
 
+void lstf_codevisitor_visit_binary_expression(lstf_codevisitor *code_visitor, lstf_binaryexpression *expr)
+{
+    if (code_visitor->vtable->visit_binary_expression)
+        code_visitor->vtable->visit_binary_expression(code_visitor, expr);
+}
+
 void lstf_codevisitor_visit_block(lstf_codevisitor *code_visitor, lstf_block *block)
 {
     if (code_visitor->vtable->visit_block)
         code_visitor->vtable->visit_block(code_visitor, block);
+}
+
+void lstf_codevisitor_visit_conditional_expression(lstf_codevisitor *code_visitor, lstf_conditionalexpression *expr)
+{
+    if (code_visitor->vtable->visit_conditional_expression)
+        code_visitor->vtable->visit_conditional_expression(code_visitor, expr);
 }
 
 void lstf_codevisitor_visit_constant(lstf_codevisitor *code_visitor, lstf_constant *constant)
@@ -96,6 +108,12 @@ void lstf_codevisitor_visit_interface_property(lstf_codevisitor *code_visitor, l
         code_visitor->vtable->visit_interface_property(code_visitor, property);
 }
 
+void lstf_codevisitor_visit_lambda_expression(lstf_codevisitor *code_visitor, lstf_lambdaexpression *expr)
+{
+    if (code_visitor->vtable->visit_lambda_expression)
+        code_visitor->vtable->visit_lambda_expression(code_visitor, expr);
+}
+
 void lstf_codevisitor_visit_literal(lstf_codevisitor *code_visitor, lstf_literal *lit)
 {
     if (code_visitor->vtable->visit_literal)
@@ -142,6 +160,12 @@ void lstf_codevisitor_visit_type_alias(lstf_codevisitor *code_visitor, lstf_type
 {
     if (code_visitor->vtable->visit_type_alias)
         code_visitor->vtable->visit_type_alias(code_visitor, alias);
+}
+
+void lstf_codevisitor_visit_unary_expression(lstf_codevisitor *code_visitor, lstf_unaryexpression *expr)
+{
+    if (code_visitor->vtable->visit_unary_expression)
+        code_visitor->vtable->visit_unary_expression(code_visitor, expr);
 }
 
 void lstf_codevisitor_visit_variable(lstf_codevisitor *code_visitor, lstf_variable *variable)
