@@ -53,5 +53,6 @@ lstf_symbol *lstf_constant_new(const lstf_sourceref *source_reference,
             false);
 
     constant->expression = lstf_codenode_ref(expression);
+    lstf_codenode_set_parent(constant->expression, constant);
     return (lstf_symbol *)constant;
 }

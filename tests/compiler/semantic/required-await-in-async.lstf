@@ -1,6 +1,3 @@
-server_path = '/usr/bin/vala-language-server';
-project_files = ['/dev/null'];
-
 async fun write_string_async(x: string): void {
 }
 

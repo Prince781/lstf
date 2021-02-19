@@ -86,3 +86,15 @@ static inline char *strndup(const char *str, size_t n)
     return new_str;
 }
 #endif
+
+static inline unsigned popcount(uintmax_t x)
+{
+    unsigned n = 0;
+
+    for (unsigned i = 0; i < sizeof(x) * CHAR_BIT; i++) {
+        if ((x >> i) & 1)
+            n++;
+    }
+    
+    return n;
+}

@@ -5,8 +5,11 @@
 #include "lstf-expression.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
+#include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+static unsigned next_lambda_id = 1;
 
 static void lstf_lambdaexpression_accept(lstf_codenode *node, lstf_codevisitor *visitor)
 {
@@ -36,6 +39,7 @@ static void lstf_lambdaexpression_destruct(lstf_codenode *node)
     ptr_list_destroy(expr->parameters);
     lstf_codenode_unref(expr->expression_body);
     lstf_codenode_unref(expr->statements_body);
+    ptr_hashset_destroy(expr->captured_locals);
 
     lstf_expression_destruct(node);
 }
@@ -67,11 +71,19 @@ static lstf_expression *lstf_lambdaexpression_new(const lstf_sourceref *source_r
     expr->parameters = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
             (collection_item_unref_func) lstf_codenode_unref);
 
-    if (expression_body)
+    if (expression_body) {
         expr->expression_body = lstf_codenode_ref(expression_body);
-    else if (statements_body)
+        lstf_codenode_set_parent(expr->expression_body, expr);
+    } else if (statements_body) {
         expr->statements_body = lstf_codenode_ref(statements_body);
+        lstf_codenode_set_parent(expr->statements_body, expr);
+    }
 
+    expr->captured_locals = ptr_hashset_new(ptrhash,
+            (collection_item_ref_func) lstf_codenode_ref,
+            (collection_item_unref_func) lstf_codenode_unref,
+            NULL);
+    expr->id = next_lambda_id++;
     expr->is_async = is_async;
 
     return (lstf_expression *)expr;
@@ -98,4 +110,13 @@ void lstf_lambdaexpression_add_parameter(lstf_lambdaexpression *expr,
 {
     ptr_list_append(expr->parameters, parameter);
     lstf_codenode_set_parent(parameter, expr);
+}
+
+void lstf_lambdaexpression_add_captured_local(lstf_lambdaexpression *expr,
+                                              lstf_symbol           *var_or_fn)
+{
+    assert(lstf_variable_cast(var_or_fn) ||
+            (lstf_function_cast(var_or_fn) &&
+             !ptr_hashset_is_empty(lstf_function_cast(var_or_fn)->captured_locals)));
+    ptr_hashset_insert(expr->captured_locals, var_or_fn);
 }

@@ -2,6 +2,8 @@
 
 #include "lstf-sourceloc.h"
 #include "lstf-file.h"
+#include <stdbool.h>
+#include <limits.h>
 
 enum _lstf_token {
     lstf_token_eof,
@@ -64,6 +66,8 @@ enum _lstf_token {
     lstf_token_keyword_interface,
     lstf_token_keyword_extends,
     lstf_token_keyword_type,
+    lstf_token_keyword_if,
+    lstf_token_keyword_else,
     lstf_token_string
 };
 typedef enum _lstf_token lstf_token;
@@ -71,6 +75,9 @@ typedef enum _lstf_token lstf_token;
 const char *lstf_token_to_string(lstf_token token);
 
 struct _lstf_scanner {
+    unsigned long refcount : sizeof(unsigned long) * CHAR_BIT - 1;
+    bool floating : 1;
+    lstf_file *script;
     lstf_token *tokens;
     lstf_sourceloc *token_beginnings;
     lstf_sourceloc *token_endings;
@@ -80,7 +87,11 @@ struct _lstf_scanner {
 };
 typedef struct _lstf_scanner lstf_scanner;
 
-lstf_scanner *lstf_scanner_create(lstf_file *script);
+lstf_scanner *lstf_scanner_new(lstf_file *script);
+
+lstf_scanner *lstf_scanner_ref(lstf_scanner *scanner);
+
+void lstf_scanner_unref(lstf_scanner *scanner);
 
 /**
  * Advance the token pointer and returns next token. Returns error if there are no tokens.
@@ -110,5 +121,3 @@ lstf_sourceloc lstf_scanner_get_end_location(const lstf_scanner *scanner);
  * Gets the end of the previous token.
  */
 lstf_sourceloc lstf_scanner_get_prev_end_location(const lstf_scanner *scanner);
-
-void lstf_scanner_destroy(lstf_scanner *scanner);

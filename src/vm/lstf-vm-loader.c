@@ -32,20 +32,24 @@ static lstf_vm_program *lstf_vm_program_create(void)
 {
     lstf_vm_program *program = calloc(1, sizeof *program);
 
-    if (!program)
-        return NULL;
+    if (!program) {
+        perror("failed to create VM program");
+        abort();
+    }
 
     program->floating = true;
     program->debug_entries = ptr_hashmap_new(ptrhash, NULL, NULL, NULL, NULL, NULL);
     if (!program->debug_entries) {
         free(program);
-        return NULL;
+        perror("failed to create debug entries table for VM program");
+        abort();
     }
     program->debug_symbols = ptr_hashmap_new(ptrhash, NULL, NULL, NULL, NULL, NULL);
     if (!program->debug_symbols) {
         ptr_hashmap_destroy(program->debug_entries);
         free(program);
-        return NULL;
+        perror("failed to create debug symbol table for VM program");
+        abort();
     }
 
     return program;
@@ -173,7 +177,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             goto error_cleanup;
         }
 
-        if (!inputstream_read(istream, program->debuginfo, program->debuginfo_size)) {
+        if (inputstream_read(istream, program->debuginfo, program->debuginfo_size) != program->debuginfo_size) {
             if (error)
                 *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
@@ -284,7 +288,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             goto error_cleanup;
         }
 
-        if (!inputstream_read(istream, program->data, program->data_size)) {
+        if (inputstream_read(istream, program->data, program->data_size) != program->data_size) {
             if (error)
                 *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
@@ -301,7 +305,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             goto error_cleanup;
         }
 
-        if (!inputstream_read(istream, program->code, program->code_size)) {
+        if (inputstream_read(istream, program->code, program->code_size) != program->code_size) {
             if (error)
                 *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
@@ -366,5 +370,5 @@ lstf_vm_program *lstf_vm_loader_load_from_buffer(const void           *buffer,
                                                  size_t                buffer_size,
                                                  lstf_vm_loader_error *error)
 {
-    return lstf_vm_loader_load_from_stream(inputstream_new_from_const_buffer(buffer, buffer_size), error);
+    return lstf_vm_loader_load_from_stream(inputstream_new_from_static_buffer(buffer, buffer_size), error);
 }

@@ -25,8 +25,8 @@ enum _jsonrpc_error {
 };
 typedef enum _jsonrpc_error jsonrpc_error;
 
-jsonrpc_server *jsonrpc_server_create(inputstream *input_stream, 
-                                      FILE *output_stream, bool close_output)
+jsonrpc_server *jsonrpc_server_create(inputstream  *input_stream, 
+                                      outputstream *output_stream)
 {
     jsonrpc_server *server = calloc(1, sizeof *server);
 
@@ -36,8 +36,7 @@ jsonrpc_server *jsonrpc_server_create(inputstream *input_stream,
     }
 
     server->parser = json_parser_create_from_stream(input_stream);
-    server->output_stream = output_stream;
-    server->close_output = close_output;
+    server->output_stream = outputstream_ref(output_stream);
 
     server->reply_handlers = ptr_hashmap_new((collection_item_hash_func) strhash,
             NULL,
@@ -81,6 +80,17 @@ void jsonrpc_server_handle_notification(jsonrpc_server              *server,
                         closure_new((closure_func) handler, user_data, user_data_unref_func));
 }
 
+/**
+ * Returns number of bytes written, or < 0 if an error occurred.
+ */
+static int jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
+{
+    char *serialized_message = json_node_to_string(node, false);
+    int ret = outputstream_printf(server->output_stream, "%s\n", serialized_message);
+    free(serialized_message);
+    return ret;
+}
+
 void jsonrpc_server_reply_to_remote(jsonrpc_server  *server, 
                                     json_node       *id,
                                     json_node       *result)
@@ -91,10 +101,7 @@ void jsonrpc_server_reply_to_remote(jsonrpc_server  *server,
     json_object_set_member(response_object, "result", result);
     json_object_set_member(response_object, "id", id);
 
-    char *serialized_object = json_node_to_string(response_object, false);
-    fprintf(server->output_stream, "%s\n", serialized_object);
-
-    free(serialized_object);
+    jsonrpc_server_send_message(server, response_object);
     json_node_unref(response_object);
 }
 
@@ -236,18 +243,9 @@ jsonrpc_verify_is_response_object(json_node        *node,
     return true;
 }
 
-/**
- * Returns number of bytes written, or < 0 if an error occurred.
- */
-static int jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
-{
-    char *serialized_message = json_node_to_string(node, false);
-    int ret = fprintf(server->output_stream, "%s\n", serialized_message);
-    free(serialized_message);
-    return ret;
-}
-
-json_node *jsonrpc_server_call_remote(jsonrpc_server *server, const char *method, json_node *parameters)
+json_node *jsonrpc_server_call_remote(jsonrpc_server *server,
+                                      const char     *method,
+                                      json_node      *parameters)
 {
     json_node *request_object = json_object_new();
     json_node *request_id = NULL;
@@ -303,7 +301,9 @@ json_node *jsonrpc_server_call_remote(jsonrpc_server *server, const char *method
     return response_node;
 }
 
-void jsonrpc_server_notify_remote(jsonrpc_server *server, const char *method, json_node *parameters)
+void jsonrpc_server_notify_remote(jsonrpc_server *server,
+                                  const char     *method,
+                                  json_node      *parameters)
 {
     json_node *request_object = json_object_new();
 
@@ -365,12 +365,14 @@ ptr_list *jsonrpc_server_wait_for_notification(jsonrpc_server *server, const cha
             if (received_node) {
                 const char *verification_failed_why = NULL;
                 if (jsonrpc_verify_is_request_object(received_node, &verification_failed_why)) {
+                    // this is a notification
                     if (!json_object_get_member(received_node, "id") &&
                             strcmp(((json_string *)json_object_get_member(received_node, "method"))->value, method) == 0)
                         break;
                     // otherwise, this is a method call or notification not for us
                     ptr_list_append(server->received_requests, received_node);
                 } else if (received_node->node_type == json_node_type_array) {
+                    // handle batched calls
                     for (unsigned i = 0; i < ((json_array *)received_node)->num_elements; i++) {
                         json_node *element = ((json_array *)received_node)->elements[i];
                         const char *error = NULL;
@@ -420,6 +422,7 @@ ptr_list *jsonrpc_server_wait_for_notification(jsonrpc_server *server, const cha
                 ptr_list_append(received_params, result_parameters);
             else
                 ptr_list_append(received_params, json_null_new());
+            json_node_unref(received_node);
         }
     }
 
@@ -507,8 +510,7 @@ void jsonrpc_server_destroy(jsonrpc_server *server)
     json_parser_destroy(server->parser);
     server->parser = NULL;
 
-    if (server->close_output)
-        fclose(server->output_stream);
+    outputstream_unref(server->output_stream);
     server->output_stream = NULL;
 
     ptr_hashmap_destroy(server->reply_handlers);

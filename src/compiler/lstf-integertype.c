@@ -55,7 +55,7 @@ static lstf_datatype *lstf_integertype_copy(lstf_datatype *self)
 static char *lstf_integertype_to_string(lstf_datatype *self)
 {
     (void) self;
-    return strdup("integer");
+    return strdup("int");
 }
 
 static const lstf_datatype_vtable integertype_datatype_vtable = {

@@ -29,7 +29,7 @@ int main(void) {
     for (iterator it = ptr_hashmap_iterator_create(map);
             it.has_next;
             it = iterator_next(it)) {
-        ptr_hashmap_entry *entry = iterator_get_item(it);
+        const ptr_hashmap_entry *entry = iterator_get_item(it);
 
         json_object_set_member(object, entry->key, entry->value);
     }

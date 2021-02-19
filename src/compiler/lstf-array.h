@@ -8,7 +8,12 @@
 
 struct _lstf_array {
     lstf_expression parent_struct;
+
+    /**
+     * list of `(lstf_expression *)`
+     */
     ptr_list *expression_list;
+
     bool is_pattern;
 };
 typedef struct _lstf_array lstf_array;

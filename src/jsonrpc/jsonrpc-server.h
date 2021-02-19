@@ -2,6 +2,8 @@
 
 #include "data-structures/closure.h"
 #include "data-structures/ptr-hashmap.h"
+#include "io/inputstream.h"
+#include "io/outputstream.h"
 #include "json/json-parser.h"
 #include "json/json.h"
 #include <stdint.h>
@@ -11,14 +13,21 @@
 struct _jsonrpc_server;
 typedef struct _jsonrpc_server jsonrpc_server;
 
-typedef void (*jsonrpc_call_handler)(jsonrpc_server *server, const char *method, json_node *id, json_node *parameters, void *user_data);
-typedef void (*jsonrpc_notification_handler)(jsonrpc_server *server, const char *method, json_node *parameters, void *user_data);
+typedef void (*jsonrpc_call_handler)(jsonrpc_server *server,
+                                     const char     *method,
+                                     json_node      *id,
+                                     json_node      *parameters,
+                                     void           *user_data);
+
+typedef void (*jsonrpc_notification_handler)(jsonrpc_server *server,
+                                             const char     *method,
+                                             json_node      *parameters,
+                                             void           *user_data);
 
 struct _jsonrpc_server {
     json_parser *parser;
 
-    FILE *output_stream;
-    bool close_output;
+    outputstream *output_stream;
 
     /**
      * For handling JSON-RPC method calls.
@@ -35,8 +44,8 @@ struct _jsonrpc_server {
     ptr_list *received_requests;
 };
 
-jsonrpc_server *jsonrpc_server_create(inputstream *input_stream, 
-                                      FILE *output_stream, bool close_output);
+jsonrpc_server *jsonrpc_server_create(inputstream  *input_stream, 
+                                      outputstream *output_stream);
 
 /**
  * Establish a new handler for a JSON-RPC call
@@ -67,12 +76,16 @@ void jsonrpc_server_reply_to_remote(jsonrpc_server  *server,
 /**
  * Call a method on the remote and wait for a response
  */
-json_node *jsonrpc_server_call_remote(jsonrpc_server *server, const char *method, json_node *parameters);
+json_node *jsonrpc_server_call_remote(jsonrpc_server *server,
+                                      const char     *method,
+                                      json_node      *parameters);
 
 /**
  * Send a notification to the remote.
  */
-void jsonrpc_server_notify_remote(jsonrpc_server *server, const char *method, json_node *parameters);
+void jsonrpc_server_notify_remote(jsonrpc_server *server,
+                                  const char     *method,
+                                  json_node      *parameters);
 
 /**
  * Wait for a specific notification to arrive from the remote.

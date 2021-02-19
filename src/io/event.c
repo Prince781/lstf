@@ -1,0 +1,510 @@
+#include "event.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <assert.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <io.h>
+#else
+#include <unistd.h>
+#include <poll.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+#include <fcntl.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+static char *win32_errormsg(int errnum)
+{
+    static thread_local char buffer[1024];
+
+    if (!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+            NULL,
+            errnum,
+            0,
+            buffer,
+            sizeof buffer,
+            NULL))
+        snprintf(buffer, sizeof buffer, "Windows error %#0x", errnum);
+
+    return buffer;
+}
+#endif
+
+event *event_new(async_callback callback, void *callback_data)
+{
+    event *ev = calloc(1, sizeof *ev);
+
+    ev->fd = -1;
+    ev->callback = callback;
+    ev->callback_data = callback_data;
+
+    return ev;
+}
+
+event *event_new_from_fd(int fd, bool is_read_operation, async_callback callback, void *callback_data)
+{
+    event *ev = calloc(1, sizeof *ev);
+
+    ev->fd = fd;
+    ev->is_read_operation = is_read_operation;
+    ev->is_io_operation = true;
+    ev->callback = callback;
+    ev->callback_data = callback_data;
+
+    return ev;
+}
+
+event *event_new_for_background(async_callback callback, void *callback_data)
+{
+    event *ev = calloc(1, sizeof *ev);
+
+    ev->fd = -1;
+    ev->callback = callback;
+    ev->callback_data = callback_data;
+    ev->is_bg_operation = true;
+
+    return ev;
+}
+
+void event_return(event *ev, void *result)
+{
+    assert(!ev->is_ready && "cannot complete an event twice!");
+
+    ev->result = result;
+    atomic_store_explicit(&ev->is_ready, true, memory_order_release);
+
+    if (ev->is_bg_operation)
+        /**
+         * We only need to signal the event loop if we're completing an event
+         * from a background thread. If we're in the foreground, this isn't
+         * necessary because we just set [is_ready] to true.
+         */
+        eventloop_signal(ev->loop);
+}
+
+void event_cancel_with_errno(event *ev, int errnum)
+{
+    atomic_store_explicit(&ev->is_canceled, true, memory_order_release);
+    ev->io_errno = errnum;
+}
+
+bool event_is_canceled(event *ev)
+{
+    return atomic_load_explicit(&ev->is_canceled, memory_order_acquire);
+}
+
+bool event_is_ready(event *ev)
+{
+    return atomic_load_explicit(&ev->is_ready, memory_order_acquire);
+}
+
+bool event_get_result(event *ev, void **pointer_ref)
+{
+    if (event_is_canceled(ev) || ev->io_errno != 0)
+        return false;
+
+    *pointer_ref = ev->result;
+    return true;
+}
+
+eventloop *eventloop_new(void)
+{
+    eventloop *loop = calloc(1, sizeof *loop);
+    loop->is_running = true;
+
+    // create the event handle/FD for non-I/O background tasks
+#if defined(_WIN32) || defined(_WIN64)
+    if (!(loop->bg_eventh = CreateEvent(NULL, false, false, NULL))) {
+        fprintf(stderr, "%s: failed to create event handle: %s\n",
+                __func__, win32_errormsg(GetLastError()));
+        abort();
+    }
+#else
+    int fds[2];
+    if (pipe(fds) == -1) {
+        fprintf(stderr, "%s: failed to create event FD with pipe: %s\n",
+                __func__, strerror(errno));
+        abort();
+    }
+    loop->bg_eventfd = fds[0];
+    loop->bg_signalfd = fds[1];
+
+    if (fcntl(loop->bg_eventfd, F_SETFL, fcntl(loop->bg_eventfd, F_GETFL) | O_NONBLOCK) == -1 ||
+            fcntl(loop->bg_signalfd, F_SETFL, fcntl(loop->bg_signalfd, F_GETFL) | O_NONBLOCK)) {
+        fprintf(stderr, "%s: failed to set fds to non-blocking: %s\n",
+                __func__, strerror(errno));
+        abort();
+    }
+#endif
+
+    return loop;
+}
+
+/**
+ * (to be used from a background thread)
+ *
+ * Signal the event loop that a background task may be ready.
+ */
+void eventloop_signal(eventloop *loop)
+{
+#if defined(_WIN32) || defined(_WIN64)
+    if (!SetEvent(loop->bg_eventh)) {
+        fprintf(stderr, "%s: failed to signal event loop: %s\n",
+                __func__, win32_errormsg(GetLastError()));
+        abort();
+    }
+#else
+    if (write(loop->bg_signalfd, "a", 1) == -1) {
+        fprintf(stderr, "%s: failed to signal event loop: %s\n",
+                __func__, strerror(errno));
+        abort();
+    }
+#endif
+}
+
+void eventloop_add(eventloop *loop, event *ev)
+{
+    if (!loop->pending_events) {
+        assert(!loop->pending_events_tail);
+        loop->pending_events = ev;
+        loop->pending_events_tail = ev;
+    } else {
+        assert(loop->pending_events_tail);
+        if (loop->pending_events == loop->pending_events_tail) {
+            loop->pending_events_tail = ev;
+            loop->pending_events->next = loop->pending_events_tail;
+        } else {
+            loop->pending_events_tail->next = ev;
+            loop->pending_events_tail = ev;
+        }
+    }
+    ev->loop = loop;
+    // fprintf(stderr, "[DEBUG] queued a new event\n");
+}
+
+void eventloop_remove(eventloop *loop, event *ev, event *prev)
+{
+    if (!prev) {
+        if (loop->pending_events == loop->pending_events_tail)
+            loop->pending_events_tail = loop->pending_events->next;
+        loop->pending_events = loop->pending_events->next;
+    } else {
+        prev->next = ev->next;
+    }
+    if (ev == loop->pending_events_tail)
+        loop->pending_events_tail = prev;
+    ev->next = NULL;
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+typedef struct {
+    HANDLE handles[MAXIMUM_WAIT_OBJECTS];
+    unsigned num_handles;
+    int timeout_ms;
+} eventloop_poll_thread_state;
+
+static void eventloop_poll_thread_setup_state(eventloop_poll_thread_state *state,
+                                              const int                    i,
+                                              bool                        *added_bgeventh,
+                                              HANDLE                       barrier,
+                                              eventloop                   *loop,
+                                              event                      **current_ev)
+{
+    if (i == 0) {
+        state->handles[i] = barrier;
+        state->num_handles++;
+    } else if (!*added_bgeventh) {
+        state->handles[i] = loop->bg_eventh;
+        *added_bgeventh = true;
+        state->num_handles++;
+    } else if (*current_ev) {
+        while (*current_ev && (*current_ev)->fd == -1)
+            *current_ev = (*current_ev)->next;
+
+        if (*current_ev) {
+            HANDLE h = (HANDLE) _get_osfhandle((*current_ev)->fd);
+            if (h == INVALID_HANDLE_VALUE) {
+                fprintf(stderr, "%s: failed to convert fd %d to Win32 handle: %s\n",
+                        __func__, (*current_ev)->fd, win32_errormsg(GetLastError()));
+                abort();
+            }
+            state->handles[i] = h;
+            *current_ev = (*current_ev)->next;
+            state->num_handles++;
+        }
+    }
+}
+
+static int eventloop_poll_thread(void *user_data)
+{
+    const eventloop_poll_thread_state *state = user_data;
+
+    int wait_status =
+        WaitForMultipleObjects(state->num_handles, state->handles, false, state->timeout_ms);
+
+    if (wait_status == WAIT_FAILED) {
+        fprintf(stderr, "WaitForMultipleObjects() failed: %s\n", win32_errormsg(GetLastError()));
+        abort();
+    } else if (!(wait_status >= WAIT_OBJECT_0 && wait_status < WAIT_OBJECT_0 + state->num_handles || wait_status == WAIT_TIMEOUT)) {
+        fprintf(stderr, "WaitForMultipleObjects(): unexpected abandoned mutex in wait list\n");
+        abort();
+    }
+
+    // the first thread to break out of its wait should wake up the other threads
+    if (!SetEvent(state->handles[0])) {
+        fprintf(stderr, "failed to signal barrier: %s\n", win32_errormsg(GetLastError()));
+        abort();
+    }
+    return 0;
+}
+#endif
+
+/**
+ * Wait for an event to happen. This will block if there are no events that
+ * have already completed (when *ready_events != NULL) and force_nonblocking is
+ * false. Otherwise this will return immediately.
+ */
+static void eventloop_poll(eventloop *loop,
+                           event    **ready_events,
+                           bool       force_nonblocking,
+                           unsigned   num_io_pending,
+                           bool       have_non_io_tasks)
+
+{
+    if (num_io_pending + have_non_io_tasks == 0)
+        return;
+
+#if defined(_WIN32) || defined(_WIN64)
+    // Windows
+    int timeout_ms = (*ready_events && !force_nonblocking) ? 0 : INFINITE;
+
+    // because of limitations with WaitForMultipleObjectsEx(), we must split the
+    // waiting across multiple threads
+
+    HANDLE barrier = CreateEvent(NULL, false, false, NULL);
+
+    const unsigned bucket_size = MAXIMUM_WAIT_OBJECTS - 1 /* because of the barrier */;
+    const unsigned num_bg_threads = (num_io_pending + have_non_io_tasks + (bucket_size - 1)) / bucket_size - 1;
+
+    thrd_t *bg_threads = calloc(num_bg_threads, sizeof *bg_threads);
+    eventloop_poll_thread_state *bg_states = calloc(num_bg_threads, sizeof *bg_states);
+    eventloop_poll_thread_state fg_state;
+    event *current_ev = loop->pending_events;
+    bool added_bgeventh = false;
+
+    // set up foreground polling thread
+    fg_state.num_handles = 0;
+    fg_state.timeout_ms = timeout_ms;
+    for (unsigned i = 0; i < ARRAYSIZE(fg_state.handles) && current_ev; i++)
+        eventloop_poll_thread_setup_state(&fg_state, i, &added_bgeventh, barrier, loop, &current_ev);
+
+    // set up each background polling thread
+    for (unsigned i = 0; i < num_bg_threads; i++) {
+        bg_states[i].num_handles = 0;
+        bg_states[i].timeout_ms = timeout_ms;
+        for (unsigned j = 0; j < ARRAYSIZE(bg_states[i].handles) && current_ev; j++)
+            eventloop_poll_thread_setup_state(&bg_states[i], j, &added_bgeventh, barrier, loop, &current_ev);
+
+        // fire the background polling thread
+        if (thrd_create(&bg_threads[i], eventloop_poll_thread, &bg_states[i]) == thrd_error) {
+            fprintf(stderr, "%s: failed to create a background polling thread: %s\n",
+                    __func__, win32_errormsg(GetLastError()));
+            abort();
+        }
+    }
+
+    // poll in foreground
+    (void) eventloop_poll_thread(&fg_state);
+
+    // join all background threads
+    for (unsigned i = 0; i < num_bg_threads; i++) {
+        if (thrd_join(bg_threads[i], NULL) == thrd_error) {
+            fprintf(stderr, "%s: failed to join polling thread #%u: %s\n",
+                    __func__, i + 1, win32_errormsg(GetLastError()));
+            abort();
+        }
+    }
+
+    // gather all I/O-ready tasks
+    for (event *pending = loop->pending_events,
+               *prev    = NULL;
+                pending; ) {
+        event *next = pending->next;
+
+        if (pending->is_io_operation) {
+            if (WaitForSingleObject((HANDLE) _get_osfhandle(pending->fd), 0) == WAIT_OBJECT_0) {
+                // remove [pending] off the list of pending tasks and add
+                // it to the list of ready tasks
+                pending->is_ready = true;
+                eventloop_remove(loop, pending, prev);
+                event_list_prepend(ready_events, pending);
+                pending = NULL;
+            }
+        } else if (pending->is_bg_operation && event_is_ready(pending)) {
+            eventloop_remove(loop, pending, prev);
+            event_list_prepend(ready_events, pending);
+            pending = NULL;
+        }
+
+        prev = pending;
+        pending = next;
+    }
+    
+    free(bg_threads);
+    free(bg_states);
+    CloseHandle(barrier);
+#else
+    // POSIX
+    struct pollfd *pollfds = calloc(num_io_pending + have_non_io_tasks, sizeof *pollfds);
+    unsigned p = 0;
+    for (event *pending = loop->pending_events; pending; pending = pending->next) {
+        if (pending->is_io_operation) {
+            pollfds[p].fd = pending->fd;
+            pollfds[p].events = pending->is_read_operation ? POLLIN : POLLOUT;
+            ++p;
+        }
+    }
+
+    if (have_non_io_tasks) {
+        pollfds[p].fd = loop->bg_eventfd;
+        pollfds[p].events = POLLIN;
+        ++p;
+    }
+
+    int poll_status = -1;
+    // poll without waiting (0) if there are other ready tasks
+    // otherwise, poll with an indefinite wait (-1)
+    int timeout_ms = (*ready_events && !force_nonblocking) ? 0 : -1;
+
+    while ((poll_status = poll(pollfds, num_io_pending + have_non_io_tasks, timeout_ms)) == -1 &&
+            (errno == EAGAIN || errno == EINTR))
+        ;
+
+    // gather all I/O-ready tasks
+    p = 0;
+    for (event *pending = loop->pending_events,
+               *prev    = NULL;
+                pending; ) {
+        event *next = pending->next;
+
+        if (pending->is_io_operation) {
+            if (pollfds[p].revents & (pending->is_read_operation ? POLLIN : POLLOUT)) {
+                // remove [pending] off the list of pending tasks and add
+                // it to the list of ready tasks
+                pending->is_ready = true;
+                eventloop_remove(loop, pending, prev);
+                event_list_prepend(ready_events, pending);
+                pending = NULL;
+            } else if (pollfds[p].revents & (POLLHUP | POLLERR)) {
+                event_cancel_with_errno(pending, pollfds[p].revents & POLLHUP ? EPIPE : ECANCELED);
+                eventloop_remove(loop, pending, prev);
+                event_list_prepend(ready_events, pending);
+                pending = NULL;
+            }
+            ++p;
+        }
+
+        prev = pending;
+        pending = next;
+    }
+
+    if (have_non_io_tasks) {
+        if (pollfds[p].revents & POLLIN) {
+            // then search for all non-I/O background tasks that may be done
+            for (event *pending = loop->pending_events,
+                       *prev    = NULL;
+                        pending; ) {
+                event *next = pending->next;
+
+                if (pending->is_bg_operation && event_is_ready(pending)) {
+                    eventloop_remove(loop, pending, prev);
+                    event_list_prepend(ready_events, pending);
+                    pending = NULL;
+                }
+
+                prev = pending;
+                pending = next;
+            }
+
+            // clear the buffer
+            char buffer[BUFSIZ];
+            while (read(pollfds[p].fd, &buffer, sizeof buffer) == -1 && errno == EAGAIN)
+                ;
+        }
+    }
+
+    free(pollfds);
+#endif
+}
+
+bool eventloop_process(eventloop *loop, bool force_nonblocking)
+{
+    event *ready_events = NULL;
+
+    unsigned num_io_pending = 0;
+    bool have_non_io_tasks = false;
+
+    for (event *pending = loop->pending_events,
+               *prev    = NULL;
+                pending; ) {
+        event *next = pending->next;
+
+        if (event_is_ready(pending) || event_is_canceled(pending)) {
+            // remove [pending] off the list of pending tasks and add it to
+            // the list of [ready_tasks]
+            eventloop_remove(loop, pending, prev);
+            event_list_prepend(&ready_events, pending);
+            pending = NULL;
+        } else if (pending->is_io_operation) {
+            num_io_pending++;
+        } else if (pending->is_bg_operation) {
+            have_non_io_tasks = true;
+        }
+
+        prev = pending;
+        pending = next;
+    }
+
+    // wait for events
+    eventloop_poll(loop, &ready_events, force_nonblocking, num_io_pending, have_non_io_tasks);
+
+    while (ready_events) {
+        event *ev = ready_events;
+
+        ready_events = ready_events->next;
+        ev->next = NULL;
+
+        // this is the last time the main loop knows about this task
+        // it's the responsibility of the callback to free it
+        ev->callback(ev, ev->callback_data);
+
+        // fprintf(stderr, "[DEBUG] processed and removed an event\n");
+    }
+
+    // two possible conditions that terminate an event loop:
+    // 1. no more pending events
+    // 2. explicit termination was requested
+    return loop->is_running && loop->pending_events;
+}
+
+void eventloop_destroy(eventloop *loop)
+{
+    loop->is_running = false;
+    while (loop->pending_events) {
+        event *ev = loop->pending_events;
+        eventloop_remove(loop, loop->pending_events, NULL);
+        free(ev);
+    }
+
+    // close event handle/FD
+#if defined(_WIN32) || defined(_WIN64)
+    CloseHandle(loop->bg_eventh);
+#else
+    close(loop->bg_eventfd);
+    close(loop->bg_signalfd);
+#endif
+
+    free(loop);
+}

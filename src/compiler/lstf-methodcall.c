@@ -54,6 +54,7 @@ lstf_expression *lstf_methodcall_new(const lstf_sourceref *source_reference,
             lstf_expression_type_methodcall);
 
     expr->call = lstf_codenode_ref(call);
+    lstf_codenode_set_parent(expr->call, expr);
     expr->arguments = arguments;
 
     for (iterator it = ptr_list_iterator_create(expr->arguments); it.has_next; it = iterator_next(it))

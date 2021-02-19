@@ -1,0 +1,5 @@
+let o = { propertyName: false };
+o["property-name"] = true;
+o["propertyName"] = true;
+
+print(o);

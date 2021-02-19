@@ -49,9 +49,9 @@ lstf_statement *lstf_assignment_new(const lstf_sourceref *source_reference,
             lstf_statement_type_assignment);
 
     stmt->lhs = lstf_codenode_ref(lhs);
-    lstf_codenode_set_parent(lhs, stmt);
+    lstf_codenode_set_parent(stmt->lhs, stmt);
     stmt->rhs = lstf_codenode_ref(rhs);
-    lstf_codenode_set_parent(rhs, stmt);
+    lstf_codenode_set_parent(stmt->rhs, stmt);
 
     return (lstf_statement *)stmt;
 }

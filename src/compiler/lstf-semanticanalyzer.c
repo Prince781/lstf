@@ -1,4 +1,5 @@
 #include "lstf-semanticanalyzer.h"
+#include "lstf-ifstatement.h"
 #include "lstf-voidtype.h"
 #include "lstf-lambdaexpression.h"
 #include "lstf-conditionalexpression.h"
@@ -94,6 +95,26 @@ static void
 lstf_semanticanalyzer_pop_current_function(lstf_semanticanalyzer *analyzer)
 {
     ptr_list_remove_last_link(analyzer->current_functions);
+}
+
+static lstf_patterntest *
+lstf_semanticanalyzer_get_current_pattern_test(lstf_semanticanalyzer *analyzer)
+{
+    if (ptr_list_is_empty(analyzer->current_pattern_tests))
+        return NULL;
+    return ptr_list_node_get_data(analyzer->current_pattern_tests->tail, lstf_patterntest *);
+}
+
+static void
+lstf_semanticanalyzer_push_current_pattern_test(lstf_semanticanalyzer *analyzer, lstf_patterntest *stmt)
+{
+    ptr_list_append(analyzer->current_pattern_tests, stmt);
+}
+
+static void
+lstf_semanticanalyzer_pop_current_pattern_test(lstf_semanticanalyzer *analyzer)
+{
+    ptr_list_remove_last_link(analyzer->current_pattern_tests);
 }
 
 static void
@@ -193,7 +214,9 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
 
+    lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
     lstf_codenode_accept_children(expr, visitor);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
 
     // NOTE: we accept that `expr->left->value_type` and/or
     // `expr->right->value_type` could be NULL from this point on, since we
@@ -751,7 +774,7 @@ lstf_semanticanalyzer_visit_file(lstf_codevisitor *visitor, lstf_file *file)
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
 
-    lstf_codenode_accept(file->main_block, visitor);
+    lstf_codenode_accept(file->main_function, visitor);
 
     if (!analyzer->encountered_server_path_assignment) {
         lstf_report_error(&lstf_sourceref_default_from_file(file),
@@ -774,6 +797,27 @@ lstf_semanticanalyzer_visit_function(lstf_codevisitor *visitor, lstf_function *f
     lstf_semanticanalyzer_push_current_function(analyzer, function);
     lstf_codenode_accept_children(function, visitor);
     lstf_semanticanalyzer_pop_current_function(analyzer);
+
+    if (!function->has_return_statement && function->block &&
+            function->return_type->datatype_type != lstf_datatype_type_voidtype) {
+        lstf_report_error(&lstf_codenode_cast(function)->source_reference,
+                "non-void function must return a value");
+        analyzer->num_errors++;
+    }
+}
+
+static void
+lstf_semanticanalyzer_visit_if_statement(lstf_codevisitor *visitor, lstf_ifstatement *stmt)
+{
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    lstf_semanticanalyzer_push_current_expected_type(analyzer, lstf_booleantype_new(NULL));
+    lstf_codenode_accept(stmt->condition, visitor);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
+
+    lstf_codenode_accept(stmt->true_statements, visitor);
+    if (stmt->false_statements)
+        lstf_codenode_accept(stmt->false_statements, visitor);
 }
 
 struct lambdavisitor {
@@ -823,12 +867,14 @@ lstf_semanticanalyzer_visit_lambda_expression(lstf_codevisitor *visitor, lstf_la
         lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
         ptr_list_append(analyzer->expected_return_types, NULL);
     }
+    lstf_semanticanalyzer_push_current_pattern_test(analyzer, NULL);
     if (expr->expression_body)
         lstf_codenode_accept(expr->expression_body, visitor);
     else
         lstf_codenode_accept(expr->statements_body, visitor);
     lstf_semanticanalyzer_pop_current_expected_type(analyzer);
     ptr_list_remove_last_link(analyzer->expected_return_types);
+    lstf_semanticanalyzer_pop_current_pattern_test(analyzer);
 
     lstf_datatype *return_type = NULL;
 
@@ -1148,6 +1194,9 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
     if (mcall->is_awaited) {
         lstf_function *current_function = lstf_semanticanalyzer_get_current_function(analyzer);
 
+        if (current_function == analyzer->file->main_function && !current_function->is_async)
+            current_function->is_async = true;
+
         if (current_function && !current_function->is_async) {
             lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
                     "%s expressions are only allowed within %s functions and in the global scope",
@@ -1156,6 +1205,20 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
             analyzer->num_errors++;
             return;
         }
+
+        if (!call_ft->is_async) {
+            lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
+                    "cannot await synchronous function call");
+            analyzer->num_errors++;
+            return;
+        }
+    } else if (call_ft->is_async) {
+        // if we are calling a function that is not awaited, but is
+        // asynchronous, this is allowed. however, if we're inside a pattern
+        // test then that statement needs to be made asynchronous
+        lstf_patterntest *test = lstf_semanticanalyzer_get_current_pattern_test(analyzer);
+        if (test)
+            test->is_async = true;
     }
 
     lstf_expression_set_value_type(lstf_expression_cast(mcall), call_ft->return_type);
@@ -1277,13 +1340,20 @@ lstf_semanticanalyzer_visit_object_property(lstf_codevisitor *visitor, lstf_obje
 static void
 lstf_semanticanalyzer_visit_pattern_test(lstf_codevisitor *visitor, lstf_patterntest *stmt)
 {
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    ptr_list_append(analyzer->current_pattern_tests, stmt);
     lstf_codenode_accept_children(stmt, visitor);
+    ptr_list_remove_last_link(analyzer->current_pattern_tests);
 }
 
 static void
 lstf_semanticanalyzer_visit_return_statement(lstf_codevisitor *visitor, lstf_returnstatement *stmt)
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    lstf_function *current_function = lstf_semanticanalyzer_get_current_function(analyzer);
+    current_function->has_return_statement = true;
 
     lstf_datatype *expression_rt = NULL;
     if (!ptr_list_is_empty(analyzer->expected_return_types))
@@ -1294,11 +1364,12 @@ lstf_semanticanalyzer_visit_return_statement(lstf_codevisitor *visitor, lstf_ret
             lstf_report_error(&lstf_codenode_cast(stmt)->source_reference,
                     "return statement should not return a value here");
             analyzer->num_errors++;
+            return;
         } else {
             lstf_semanticanalyzer_push_current_expected_type(analyzer, expression_rt);
             lstf_codenode_accept_children(stmt, visitor);
             lstf_semanticanalyzer_pop_current_expected_type(analyzer);
-        }
+        }    
     } else if (expression_rt && expression_rt->datatype_type != lstf_datatype_type_voidtype) {
         char *expression_rt_to_string = lstf_datatype_to_string(expression_rt);
         lstf_report_error(&lstf_codenode_cast(stmt)->source_reference,
@@ -1475,6 +1546,7 @@ static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_expression_statement,
     lstf_semanticanalyzer_visit_file,
     lstf_semanticanalyzer_visit_function,
+    lstf_semanticanalyzer_visit_if_statement,
     NULL /* visit_interface */,
     NULL /* visit_interface_property */,
     lstf_semanticanalyzer_visit_lambda_expression,
@@ -1500,15 +1572,13 @@ lstf_semanticanalyzer *lstf_semanticanalyzer_new(lstf_file *file)
     }
 
     lstf_codevisitor_construct((lstf_codevisitor *)analyzer, &semanticanalyzer_vtable);
-    analyzer->file = file;
-    analyzer->scopes = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
-            (collection_item_unref_func) lstf_codenode_unref);
-    analyzer->expected_expression_types = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
-            (collection_item_unref_func) lstf_codenode_unref);
-    analyzer->expected_return_types = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
-            (collection_item_unref_func) lstf_codenode_unref);
-    analyzer->current_functions = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
-            (collection_item_unref_func) lstf_codenode_unref);
+    analyzer->floating = true;
+    analyzer->file = lstf_file_ref(file);
+    analyzer->scopes = ptr_list_new(lstf_codenode_ref, lstf_codenode_unref);
+    analyzer->expected_expression_types = ptr_list_new(lstf_codenode_ref, lstf_codenode_unref);
+    analyzer->expected_return_types = ptr_list_new(lstf_codenode_ref, lstf_codenode_unref);
+    analyzer->current_functions = ptr_list_new(lstf_codenode_ref, lstf_codenode_unref);
+    analyzer->current_pattern_tests = ptr_list_new(lstf_codenode_ref, lstf_codenode_unref);
 
     return analyzer;
 }
@@ -1518,16 +1588,41 @@ void lstf_semanticanalyzer_analyze(lstf_semanticanalyzer *analyzer)
     lstf_codevisitor_visit_file((lstf_codevisitor *)analyzer, analyzer->file);
 }
 
-void lstf_semanticanalyzer_destroy(lstf_semanticanalyzer *analyzer)
+static void lstf_semanticanalyzer_destroy(lstf_semanticanalyzer *analyzer)
 {
-    analyzer->file = NULL;
+    lstf_file_unref(analyzer->file);
     ptr_list_destroy(analyzer->scopes);
-    analyzer->scopes = NULL;
     ptr_list_destroy(analyzer->expected_expression_types);
-    analyzer->expected_expression_types = NULL;
     ptr_list_destroy(analyzer->expected_return_types);
-    analyzer->expected_return_types = NULL;
     ptr_list_destroy(analyzer->current_functions);
-    analyzer->current_functions = NULL;
+    ptr_list_destroy(analyzer->current_pattern_tests);
     free(analyzer);
+}
+
+lstf_semanticanalyzer *lstf_semanticanalyzer_ref(lstf_semanticanalyzer *analyzer)
+{
+    if (!analyzer)
+        return NULL;
+
+    assert(analyzer->floating || analyzer->refcount > 0);
+
+    if (analyzer->floating) {
+        analyzer->floating = false;
+        analyzer->refcount = 1;
+    } else {
+        analyzer->refcount++;
+    }
+
+    return analyzer;
+}
+
+void lstf_semanticanalyzer_unref(lstf_semanticanalyzer *analyzer)
+{
+    if (!analyzer)
+        return;
+
+    assert(analyzer->floating || analyzer->refcount > 0);
+
+    if (analyzer->floating || --analyzer->refcount == 0)
+        lstf_semanticanalyzer_destroy(analyzer);
 }

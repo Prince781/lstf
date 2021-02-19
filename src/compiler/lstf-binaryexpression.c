@@ -53,7 +53,9 @@ lstf_expression *lstf_binaryexpression_new(const lstf_sourceref *source_referenc
 
     expr->op = op;
     expr->left = lstf_codenode_ref(left);
+    lstf_codenode_set_parent(expr->left, expr);
     expr->right = lstf_codenode_ref(right);
+    lstf_codenode_set_parent(expr->right, expr);
 
     return (lstf_expression *)expr;
 }

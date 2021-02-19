@@ -1,7 +1,8 @@
 #pragma once
 
-#include "compiler/lstf-codenode.h"
-#include "compiler/lstf-datatype.h"
+#include "data-structures/ptr-hashset.h"
+#include "lstf-codenode.h"
+#include "lstf-datatype.h"
 #include "data-structures/ptr-list.h"
 #include "lstf-sourceref.h"
 #include "lstf-variable.h"
@@ -42,6 +43,21 @@ struct _lstf_lambdaexpression {
      */
     lstf_block *statements_body;
 
+    /**
+     * The local variables captured by this lambda.
+     *
+     * hash set of `(lstf_variable *)`
+     */
+    ptr_hashset *captured_locals;
+
+    /**
+     * The unique identifier for this lambda expression
+     */
+    unsigned id;
+
+    /**
+     * Whether this is an asychronous function
+     */
     bool is_async;
 };
 typedef struct _lstf_lambdaexpression lstf_lambdaexpression;
@@ -70,3 +86,6 @@ lstf_lambdaexpression_new_with_statements_body(const lstf_sourceref *source_refe
 
 void lstf_lambdaexpression_add_parameter(lstf_lambdaexpression *expr,
                                          lstf_variable         *parameter);
+
+void lstf_lambdaexpression_add_captured_local(lstf_lambdaexpression *expr,
+                                              lstf_symbol           *var_or_fn);

@@ -13,6 +13,11 @@
 struct _lstf_bc_function;
 typedef struct _lstf_bc_function lstf_bc_function;
 
+typedef struct {
+    bool is_local;
+    int64_t index;
+} lstf_bc_upvalue;
+
 typedef struct _lstf_bc_instruction lstf_bc_instruction;
 struct _lstf_bc_instruction {
     /**
@@ -70,6 +75,19 @@ struct _lstf_bc_instruction {
          * The exit code
          */
         uint8_t exit_code;
+
+        struct {
+            uint8_t num_upvalues;
+            lstf_bc_function *function_ref;
+            lstf_bc_upvalue *upvalues;
+        } closure;
+
+        /**
+         * Used by:
+         * - `lstf_vm_op_upget`
+         * - `lstf_vm_op_upset`
+         */
+        uint8_t upvalue_id;
     };
 };
 
@@ -113,6 +131,14 @@ static inline lstf_bc_instruction lstf_bc_instruction_store_new(int64_t frame_of
     };
 }
 
+static inline lstf_bc_instruction lstf_bc_instruction_pop_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_pop,
+        { 0 }
+    };
+}
+
 
 static inline lstf_bc_instruction lstf_bc_instruction_get_new(void)
 {
@@ -126,6 +152,22 @@ static inline lstf_bc_instruction lstf_bc_instruction_set_new(void)
 {
     return (lstf_bc_instruction) {
         .opcode = lstf_vm_op_set,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_in_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_in,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_match_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_match,
         { 0 }
     };
 }
@@ -147,10 +189,26 @@ static inline lstf_bc_instruction lstf_bc_instruction_call_new(lstf_bc_function 
     };
 }
 
-static inline lstf_bc_instruction lstf_bc_instruction_indirect_new(void)
+static inline lstf_bc_instruction lstf_bc_instruction_calli_new(void)
 {
     return (lstf_bc_instruction) {
-        .opcode = lstf_vm_op_indirect,
+        .opcode = lstf_vm_op_calli,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_schedule_new(lstf_bc_function *function_ref)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_schedule,
+        .function_ref = function_ref
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_schedulei_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_schedulei,
         { 0 }
     };
 }
@@ -163,6 +221,40 @@ static inline lstf_bc_instruction lstf_bc_instruction_return_new(void)
     };
 }
 
+static inline lstf_bc_instruction lstf_bc_instruction_closure_new(lstf_bc_function       *function_ref,
+                                                                  uint8_t                 num_upvalues,
+                                                                  const lstf_bc_upvalue   upvalues[])
+{
+    lstf_bc_upvalue *upvalues_copied = calloc(num_upvalues, sizeof *upvalues_copied);
+
+    if (!upvalues_copied) {
+        perror("failed to create up-values array");
+        abort();
+    }
+
+    memcpy(upvalues_copied, upvalues, sizeof *upvalues_copied);
+
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_closure,
+        .closure = { num_upvalues, function_ref, upvalues_copied }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_upget_new(uint8_t upvalue_id)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_upget,
+        .upvalue_id = upvalue_id
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_upset_new(uint8_t upvalue_id)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_upset,
+        .upvalue_id = upvalue_id
+    };
+}
 
 static inline lstf_bc_instruction lstf_bc_instruction_vmcall_new(lstf_vm_vmcallcode vmcall_code)
 {
@@ -317,6 +409,79 @@ static inline lstf_bc_instruction lstf_bc_instruction_div_new(void)
     };
 }
 
+static inline lstf_bc_instruction lstf_bc_instruction_pow_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_pow,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_mod_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_mod,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_neg_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_neg,
+        { 0 }
+    };
+}
+
+
+static inline lstf_bc_instruction lstf_bc_instruction_and_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_and,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_or_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_or,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_xor_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_xor,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_lshift_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_lshift,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_rshift_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_rshift,
+        { 0 }
+    };
+}
+
+static inline lstf_bc_instruction lstf_bc_instruction_not_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_not,
+        { 0 }
+    };
+}
+
 
 static inline lstf_bc_instruction lstf_bc_instruction_print_new(void)
 {
@@ -347,18 +512,35 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t) + json_node_to_string_length(instruction->json_expression, false) + 1;
     case lstf_vm_op_store:
         return sizeof(uint8_t) + sizeof(instruction->frame_offset);
+    case lstf_vm_op_pop:
+        return sizeof(uint8_t);
     case lstf_vm_op_get:
         return sizeof(uint8_t);
     case lstf_vm_op_set:
+        return sizeof(uint8_t);
+    case lstf_vm_op_in:
+        return sizeof(uint8_t);
+    case lstf_vm_op_match:
         return sizeof(uint8_t);
     case lstf_vm_op_params:
         return sizeof(uint8_t) + sizeof(uint8_t);
     case lstf_vm_op_call:
         return sizeof(uint8_t) + sizeof(uint64_t);
-    case lstf_vm_op_indirect:
+    case lstf_vm_op_calli:
+        return sizeof(uint8_t);
+    case lstf_vm_op_schedule:
+        return sizeof(uint8_t) + sizeof(uint64_t);
+    case lstf_vm_op_schedulei:
         return sizeof(uint8_t);
     case lstf_vm_op_return:
         return sizeof(uint8_t);
+    case lstf_vm_op_closure:
+        return sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint64_t) +
+            instruction->closure.num_upvalues * (sizeof(uint8_t) + sizeof(uint64_t));
+    case lstf_vm_op_upget:
+        return sizeof(uint8_t) + sizeof(uint8_t);
+    case lstf_vm_op_upset:
+        return sizeof(uint8_t) + sizeof(uint8_t);
     case lstf_vm_op_vmcall:
         return sizeof(uint8_t) + sizeof(uint8_t);
     case lstf_vm_op_else:
@@ -390,6 +572,24 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
     case lstf_vm_op_mul:
         return sizeof(uint8_t);
     case lstf_vm_op_div:
+        return sizeof(uint8_t);
+    case lstf_vm_op_pow:
+        return sizeof(uint8_t);
+    case lstf_vm_op_mod:
+        return sizeof(uint8_t);
+    case lstf_vm_op_neg:
+        return sizeof(uint8_t);
+    case lstf_vm_op_and:
+        return sizeof(uint8_t);
+    case lstf_vm_op_or:
+        return sizeof(uint8_t);
+    case lstf_vm_op_xor:
+        return sizeof(uint8_t);
+    case lstf_vm_op_lshift:
+        return sizeof(uint8_t);
+    case lstf_vm_op_rshift:
+        return sizeof(uint8_t);
+    case lstf_vm_op_not:
         return sizeof(uint8_t);
     case lstf_vm_op_print:
         return sizeof(uint8_t);
@@ -410,14 +610,27 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
         break;
     case lstf_vm_op_load_expression:
         json_node_unref(instruction->json_expression);
+        instruction->json_expression = NULL;
         break;
     case lstf_vm_op_store:
+    case lstf_vm_op_pop:
     case lstf_vm_op_get:
     case lstf_vm_op_set:
+    case lstf_vm_op_in:
+    case lstf_vm_op_match:
     case lstf_vm_op_params:
     case lstf_vm_op_call:
-    case lstf_vm_op_indirect:
+    case lstf_vm_op_calli:
+    case lstf_vm_op_schedule:
+    case lstf_vm_op_schedulei:
     case lstf_vm_op_return:
+        break;
+    case lstf_vm_op_closure:
+        free(instruction->closure.upvalues);
+        instruction->closure.upvalues = NULL;
+        break;
+    case lstf_vm_op_upget:
+    case lstf_vm_op_upset:
     case lstf_vm_op_vmcall:
     case lstf_vm_op_else:
     case lstf_vm_op_jump:
@@ -434,6 +647,15 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_sub:
     case lstf_vm_op_mul:
     case lstf_vm_op_div:
+    case lstf_vm_op_pow:
+    case lstf_vm_op_mod:
+    case lstf_vm_op_neg:
+    case lstf_vm_op_and:
+    case lstf_vm_op_or:
+    case lstf_vm_op_xor:
+    case lstf_vm_op_lshift:
+    case lstf_vm_op_rshift:
+    case lstf_vm_op_not:
     case lstf_vm_op_print:
     case lstf_vm_op_exit:
         break;

@@ -47,6 +47,8 @@ else
       '-Wuninitialized',
       '-Wunreachable-code',
       '-Wunused',
+      '-Wunused-function',    # needed by Clang
+      '-Wvla',
     ])
 endif
 

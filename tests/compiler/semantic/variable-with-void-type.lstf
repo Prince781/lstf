@@ -1,0 +1,3 @@
+let x: void | null = null;
+
+print(x);

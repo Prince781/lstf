@@ -1,5 +1,5 @@
 #include "lstf-bc-serialize.h"
-#include "bytecode/lstf-bc-program.h"
+#include "lstf-bc-program.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-hashmap.h"
 #include "io/outputstream.h"
@@ -309,22 +309,50 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
                 if (!outputstream_write_int64(ostream, instruction->frame_offset))
                     return false;
                 break;
+            case lstf_vm_op_pop:
             case lstf_vm_op_get:
             case lstf_vm_op_set:
+            case lstf_vm_op_in:
+            case lstf_vm_op_match:
                 break;
             case lstf_vm_op_params:
                 if (!outputstream_write_byte(ostream, instruction->num_parameters))
                     return false;
                 break;
             case lstf_vm_op_call:
+            case lstf_vm_op_schedule:
                 if (!outputstream_write_uint64(ostream,
                             lstf_bc_program_get_instruction_offset(program,
                                                                    instruction->function_ref,
                                                                    &instruction->function_ref->instructions[0])))
                     return false;
                 break;
-            case lstf_vm_op_indirect:
+            case lstf_vm_op_calli:
+            case lstf_vm_op_schedulei:
             case lstf_vm_op_return:
+                break;
+            case lstf_vm_op_closure:
+                if (!outputstream_write_byte(ostream, instruction->closure.num_upvalues))
+                    return false;
+                if (!outputstream_write_uint64(ostream,
+                            lstf_bc_program_get_instruction_offset(program,
+                                                                   instruction->closure.function_ref,
+                                                                   &instruction->closure.function_ref->instructions[0])))
+                    return false;
+                for (unsigned up_i = 0; up_i < instruction->closure.num_upvalues; up_i++) {
+                    if (!outputstream_write_byte(ostream, instruction->closure.upvalues[up_i].is_local))
+                        return false;
+                    if (!outputstream_write_int64(ostream, instruction->closure.upvalues[up_i].index))
+                        return false;
+                }
+                break;
+            case lstf_vm_op_upget:
+                if (!outputstream_write_byte(ostream, instruction->upvalue_id))
+                    return false;
+                break;
+            case lstf_vm_op_upset:
+                if (!outputstream_write_byte(ostream, instruction->upvalue_id))
+                    return false;
                 break;
             case lstf_vm_op_vmcall:
                 if (!outputstream_write_byte(ostream, instruction->vmcall_code))
@@ -352,6 +380,15 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
             case lstf_vm_op_sub:
             case lstf_vm_op_mul:
             case lstf_vm_op_div:
+            case lstf_vm_op_pow:
+            case lstf_vm_op_mod:
+            case lstf_vm_op_neg:
+            case lstf_vm_op_and:
+            case lstf_vm_op_or:
+            case lstf_vm_op_xor:
+            case lstf_vm_op_lshift:
+            case lstf_vm_op_rshift:
+            case lstf_vm_op_not:
             case lstf_vm_op_print:
                 break;
             case lstf_vm_op_exit:

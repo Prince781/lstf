@@ -1,7 +1,4 @@
-server_path = '/usr/bin/vala-language-server';
-project_files = ['/dev/null'];
-
-let o: {x: number; z: boolean } = { x: 3, y: "hello" };
+let o: { x: number; z: bool } = { x: 3, y: "hello" };
 o.y = 40;
 
 let a = [1, 3.4, {}];

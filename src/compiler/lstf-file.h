@@ -1,11 +1,20 @@
 #pragma once
 
 #include "data-structures/ptr-list.h"
+#include <stdbool.h>
+#include <limits.h>
 
-struct _lstf_block;
-typedef struct _lstf_block lstf_block;
+typedef struct _lstf_function lstf_function;
 
 struct _lstf_file {
+    unsigned refcount : sizeof(unsigned) * CHAR_BIT - 1;
+    bool floating : 1;
+
+    /**
+     * This is initialized later by the scanner.
+     */
+    unsigned total_lines;
+
     /**
      * Absolute path to location of file.
      */
@@ -16,9 +25,7 @@ struct _lstf_file {
      */
     char *content;
 
-    lstf_block *main_block;
-
-    unsigned total_lines;
+    lstf_function *main_function;
 };
 typedef struct _lstf_file lstf_file;
 
@@ -27,7 +34,6 @@ typedef struct _lstf_file lstf_file;
  */
 lstf_file *lstf_file_load(const char *filename);
 
-/**
- * Destroy LSTF script
- */
-void lstf_file_unload(lstf_file *file);
+lstf_file *lstf_file_ref(lstf_file *file);
+
+void lstf_file_unref(lstf_file *file);

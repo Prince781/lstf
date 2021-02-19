@@ -2,6 +2,7 @@
 #include "data-structures/ptr-list.h"
 #include "jsonrpc/jsonrpc-server.h"
 #include "json/json.h"
+#include "io/outputstream.h"
 #include "io/inputstream.h"
 #include <stdio.h>
 #include <string.h>
@@ -46,7 +47,7 @@ int main(int argc, char *argv[]) {
     }
 
     int methods_invoked = 0;
-    jsonrpc_server *server = jsonrpc_server_create(json_file_to_parse, stdout, false);
+    jsonrpc_server *server = jsonrpc_server_create(json_file_to_parse, outputstream_new_from_file(stdout, false));
 
     jsonrpc_server_handle_call(server, "test/methodA", testMethod, &methods_invoked, NULL);
     jsonrpc_server_handle_call(server, "test/methodC", testMethod, &methods_invoked, NULL);

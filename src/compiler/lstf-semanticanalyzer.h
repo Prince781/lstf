@@ -1,10 +1,16 @@
 #include "lstf-datatype.h"
 #include "lstf-codenode.h"
 #include "lstf-codevisitor.h"
+#include <limits.h>
 #include <stdbool.h>
 
 struct _lstf_semanticanalyzer {
     lstf_codevisitor parent_struct;
+    unsigned refcount : sizeof(unsigned) * CHAR_BIT - 1;
+    bool floating : 1;
+
+    unsigned num_errors;
+
     lstf_file *file;
 
     /**
@@ -27,7 +33,10 @@ struct _lstf_semanticanalyzer {
      */
     ptr_list *current_functions;
 
-    unsigned num_errors;
+    /**
+     * Stack of current pattern tests `(lstf_patterntest *)`
+     */
+    ptr_list *current_pattern_tests;
 
     /**
      * Whether ellipsis is allowed in the current context
@@ -41,6 +50,8 @@ typedef struct _lstf_semanticanalyzer lstf_semanticanalyzer;
 
 lstf_semanticanalyzer *lstf_semanticanalyzer_new(lstf_file *file);
 
-void lstf_semanticanalyzer_analyze(lstf_semanticanalyzer *analyzer);
+lstf_semanticanalyzer *lstf_semanticanalyzer_ref(lstf_semanticanalyzer *analyzer);
 
-void lstf_semanticanalyzer_destroy(lstf_semanticanalyzer *analyzer);
+void lstf_semanticanalyzer_unref(lstf_semanticanalyzer *analyzer);
+
+void lstf_semanticanalyzer_analyze(lstf_semanticanalyzer *analyzer);

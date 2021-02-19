@@ -50,6 +50,17 @@ static inline void ptr_hashmap_entry_set_value(ptr_hashmap *map, ptr_hashmap_ent
     entry->value = map->value_ref_func ? map->value_ref_func(value) : value;
 }
 
+/**
+ * Should only be used by subclassing structures.
+ */
+void ptr_hashmap_construct(ptr_hashmap                     *map,
+                           collection_item_hash_func        key_hash_func,
+                           collection_item_ref_func         key_ref_func,
+                           collection_item_unref_func       key_unref_func,
+                           collection_item_equality_func    key_equality_func,
+                           collection_item_ref_func         value_ref_func,
+                           collection_item_unref_func       value_unref_func);
+
 ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
                              collection_item_ref_func       key_ref_func,
                              collection_item_unref_func     key_unref_func,
@@ -84,6 +95,9 @@ ptr_hashmap_num_elements(const ptr_hashmap *map)
  * Cast the result of `iterator_get_item()` to `(ptr_hashmap_entry *)`.
  * The entries are returned in the order they were inserted.
  */
-iterator ptr_hashmap_iterator_create(ptr_hashmap *map);
+static inline iterator ptr_hashmap_iterator_create(ptr_hashmap *map)
+{
+    return ptr_list_iterator_create(map->entries_list);
+}
 
 void ptr_hashmap_destroy(ptr_hashmap *map);

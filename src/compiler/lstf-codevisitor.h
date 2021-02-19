@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-ifstatement.h"
 #include "lstf-conditionalexpression.h"
 #include "lstf-lambdaexpression.h"
 #include "lstf-unaryexpression.h"
@@ -27,6 +28,9 @@
 #include "lstf-file.h"
 #include "lstf-assignment.h"
 #include "lstf-array.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <limits.h>
 
 typedef struct _lstf_codevisitor lstf_codevisitor;
 
@@ -105,6 +109,11 @@ struct _lstf_codevisitor_vtable {
      * Visits a LSTF function
      */
     void (*visit_function)(lstf_codevisitor *code_visitor, lstf_function *function);
+
+    /**
+     * Visits a `if` statement.
+     */
+    void (*visit_if_statement)(lstf_codevisitor *code_visitor, lstf_ifstatement *stmt);
 
     /**
      * Visits an interface
@@ -208,6 +217,8 @@ void lstf_codevisitor_visit_expression_statement(lstf_codevisitor *code_visitor,
 void lstf_codevisitor_visit_file(lstf_codevisitor *code_visitor, lstf_file *file);
 
 void lstf_codevisitor_visit_function(lstf_codevisitor *code_visitor, lstf_function *function);
+
+void lstf_codevisitor_visit_if_statement(lstf_codevisitor *code_visitor, lstf_ifstatement *stmt);
 
 void lstf_codevisitor_visit_interface(lstf_codevisitor *code_visitor, lstf_interface *interface);
 

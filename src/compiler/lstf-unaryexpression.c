@@ -50,6 +50,7 @@ lstf_expression *lstf_unaryexpression_new(const lstf_sourceref *source_reference
 
     expr->op = op;
     expr->inner = lstf_codenode_ref(inner);
+    lstf_codenode_set_parent(expr->inner, expr);
 
     return (lstf_expression *)expr;
 }

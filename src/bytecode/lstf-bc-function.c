@@ -1,4 +1,5 @@
 #include "lstf-bc-function.h"
+#include "data-structures/string-builder.h"
 #include "lstf-bc-instruction.h"
 #include <errno.h>
 #include <stdio.h>
@@ -14,7 +15,9 @@ lstf_bc_function *lstf_bc_function_new(const char *name)
         abort();
     }
 
-    if (!(function->name = strdup(name))) {
+    if (!name) {
+        function->name = string_destroy(string_appendf(string_new(), "[anonymous() @ %p]", (void *)function));
+    } else if (!(function->name = strdup(name))) {
         perror("failed to save function name");
         abort();
     }

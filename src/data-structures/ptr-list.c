@@ -2,6 +2,8 @@
 #include "data-structures/collection.h"
 #include "iterator.h"
 #include <assert.h>
+#include <stdarg.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -17,6 +19,22 @@ ptr_list *ptr_list_new(collection_item_ref_func   data_ref_func,
     }
     list->data_ref_func = data_ref_func;
     list->data_unref_func = data_unref_func;
+
+    return list;
+}
+
+ptr_list *ptr_list_new_with_data(collection_item_ref_func   data_ref_func,
+                                 collection_item_unref_func data_unref_func,
+                                 ...)
+{
+    ptr_list *list = ptr_list_new(data_ref_func, data_unref_func);
+    va_list ap;
+
+    va_start(ap, data_unref_func);
+    void *arg = NULL;
+    while ((arg = va_arg(ap, void *)))
+        ptr_list_append(list, arg);
+    va_end(ap);
 
     return list;
 }
@@ -37,9 +55,36 @@ ptr_list_node *ptr_list_append(ptr_list *list, void *pointer)
     }
 
     list->tail->next = node;
+    list->head->prev = node;
     node->prev = list->tail;
     node->next = list->head;
     list->tail = node;
+
+    list->length++;
+
+    return node;
+}
+
+ptr_list_node *ptr_list_prepend(ptr_list *list, void *pointer)
+{
+    ptr_list_node *node = calloc(1, sizeof *node);
+
+    if (!node) {
+        perror("could not allocate pointer node");
+        abort();
+    }
+    node->data = list->data_ref_func ? list->data_ref_func(pointer) : pointer;
+
+    if (list->head == list->tail && !list->head) {
+        list->head = node;
+        list->tail = node;
+    }
+
+    list->head->prev = node;
+    list->tail->next = node;
+    node->prev = list->tail;
+    node->next = list->head;
+    list->head = node;
 
     list->length++;
 
@@ -54,7 +99,19 @@ ptr_list_node *ptr_list_find(ptr_list                     *list,
             it.has_next;
             it = iterator_next(it))
         if (comparator ? comparator(query, iterator_get_item(it)) : query == iterator_get_item(it))
-            return (ptr_list_node *) it.data[0];
+            return (ptr_list_node *) it.data;
+    return NULL;
+}
+
+ptr_list_node *ptr_list_query(ptr_list *list,
+                              bool    (*tester)(const void *, void *),
+                              void     *user_data)
+{
+    for (iterator it = ptr_list_iterator_create(list);
+            it.has_next;
+            it = iterator_next(it))
+        if (tester(iterator_get_item(it), user_data))
+            return (ptr_list_node *) it.data;
     return NULL;
 }
 
@@ -95,7 +152,7 @@ ptr_list_node *ptr_list_nth_element(ptr_list *list, unsigned long index)
             it.has_next;
             it = iterator_next(it))
         if (it.counter == index)
-            return (ptr_list_node *) it.data[0];
+            return (ptr_list_node *) it.data;
     return NULL;
 }
 
@@ -109,11 +166,14 @@ void *ptr_list_remove_link(ptr_list *list, ptr_list_node *node)
     node->prev->next = node->next;
     node->next->prev = node->prev;
 
-    if (node == list->head) {
+    if (list->head == list->tail && node == list->head) {
         list->head = NULL;
         list->tail = NULL;
-    } else if (node == list->tail) {
-        list->tail = node->prev;
+    } else {
+        if (node == list->head)
+            list->head = node->next;
+        if (node == list->tail)
+            list->tail = node->prev;
     }
 
     node->next = NULL;
@@ -155,40 +215,37 @@ void ptr_list_destroy(ptr_list *list)
 static iterator ptr_list_iterator_iterate(iterator it)
 {
     ptr_list *list = it.collection;
-    ptr_list_node *node = it.data[0];
+    ptr_list_node *node = it.data;
 
     return (iterator) {
-        .data = { node->next, NULL /* unused */ },
+        .data = node->next,
         .is_first = false,
-        .has_next = node->next != NULL && node->next != list->head,
+        .has_next = node->next != list->head,
         .counter = it.counter + 1,
         .collection = list,
         .iterate = it.iterate,
-        .get_item = it.get_item
+        .get_item = it.get_item,
+        .item_maps = { it.item_maps[0] }
     };
 }
 
 static void *ptr_list_iterator_get_item(iterator it)
 {
-    ptr_list_node *node = it.data[0];
+    ptr_list_node *node = it.data;
 
     return node ? node->data : NULL;
-}
-
-bool ptr_list_is_empty(const ptr_list *list)
-{
-    return list->head == NULL;
 }
 
 iterator ptr_list_iterator_create(ptr_list *list)
 {
     return (iterator) {
-        .data = { list->head, NULL /* unused */ },
+        .data = list->head,
         .is_first = true,
         .has_next = list->head != NULL,
         .counter = 0,
         .collection = list,
         .iterate = ptr_list_iterator_iterate,
-        .get_item = ptr_list_iterator_get_item
+        .get_item = ptr_list_iterator_get_item,
+        .item_maps = { NULL }
     };
 }

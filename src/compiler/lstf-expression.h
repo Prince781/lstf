@@ -5,6 +5,7 @@
 #include "lstf-symbol.h"
 #include "lstf-codenode.h"
 #include "lstf-sourceref.h"
+#include "json/json.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,8 +53,7 @@ lstf_expression_type_to_string(lstf_expression_type expr_type)
             return "lambda expression";
     }
 
-    fprintf(stderr, "%s: invalid value `%u' for lstf_expression_type", __func__, expr_type);
-    abort();
+    return "<invalid expression>";
 }
 
 /**
@@ -66,8 +66,6 @@ struct _lstf_expression {
      * The subclass type
      */
     lstf_expression_type expr_type;
-
-    bool is_constant;
 
     /**
      * (weak ref) The symbol this expression refers to
@@ -116,3 +114,15 @@ void lstf_expression_destruct(lstf_codenode *node);
 
 void lstf_expression_set_value_type(lstf_expression *expression, lstf_datatype *data_type)
     __attribute__((nonnull (1, 2)));
+
+/**
+ * Used by the code generator to simplify determining whether to not emit a
+ * final `get` instruction for an expression, or not to produce a temporary
+ * for a reference to a local variable.
+ */
+bool lstf_expression_is_lvalue(lstf_expression *expression);
+
+/**
+ * Converts an expression to a JSON node, only if the expression is constant.
+ */
+json_node *lstf_expression_to_json(lstf_expression *expression);

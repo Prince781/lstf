@@ -97,6 +97,12 @@ lstf_codenode_set_source_reference(void *node, const lstf_sourceref *source_refe
         code_node->source_reference = *source_reference;
 }
 
+static inline lstf_sourceref *
+lstf_codenode_get_source_reference(void *node)
+{
+    return &lstf_codenode_cast(node)->source_reference;
+}
+
 void lstf_codenode_construct(lstf_codenode              *node, 
                              const lstf_codenode_vtable *vtable,
                              lstf_codenode_type          type,

@@ -1,4 +1,6 @@
 #include "lstf-symbolresolver.h"
+#include "lstf-file.h"
+#include "lstf-ifstatement.h"
 #include "lstf-conditionalexpression.h"
 #include "lstf-lambdaexpression.h"
 #include "lstf-binaryexpression.h"
@@ -48,6 +50,7 @@
 #include "lstf-scope.h"
 #include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,13 +101,13 @@ lstf_symbolresolver_resolve_data_type(lstf_symbolresolver *resolver, lstf_dataty
 
     lstf_datatype *replacement_type = NULL;
 
-    if (strcmp(unresolved_type->name, "integer") == 0) {
+    if (strcmp(unresolved_type->name, "int") == 0) {
         replacement_type = lstf_integertype_new(&((lstf_codenode *)data_type)->source_reference);
     } else if (strcmp(unresolved_type->name, "double") == 0) {
         replacement_type = lstf_doubletype_new(&((lstf_codenode *)data_type)->source_reference);
     } else if (strcmp(unresolved_type->name, "number") == 0) {
         replacement_type = lstf_numbertype_new(&((lstf_codenode *)data_type)->source_reference);
-    } else if (strcmp(unresolved_type->name, "boolean") == 0) {
+    } else if (strcmp(unresolved_type->name, "bool") == 0) {
         replacement_type = lstf_booleantype_new(&((lstf_codenode *)data_type)->source_reference);
     } else if (strcmp(unresolved_type->name, "string") == 0) {
         replacement_type = lstf_stringtype_new(&((lstf_codenode *)data_type)->source_reference);
@@ -269,50 +272,40 @@ lstf_symbolresolver_visit_expression_statement(lstf_codevisitor *visitor, lstf_e
 static void
 lstf_symbolresolver_visit_file(lstf_codevisitor *visitor, lstf_file *file)
 {
-    // create built-in variables and functions
-    lstf_sourceref src = lstf_sourceref_default_from_file(file);
-    lstf_symbol *server_path = lstf_variable_new(&src, 
-            "server_path", lstf_stringtype_new(&src), NULL, true);
-    lstf_scope_add_symbol(file->main_block->scope, server_path);
-
-    lstf_symbol *project_files = lstf_variable_new(&src,
-            "project_files", lstf_arraytype_new(&src, lstf_stringtype_new(&src)), NULL, true);
-    lstf_scope_add_symbol(file->main_block->scope, project_files);
-
-    lstf_function *diagnostics = (lstf_function *)
-        lstf_function_new(&src, "diagnostics", lstf_anytype_new(&src), false, true, true);
-    lstf_variable *diagnostics_args[] = {
-        (lstf_variable *)lstf_variable_new(&src, "file", lstf_stringtype_new(&src), NULL, true),
-    };
-
-    for (unsigned i = 0; i < sizeof(diagnostics_args) / sizeof(diagnostics_args[0]); i++)
-        lstf_function_add_parameter(diagnostics, diagnostics_args[i]);
-    lstf_scope_add_symbol(file->main_block->scope, lstf_symbol_cast(diagnostics));
-
-    lstf_codenode_accept(file->main_block, visitor);
+    lstf_codenode_accept(file->main_function, visitor);
 }
 
 static void
 lstf_symbolresolver_visit_function(lstf_codevisitor *visitor, lstf_function *function)
 {
     lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
-    lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
-    lstf_symbol *clashing_sym = NULL;
 
-    if ((clashing_sym = lstf_scope_lookup(current_scope, lstf_symbol_cast(function)->name))) {
-        lstf_report_error(&lstf_codenode_cast(function)->source_reference,
-                "function declaration conflicts with previous declaration");
-        lstf_report_note(&lstf_codenode_cast(clashing_sym)->source_reference,
-                "previous declaration was here");
-        resolver->num_errors++;
-        return;
+    // implicit main function does not exist in any scope
+    if (!ptr_list_is_empty(resolver->scopes)) {
+        lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
+        lstf_symbol *clashing_sym = NULL;
+
+        if ((clashing_sym = lstf_scope_lookup(current_scope, lstf_symbol_cast(function)->name))) {
+            lstf_report_error(&lstf_codenode_cast(function)->source_reference,
+                    "function declaration conflicts with previous declaration");
+            lstf_report_note(&lstf_codenode_cast(clashing_sym)->source_reference,
+                    "previous declaration was here");
+            resolver->num_errors++;
+            return;
+        }
+
+        lstf_scope_add_symbol(current_scope, lstf_symbol_cast(function));
     }
-
-    lstf_scope_add_symbol(current_scope, lstf_symbol_cast(function));
 
     ptr_list_append(resolver->scopes, function->scope);
     lstf_codenode_accept_children(function, visitor);
     ptr_list_remove_last_link(resolver->scopes);
+}
+
+static void
+lstf_symbolresolver_visit_if_statement(lstf_codevisitor *visitor, lstf_ifstatement *stmt)
+{
+    lstf_codenode_accept_children(stmt, visitor);
 }
 
 static void
@@ -362,6 +355,64 @@ lstf_symbolresolver_visit_member_access(lstf_codevisitor *visitor, lstf_memberac
             resolver->num_errors++;
             return;
         }
+
+        // check whether we are accessing a variable as an up-value
+        if (expr->symbol_reference->symbol_type == lstf_symbol_type_variable ||
+                // functions that close over the environment create their own
+                // hidden local variable that contains this closure
+                (lstf_function_cast(expr->symbol_reference) &&
+                    !ptr_hashset_is_empty(lstf_function_cast(expr->symbol_reference)->captured_locals))) {
+            lstf_codenode *symref_parent = lstf_codenode_cast(expr->symbol_reference)->parent_node;
+
+            while (symref_parent &&
+                    !(lstf_function_cast(symref_parent) || lstf_lambdaexpression_cast(symref_parent)))
+                symref_parent = symref_parent->parent_node;
+            assert(symref_parent && "variable must have an owning function or lambda!");
+
+            // get the first function enclosing this reference
+            lstf_codenode *parent = lstf_codenode_cast(current_scope)->parent_node;
+            while (parent && !(lstf_function_cast(parent) || lstf_lambdaexpression_cast(parent)))
+                parent = parent->parent_node;
+
+            // we capture this variable at every level
+            while (parent && parent != symref_parent &&
+                    (lstf_function_cast(parent) || lstf_lambdaexpression_cast(parent))) {
+                lstf_function *current_function = lstf_function_cast(parent);
+                lstf_lambdaexpression *current_lambda = lstf_lambdaexpression_cast(parent);
+                lstf_patterntest *current_patterntest = lstf_patterntest_cast(parent);
+
+                if (current_function) {
+                    lstf_function_add_captured_local(current_function, expr->symbol_reference);
+
+                    const unsigned long num_captures = ptr_hashset_num_elements(current_function->captured_locals);
+                    if (num_captures > LSTF_VM_MAX_CAPTURES) {
+                        lstf_report_error(&lstf_codenode_cast(current_function)->source_reference,
+                                "function `%s' captures too many variables (max is %u)",
+                                lstf_symbol_cast(current_function)->name, LSTF_VM_MAX_CAPTURES);
+                        resolver->num_errors++;
+                        return;
+                    }
+                } else if (current_lambda) {
+                    lstf_lambdaexpression_add_captured_local(current_lambda, expr->symbol_reference);
+
+                    const unsigned long num_captures = ptr_hashset_num_elements(current_lambda->captured_locals);
+                    if (num_captures > LSTF_VM_MAX_CAPTURES) {
+                        lstf_report_error(&lstf_codenode_cast(current_lambda)->source_reference,
+                                "this anonymous function captures too many variables (max is %u)",
+                                LSTF_VM_MAX_CAPTURES);
+                        resolver->num_errors++;
+                        return;
+                    }
+                } else if (current_patterntest) {
+                    // add the captured local, and check LSTF_VM_MAX_CAPTURES later
+                    // because we only care about LSTF_VM_MAX_CAPTURES when this
+                    // pattern test will be outlined
+                    lstf_patterntest_add_captured_local(current_patterntest, expr->symbol_reference);
+                }
+
+                parent = parent->parent_node;
+            }
+        }
     }
 }
 
@@ -386,7 +437,20 @@ lstf_symbolresolver_visit_object_property(lstf_codevisitor *visitor, lstf_object
 static void
 lstf_symbolresolver_visit_pattern_test(lstf_codevisitor *visitor, lstf_patterntest *stmt)
 {
+    lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
+
     lstf_codenode_accept_children(stmt, visitor);
+
+    const unsigned long num_captures = ptr_hashset_num_elements(stmt->captured_locals);
+    if (stmt->is_async && num_captures > LSTF_VM_MAX_CAPTURES) {
+        lstf_report_error(&lstf_codenode_cast(stmt)->source_reference,
+                "this pattern test captures too many variables (max is %u)",
+                LSTF_VM_MAX_CAPTURES);
+        lstf_report_note(&lstf_codenode_cast(stmt)->source_reference,
+                "because this pattern test is asynchronous, it will be converted to an anonymous function");
+        resolver->num_errors++;
+        return;
+    }
 }
 
 static void
@@ -459,10 +523,10 @@ lstf_symbolresolver_visit_variable(lstf_codevisitor *visitor, lstf_variable *var
 
     if (clashing_param) {
         lstf_report_error(&((lstf_codenode *)variable)->source_reference,
-                "duplicate parameter `%s'",
+                "redefinition of `%s'",
                 ((lstf_symbol *)variable)->name);
         lstf_report_note(&((lstf_codenode *)clashing_param)->source_reference,
-                "previous declaration of parameter `%s' was here",
+                "previous definition of `%s' was here",
                 clashing_param->name);
         resolver->num_errors++;
         return;
@@ -486,6 +550,7 @@ static const lstf_codevisitor_vtable symbolresolver_vtable = {
     lstf_symbolresolver_visit_expression_statement,
     lstf_symbolresolver_visit_file,
     lstf_symbolresolver_visit_function,
+    lstf_symbolresolver_visit_if_statement,
     lstf_symbolresolver_visit_interface,
     lstf_symbolresolver_visit_interface_property,
     lstf_symbolresolver_visit_lambda_expression,
@@ -511,22 +576,50 @@ lstf_symbolresolver *lstf_symbolresolver_new(lstf_file *file)
     }
 
     lstf_codevisitor_construct((lstf_codevisitor *)resolver, &symbolresolver_vtable);
-    resolver->file = file;
+    resolver->floating = true;
+    resolver->file = lstf_file_ref(file);
     resolver->scopes = ptr_list_new((collection_item_ref_func) lstf_codenode_ref, 
             (collection_item_unref_func) lstf_codenode_unref);
 
     return resolver;
 }
 
+static void lstf_symbolresolver_destroy(lstf_symbolresolver *resolver)
+{
+    ptr_list_destroy(resolver->scopes);
+    lstf_file_unref(resolver->file);
+    free(resolver);
+}
+
+lstf_symbolresolver *lstf_symbolresolver_ref(lstf_symbolresolver *resolver)
+{
+    if (!resolver)
+        return NULL;
+
+    assert(resolver->floating || resolver->refcount > 0);
+
+    if (resolver->floating) {
+        resolver->floating = false;
+        resolver->refcount = 1;
+    } else {
+        resolver->refcount++;
+    }
+
+    return resolver;
+}
+
+void lstf_symbolresolver_unref(lstf_symbolresolver *resolver)
+{
+    if (!resolver)
+        return;
+
+    assert(resolver->floating || resolver->refcount > 0);
+
+    if (resolver->floating || --resolver->refcount == 0)
+        lstf_symbolresolver_destroy(resolver);
+}
+
 void lstf_symbolresolver_resolve(lstf_symbolresolver *resolver)
 {
     lstf_codevisitor_visit_file((lstf_codevisitor *)resolver, resolver->file);
-}
-
-void lstf_symbolresolver_destroy(lstf_symbolresolver *resolver)
-{
-    ptr_list_destroy(resolver->scopes);
-    resolver->scopes = NULL;
-    resolver->file = NULL;
-    free(resolver);
 }

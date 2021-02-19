@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <assert.h>
 
 struct _iterator;
 typedef struct _iterator iterator;
@@ -17,16 +18,73 @@ typedef iterator (*iterator_iterate_func)(iterator);
  */
 typedef void *(*iterator_get_item_func)(iterator);
 
+/**
+ * Maps the the return value of `iterator_get_item()`.
+ */
+typedef void *(*iterator_item_map_func)(void *);
+
 struct _iterator {
-    void *data[2];          // state data used by the collection
+    /**
+     * State data used by the collection
+     */
+    void *data;
     bool is_first : 1;
     bool has_next : 1;
     unsigned long counter : sizeof(unsigned long)*CHAR_BIT - (1 + 1);
     void *collection;
     iterator_iterate_func iterate;
-    iterator_get_item_func get_item;        // if NULL, then [data] is the item
+
+    /**
+     * If the first item is NULL, then [data] is returned.
+     */
+    iterator_get_item_func get_item;
+
+    /**
+     * A list of functions to compose on the result of `iterator_get_item()`
+     */
+    iterator_item_map_func item_maps[1];
 };
 
-iterator iterator_next(iterator it);
+/**
+ * Advances the iterator
+ */
+static inline iterator iterator_next(iterator it)
+{
+    assert(it.has_next && "next() on ended iterator");
 
-void *iterator_get_item(iterator it);
+    if (!it.iterate) {
+        return (iterator) {
+            .data = NULL,
+            .is_first = false,
+            .has_next = false,
+            .collection = NULL,
+            .iterate = NULL,
+            .get_item = NULL,
+            .item_maps = { NULL }
+        };
+    }
+
+    return it.iterate(it);
+}
+
+/**
+ * Returns the current element pointed to by the iterator.
+ *
+ * Under the hood:
+ * Calls `get_item()` vfunc and then the composition of all the functions in
+ * `item_maps` on that item.
+ */
+static inline void *iterator_get_item(iterator it)
+{
+    assert(it.has_next && "get_item() on ended iterator");
+
+    void *item = it.get_item ? it.get_item(it) : it.data;
+
+    for (size_t i = 0; i < sizeof(it.item_maps) / sizeof(it.item_maps[0]); i++) {
+        if (!it.item_maps[i])
+            break;
+        item = it.item_maps[i](item);
+    }
+
+    return item;
+}

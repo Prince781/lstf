@@ -63,6 +63,7 @@ lstf_expression *lstf_array_new(const lstf_sourceref *source_reference, bool is_
 void lstf_array_add_element(lstf_array *array, lstf_expression *element)
 {
     ptr_list_append(array->expression_list, element);
+    lstf_codenode_set_parent(element, array);
 }
 
 iterator lstf_array_iterator_create(lstf_array *array)

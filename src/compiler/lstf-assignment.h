@@ -21,6 +21,16 @@ struct _lstf_assignment {
 };
 typedef struct _lstf_assignment lstf_assignment;
 
+static inline lstf_assignment *lstf_assignment_cast(void *node)
+{
+    lstf_statement *stmt = lstf_statement_cast(node);
+
+    if (stmt && stmt->stmt_type == lstf_statement_type_assignment)
+        return node;
+
+    return NULL;
+}
+
 lstf_statement *lstf_assignment_new(const lstf_sourceref *source_reference,
                                     lstf_expression      *lhs,
                                     lstf_expression      *rhs)

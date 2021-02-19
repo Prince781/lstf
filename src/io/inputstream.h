@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+typedef struct _outputstream outputstream;
+
 enum _inputstream_type {
     inputstream_type_file,
     inputstream_type_buffer
@@ -17,12 +19,25 @@ struct _inputstream {
     bool floating : 1;
     bool close_or_free_on_destruction : 1;
     union {
-        FILE *file;
-        char *buffer;
-        const char *const_buffer;
+        struct {
+            FILE *file;
+            long last_read_pos;
+
+            /**
+             * Only used if `ostream` is non-NULL.
+             */
+            long last_write_pos;
+        };
+        struct {
+            union {
+                uint8_t *buffer;
+                const uint8_t *static_buffer;
+            };
+            size_t buffer_offset;
+            size_t buffer_size;
+        };
     };
-    size_t buffer_offset;
-    size_t buffer_size;
+    outputstream *ostream;
 };
 typedef struct _inputstream inputstream;
 
@@ -41,9 +56,11 @@ inputstream *inputstream_new_from_buffer(void *buffer, size_t buffer_size, bool 
  */
 inputstream *inputstream_new_from_string(char *str, bool free_on_destroy);
 
-inputstream *inputstream_new_from_const_buffer(const void *buffer, size_t buffer_size);
+inputstream *inputstream_new_from_static_buffer(const void *buffer, size_t buffer_size);
 
-inputstream *inputstream_new_from_const_string(const char *str);
+inputstream *inputstream_new_from_static_string(const char *str);
+
+inputstream *inputstream_new_from_outputstream(outputstream *ostream);
 
 /**
  * Reads a character and advances the underlying stream pointer.
@@ -68,10 +85,10 @@ bool inputstream_read_uint32(inputstream *stream, uint32_t *integer);
 bool inputstream_read_uint64(inputstream *stream, uint64_t *integer);
 
 /**
- * Reads an arbitrary amount of data into `buffer`. Returns `true` if the read
- * was successful, `false` otherwise.
+ * Reads an arbitrary amount of data into `buffer`. Returns the amount of data read.
+ * Returns 0 if there was an error or if the stream is empty.
  */
-bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size);
+size_t inputstream_read(inputstream *stream, void *buffer, size_t buffer_size);
 
 /**
  * Advances the stream by `bytes` bytes. Returns `true` if the operation was
@@ -79,6 +96,9 @@ bool inputstream_read(inputstream *stream, void *buffer, size_t buffer_size);
  */
 bool inputstream_skip(inputstream *stream, size_t bytes);
 
+/**
+ * Checks if the stream is NOT empty.
+ */
 bool inputstream_has_data(inputstream *stream);
 
 char *inputstream_get_name(inputstream *stream);

@@ -31,6 +31,9 @@ static void lstf_interfacetype_destruct(lstf_codenode *node)
 {
     lstf_interfacetype *iface_type = (lstf_interfacetype *)node;
 
+    if (iface_type->anonymous_interface)
+        lstf_codenode_unref(iface_type->anonymous_interface);
+
     lstf_datatype_set_symbol(iface_type, NULL);
     lstf_datatype_destruct(lstf_datatype_cast(node));
 }
@@ -142,6 +145,8 @@ lstf_datatype *lstf_interfacetype_new(const lstf_sourceref *source_reference,
     // keep a weak reference to the interface, since the interface type could
     // be used by a member of the interface
     lstf_datatype_set_symbol(iface_type, interface);
+    if (interface->is_anonymous)
+        iface_type->anonymous_interface = lstf_codenode_ref(interface);
 
     return (lstf_datatype *)iface_type;
 }

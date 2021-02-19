@@ -124,6 +124,10 @@ const char *lstf_token_to_string(lstf_token token)
             return "`extends'";
         case lstf_token_keyword_type:
             return "`type'";
+        case lstf_token_keyword_if:
+            return "`if'";
+        case lstf_token_keyword_else:
+            return "`else'";
         case lstf_token_equivalent:
             return "`<=>'";
         case lstf_token_doublerightarrow:
@@ -151,7 +155,7 @@ const char *lstf_token_to_string(lstf_token token)
     abort();
 }
 
-lstf_scanner *lstf_scanner_create(lstf_file *script)
+lstf_scanner *lstf_scanner_new(lstf_file *script)
 {
     lstf_scanner *scanner = calloc(1, sizeof *scanner);
 
@@ -159,6 +163,9 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
         perror("could not create LSTF scanner");
         abort();
     }
+
+    scanner->floating = true;
+    scanner->script = lstf_file_ref(script);
 
     lstf_sourceloc current = { 1, 1, script->content };
     unsigned token_bufsize = 0;
@@ -473,6 +480,11 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
             current_token = lstf_token_multiply;
             current.pos++;
             current.column++;
+            if (*current.pos == '*') {
+                current_token = lstf_token_exponentiation;
+                current.pos++;
+                current.column++;
+            }
             break;
         case '\0':
             current_token = lstf_token_eof;
@@ -484,6 +496,8 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current.pos++;
                     current.column++;
                 }
+                
+                // keywords
                 if (strncmp(begin.pos, "async", max(sizeof "async" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_async;
                 else if (strncmp(begin.pos, "true", max(sizeof "true" - 1, current.pos - begin.pos)) == 0)
@@ -520,6 +534,10 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
                     current_token = lstf_token_keyword_type;
                 else if (strncmp(begin.pos, "return", max(sizeof "return" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_return;
+                else if (strncmp(begin.pos, "if", max(sizeof "if" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_if;
+                else if (strncmp(begin.pos, "else", max(sizeof "else" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_else;
             } else {
                 lstf_report_error(&lstf_sourceref_at_location(script, begin), "unexpected token `%c'", *current.pos);
                 current.pos++;
@@ -573,6 +591,43 @@ lstf_scanner *lstf_scanner_create(lstf_file *script)
     script->total_lines = current.line;
 
     return scanner;
+}
+
+static void lstf_scanner_destroy(lstf_scanner *scanner)
+{
+    lstf_file_unref(scanner->script);
+    free(scanner->token_beginnings);
+    free(scanner->token_endings);
+    free(scanner->tokens);
+    free(scanner);
+}
+
+lstf_scanner *lstf_scanner_ref(lstf_scanner *scanner)
+{
+    if (!scanner)
+        return NULL;
+
+    assert(scanner->floating || scanner->refcount > 0);
+
+    if (scanner->floating) {
+        scanner->floating = false;
+        scanner->refcount = 1;
+    } else {
+        scanner->refcount++;
+    }
+
+    return scanner;
+}
+
+void lstf_scanner_unref(lstf_scanner *scanner)
+{
+    if (!scanner)
+        return;
+
+    assert(scanner->floating || scanner->refcount > 0);
+
+    if (scanner->floating || --scanner->refcount == 0)
+        lstf_scanner_destroy(scanner);
 }
 
 lstf_token lstf_scanner_next(lstf_scanner *scanner)
@@ -629,16 +684,4 @@ lstf_sourceloc lstf_scanner_get_prev_end_location(const lstf_scanner *scanner)
     assert(scanner->current_token_idx > 0);
 
     return scanner->token_endings[scanner->current_token_idx - 1];
-}
-
-void lstf_scanner_destroy(lstf_scanner *scanner)
-{
-    free(scanner->token_beginnings);
-    scanner->token_beginnings = NULL;
-    free(scanner->token_endings);
-    scanner->token_endings = NULL;
-    free(scanner->tokens);
-    scanner->tokens = NULL;
-    scanner->num_tokens = 0;
-    free(scanner);
 }

@@ -33,13 +33,22 @@ struct _lstf_object {
     lstf_expression parent_struct;
 
     /**
-     * list of `(lstf_object_property *)`
+     * list of `(lstf_objectproperty *)`
      */
     ptr_list *members_list;
 
     bool is_pattern;
 };
 typedef struct _lstf_object lstf_object;
+
+static inline lstf_object *lstf_object_cast(void *node)
+{
+    lstf_expression *expr = lstf_expression_cast(node);
+
+    if (expr && expr->expr_type == lstf_expression_type_object)
+        return node;
+    return NULL;
+}
 
 lstf_object *lstf_object_new(const lstf_sourceref *source_reference, bool is_pattern);
 

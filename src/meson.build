@@ -10,8 +10,8 @@ util = declare_dependency(
 data_structures_lib = static_library('data-structures',
   [
     'data-structures/closure.c',
-    'data-structures/iterator.c',
     'data-structures/ptr-hashmap.c',
+    'data-structures/ptr-hashset.c',
     'data-structures/ptr-list.c',
     'data-structures/string-builder.c'
   ],
@@ -24,6 +24,7 @@ data_structures = declare_dependency(
 
 io_lib = static_library('io',
   [
+    'io/event.c',
     'io/inputstream.c',
     'io/io-common.c',
     'io/outputstream.c'
@@ -32,7 +33,7 @@ io_lib = static_library('io',
 )
 
 io = declare_dependency(
-  dependencies: [data_structures],
+  dependencies: [data_structures, dependency('threads')],
   link_with: [io_lib],
 )
 
@@ -72,6 +73,7 @@ compiler_lib = static_library('compiler',
     'compiler/lstf-block.c',
     'compiler/lstf-booleantype.c',
     'compiler/lstf-conditionalexpression.c',
+    'compiler/lstf-codegenerator.c',
     'compiler/lstf-codenode.c',
     'compiler/lstf-codevisitor.c',
     'compiler/lstf-constant.c',
@@ -87,9 +89,15 @@ compiler_lib = static_library('compiler',
     'compiler/lstf-file.c',
     'compiler/lstf-function.c',
     'compiler/lstf-functiontype.c',
+    'compiler/lstf-ifstatement.c',
     'compiler/lstf-integertype.c',
     'compiler/lstf-interface.c',
     'compiler/lstf-interfacetype.c',
+    'compiler/lstf-ir-basicblock.c',
+    'compiler/lstf-ir-function.c',
+    'compiler/lstf-ir-instruction.c',
+    'compiler/lstf-ir-node.c',
+    'compiler/lstf-ir-program.c',
     'compiler/lstf-lambdaexpression.c',
     'compiler/lstf-literal.c',
     'compiler/lstf-memberaccess.c',
@@ -131,15 +139,17 @@ compiler = declare_dependency(
 vm_lib = static_library('vm',
   [
     'vm/lstf-virtualmachine.c',
+    'vm/lstf-vm-coroutine.c',
     'vm/lstf-vm-loader.c',
     'vm/lstf-vm-program.c',
     'vm/lstf-vm-stack.c',
+    'vm/lstf-vm-value.c',
   ],
   c_args: c_args
 )
 
 vm = declare_dependency(
-  dependencies: [data_structures, util, json, jsonrpc, io],
+  dependencies: [data_structures, util, json, jsonrpc, io, cc.find_library('m', required: false)],
   link_with: [vm_lib]
 )
 

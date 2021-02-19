@@ -12,7 +12,7 @@
 
 json_node *json_parser_parse_string(const char *str)
 {
-    json_parser *parser = json_parser_create_from_stream(inputstream_new_from_const_string(str));
+    json_parser *parser = json_parser_create_from_stream(inputstream_new_from_static_string(str));
 
     if (!parser)
         return NULL;
@@ -231,12 +231,13 @@ iterator json_parser_get_messages(json_parser *parser)
 
     if (!parser_messages_iterator.has_next && parser->scanner->message) {
         return (iterator) {
-            .data = { parser->scanner->message, NULL },
+            .data = parser->scanner->message,
             .is_first = true,
             .has_next = true,
             .collection = NULL,
             .iterate = NULL,
-            .get_item = NULL
+            .get_item = NULL,
+            .item_maps = { NULL }
         };
     }
 

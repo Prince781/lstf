@@ -1,5 +1,5 @@
 #include "lstf-block.h"
-#include "compiler/lstf-scope.h"
+#include "lstf-scope.h"
 #include "lstf-patterntest.h"
 #include "lstf-codenode.h"
 #include "lstf-codevisitor.h"
@@ -39,6 +39,9 @@ static void lstf_block_accept_children(lstf_codenode *code_node, lstf_codevisito
         case lstf_statement_type_return:
             lstf_codevisitor_visit_return_statement(visitor, (lstf_returnstatement *)stmt);
             break;
+        case lstf_statement_type_ifstatement:
+            lstf_codevisitor_visit_if_statement(visitor, (lstf_ifstatement *)stmt);
+            break;
         }
     }
 }
@@ -56,7 +59,7 @@ static const lstf_codenode_vtable block_vtable = {
     lstf_block_destruct
 };
 
-lstf_block *lstf_block_new(void)
+lstf_block *lstf_block_new(const lstf_sourceref *source_reference)
 {
     lstf_block *block = calloc(1, sizeof *block);
 
@@ -68,7 +71,7 @@ lstf_block *lstf_block_new(void)
     lstf_codenode_construct((lstf_codenode *)block, 
             &block_vtable,
             lstf_codenode_type_block,
-            NULL);
+            source_reference);
 
     block->scope = lstf_codenode_ref(lstf_scope_new((lstf_codenode *)block));
     block->statement_list = ptr_list_new((collection_item_ref_func) lstf_codenode_ref, 

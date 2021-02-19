@@ -15,6 +15,17 @@ struct _lstf_scope {
 };
 typedef struct _lstf_scope lstf_scope;
 
+static inline lstf_scope *
+lstf_scope_cast(void *node)
+{
+    lstf_codenode *code_node = lstf_codenode_cast(node);
+
+    if (code_node && code_node->codenode_type == lstf_codenode_type_scope)
+        return node;
+
+    return NULL;
+}
+
 lstf_scope *lstf_scope_new(lstf_codenode *owner);
 
 void lstf_scope_add_symbol(lstf_scope *scope, lstf_symbol *symbol);

@@ -3,6 +3,8 @@
 
 void lstf_codevisitor_construct(lstf_codevisitor *code_visitor, const lstf_codevisitor_vtable *vtable)
 {
+    // codevisitors can be created without malloc(), so we have to initialize
+    // everything here
     code_visitor->vtable = vtable;
 }
 
@@ -94,6 +96,12 @@ void lstf_codevisitor_visit_function(lstf_codevisitor *code_visitor, lstf_functi
 {
     if (code_visitor->vtable->visit_function)
         code_visitor->vtable->visit_function(code_visitor, function);
+}
+
+void lstf_codevisitor_visit_if_statement(lstf_codevisitor *code_visitor, lstf_ifstatement *stmt)
+{
+    if (code_visitor->vtable->visit_if_statement)
+        code_visitor->vtable->visit_if_statement(code_visitor, stmt);
 }
 
 void lstf_codevisitor_visit_interface(lstf_codevisitor *code_visitor, lstf_interface *interface)

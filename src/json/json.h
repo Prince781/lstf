@@ -1,5 +1,6 @@
 #pragma once
 
+#include "data-structures/collection.h"
 #include "data-structures/ptr-hashmap.h"
 #include <assert.h>
 #include <limits.h>
@@ -15,7 +16,8 @@ enum _json_node_type {
     json_node_type_string,
     json_node_type_array,
     json_node_type_object,
-    json_node_type_ellipsis             // non-standard JSON node, used for pattern matching
+    json_node_type_ellipsis,            // non-standard JSON node, used for pattern matching
+    json_node_type_pointer              // non-standard JSON node, used for wrapping raw pointers
 };
 typedef enum _json_node_type json_node_type;
 
@@ -100,9 +102,22 @@ struct _json_object {
 };
 typedef struct _json_object json_object;
 
+struct _json_pointer {
+    json_node parent_struct;
+    void *value;
+    collection_item_ref_func ref_func;
+    collection_item_unref_func unref_func;
+};
+typedef struct _json_pointer json_pointer;
+
 json_node *json_node_ref(json_node *node);
 
 void json_node_unref(json_node *node);
+
+/**
+ * Converts an unescaped JSON representation to an escaped form.
+ */
+char *json_string_escape(const char *unescaped);
 
 /**
  * Returns a new string that is a representation of a JSON node. You must
@@ -172,6 +187,9 @@ json_node *json_object_new(void);
 
 json_node *json_object_pattern_new(void);
 
+/**
+ * Returns `member_value`
+ */
 json_node *json_object_set_member(json_node *node, const char *member_name, json_node *member_value);
 
 /**
@@ -188,3 +206,12 @@ void json_object_pattern_set_is_partial_match(json_node *node);
  * pattern JSON objects and pattern JSON arrays.
  */
 json_node *json_ellipsis_new(void);
+
+/**
+ * Creates a non-standard JSON node wrapping a raw pointer.
+ *
+ * @param value         the raw pointer to wrap
+ * @param ref_func      an operation to grab a reference to the object, or `NULL`
+ * @param unref_func    an operation to release a reference to the object, or `NULL`
+ */
+json_node *json_pointer_new(void *value, collection_item_ref_func ref_func, collection_item_unref_func unref_func);

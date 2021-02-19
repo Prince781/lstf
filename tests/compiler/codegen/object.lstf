@@ -1,0 +1,12 @@
+let obj = {
+    prop1: false,
+    prop2: "hello",
+    prop3: {
+        prop1: false,
+        prop2: 3.14159
+    },
+    prop4: 3.14159,
+    prop5: []
+};
+
+print(obj);

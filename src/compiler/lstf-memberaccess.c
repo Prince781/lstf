@@ -53,6 +53,8 @@ lstf_expression *lstf_memberaccess_new(const lstf_sourceref *source_reference,
             lstf_expression_type_memberaccess);
 
     ma->inner = lstf_codenode_ref(inner);
+    if (inner)
+        lstf_codenode_set_parent(ma->inner, ma);
     ma->member_name = strdup(member_name);
 
     return (lstf_expression *) ma;

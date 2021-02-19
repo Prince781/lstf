@@ -1,4 +1,8 @@
 #include "lstf-parser.h"
+#include "lstf-anytype.h"
+#include "lstf-stringtype.h"
+#include "lstf-voidtype.h"
+#include "lstf-ifstatement.h"
 #include "data-structures/string-builder.h"
 #include "lstf-lambdaexpression.h"
 #include "lstf-variable.h"
@@ -51,7 +55,7 @@
 #include <inttypes.h>
 #include <string.h>
 
-lstf_parser *lstf_parser_create(lstf_file *file)
+lstf_parser *lstf_parser_new(lstf_file *file)
 {
     lstf_parser *parser = calloc(1, sizeof *parser);
 
@@ -60,10 +64,47 @@ lstf_parser *lstf_parser_create(lstf_file *file)
         abort();
     }
 
-    parser->scanner = lstf_scanner_create(file);
-    parser->file = file;
+    parser->scanner = lstf_scanner_ref(lstf_scanner_new(file));
+    parser->file = lstf_file_ref(file);
+    parser->floating = true;
 
     return parser;
+}
+
+static void
+lstf_parser_destroy(lstf_parser *parser)
+{
+    lstf_file_unref(parser->file);
+    lstf_scanner_unref(parser->scanner);
+    free(parser);
+}
+
+lstf_parser *lstf_parser_ref(lstf_parser *parser)
+{
+    if (!parser)
+        return NULL;
+
+    assert(parser->floating || parser->refcount > 0);
+
+    if (parser->floating) {
+        parser->floating = false;
+        parser->refcount = 1;
+    } else {
+        parser->refcount++;
+    }
+
+    return parser;
+}
+
+void lstf_parser_unref(lstf_parser *parser)
+{
+    if (!parser)
+        return;
+
+    assert(parser->floating || parser->refcount > 0);
+
+    if (parser->floating || --parser->refcount == 0)
+        lstf_parser_destroy(parser);
 }
 
 // parser-scanner interfacing
@@ -184,6 +225,12 @@ lstf_parser_parse_primary_expression(lstf_parser *parser, lstf_parsererror **err
 
 static lstf_datatype *
 lstf_parser_parse_simple_data_type(lstf_parser *parser, lstf_parsererror **error);
+
+static lstf_block *
+lstf_parser_parse_embedded_statement(lstf_parser *parser, lstf_parsererror **error);
+
+static lstf_statement *
+lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error);
 
 static ptr_list *
 lstf_parser_parse_statement_list(lstf_parser *parser, bool in_root_scope);
@@ -1274,6 +1321,7 @@ lstf_parser_parse_lambda_expression(lstf_parser *parser, lstf_parsererror **erro
     lstf_block *statements_body = NULL;
     lstf_expression *expression_body = NULL;
 
+    lstf_sourceloc statements_begin = lstf_scanner_get_location(parser->scanner);
     if (lstf_parser_accept_token(parser, lstf_token_openbrace)) {
         ptr_list *statements_list = lstf_parser_parse_statement_list(parser, false);
 
@@ -1282,10 +1330,19 @@ lstf_parser_parse_lambda_expression(lstf_parser *parser, lstf_parsererror **erro
             return NULL;
         }
 
-        statements_body = lstf_block_new();
+        statements_body = lstf_block_new(&(lstf_sourceref) {
+                    parser->file,
+                    statements_begin,
+                    statements_begin
+                });
         for (iterator it = ptr_list_iterator_create(statements_list); it.has_next; it = iterator_next(it))
             lstf_block_add_statement(statements_body, iterator_get_item(it));
         ptr_list_destroy(statements_list);
+        lstf_codenode_set_source_reference(statements_body, &(lstf_sourceref) {
+                    parser->file,
+                    statements_begin,
+                    lstf_scanner_get_prev_end_location(parser->scanner)
+                });
     } else {
         expression_body = lstf_parser_parse_expression(parser, error);
 
@@ -1510,12 +1567,14 @@ lstf_parser_parse_object_data_type(lstf_parser *parser, lstf_parsererror **error
             break;
         }
 
-        ptr_list_append(properties_list, lstf_interfaceproperty_new(&(lstf_sourceref) {
+        ptr_list_append(properties_list,
+                lstf_interfaceproperty_new(&(lstf_sourceref) {
                         parser->file,
                         property_begin,
                         lstf_scanner_get_prev_end_location(parser->scanner)
                     }, property_name, is_optional, property_type, false));
 
+        free(property_name);
         if (!lstf_parser_accept_token(parser, lstf_token_semicolon))
             break;
     }
@@ -1688,9 +1747,10 @@ lstf_parser_parse_simple_data_type(lstf_parser *parser, lstf_parsererror **error
     {
         const unsigned saved_token_idx = parser->scanner->current_token_idx;
         lstf_scanner_next(parser->scanner);
-        if (lstf_parser_accept_token(parser, lstf_token_identifier) &&
+        if (lstf_parser_accept_token(parser, lstf_token_closeparen) ||
+                (lstf_parser_accept_token(parser, lstf_token_identifier) &&
                 (lstf_parser_accept_token(parser, lstf_token_questionmark) || 
-                 lstf_parser_accept_token(parser, lstf_token_colon))) {
+                 lstf_parser_accept_token(parser, lstf_token_colon)))) {
             lstf_scanner_rewind(parser->scanner, saved_token_idx);
             return lstf_parser_parse_function_data_type(parser, error);
         }
@@ -1917,7 +1977,7 @@ lstf_parser_parse_function_declaration(lstf_parser *parser, bool in_class_declar
                 parser->file,
                 begin,
                 end,
-            }, function_name, return_type, in_class_declaration, false, is_async);
+            }, function_name, return_type, in_class_declaration, is_async);
 
     for (iterator params_it = ptr_list_iterator_create(parameters);
             params_it.has_next; params_it = iterator_next(params_it))
@@ -1989,11 +2049,13 @@ lstf_parser_parse_interface_declaration(lstf_parser *parser, lstf_parsererror **
             break;
         }
 
-        ptr_list_append(properties_list, lstf_interfaceproperty_new(&(lstf_sourceref) {
+        ptr_list_append(properties_list,
+                lstf_interfaceproperty_new(&(lstf_sourceref) {
                         parser->file,
                         property_begin,
                         lstf_scanner_get_prev_end_location(parser->scanner)
                     }, property_name, is_optional, property_type, false));
+
         free(property_name);
         if (!lstf_parser_accept_token(parser, lstf_token_semicolon))
             break;
@@ -2323,6 +2385,89 @@ lstf_parser_parse_return_statement(lstf_parser *parser, lstf_parsererror **error
 }
 
 static lstf_statement *
+lstf_parser_parse_if_statement(lstf_parser *parser, lstf_parsererror **error)
+{
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
+
+    if (!lstf_parser_expect_token(parser, lstf_token_keyword_if, error))
+        return NULL;
+
+    if (!lstf_parser_expect_token(parser, lstf_token_openparen, error))
+        return NULL;
+
+    lstf_expression *condition = lstf_parser_parse_expression(parser, error);
+    if (!condition)
+        return NULL;
+
+    if (!lstf_parser_expect_token(parser, lstf_token_closeparen, error)) {
+        lstf_codenode_unref(condition);
+        return NULL;
+    }
+
+    lstf_block *true_statements = lstf_parser_parse_embedded_statement(parser, error);
+    if (!true_statements) {
+        lstf_codenode_unref(condition);
+        return NULL;
+    }
+
+    lstf_block *false_statements = NULL;
+    if (lstf_parser_accept_token(parser, lstf_token_keyword_else)) {
+        // parse optional false branch
+        false_statements = lstf_parser_parse_embedded_statement(parser, error);
+        if (!false_statements) {
+            lstf_codenode_unref(condition);
+            lstf_codenode_unref(true_statements);
+            return NULL;
+        }
+    }
+
+    return lstf_ifstatement_new(&(lstf_sourceref) {
+                parser->file,
+                begin,
+                lstf_scanner_get_prev_end_location(parser->scanner)
+            }, condition, true_statements, false_statements);
+}
+
+static lstf_block *
+lstf_parser_parse_embedded_statement(lstf_parser *parser, lstf_parsererror **error)
+{
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
+    lstf_block *block = lstf_block_new(NULL);
+
+    if (lstf_parser_accept_token(parser, lstf_token_openbrace)) {
+        ptr_list *statements_list = lstf_parser_parse_statement_list(parser, false);
+
+        for (iterator it = ptr_list_iterator_create(statements_list);
+                it.has_next; it = iterator_next(it))
+            lstf_block_add_statement(block, (lstf_statement *)iterator_get_item(it));
+
+        ptr_list_destroy(statements_list);
+        if (!lstf_parser_expect_token(parser, lstf_token_closebrace, error)) {
+            lstf_codenode_unref(block);
+            return NULL;
+        }
+    } else {
+        // parse single statement
+        lstf_statement *statement = lstf_parser_parse_statement(parser, error);
+
+        if (!statement) {
+            lstf_codenode_unref(block);
+            return NULL;
+        }
+
+        lstf_block_add_statement(block, statement);
+    }
+
+    lstf_codenode_set_source_reference(block, &(lstf_sourceref) {
+                parser->file,
+                begin,
+                lstf_scanner_get_prev_end_location(parser->scanner)
+            });
+
+    return block;
+}
+
+static lstf_statement *
 lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error)
 {
     switch (lstf_scanner_current(parser->scanner)) {
@@ -2373,6 +2518,8 @@ lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error)
         return lstf_parser_parse_declaration_statement(parser, error);
     case lstf_token_keyword_return:
         return lstf_parser_parse_return_statement(parser, error);
+    case lstf_token_keyword_if:
+        return lstf_parser_parse_if_statement(parser, error);
     default:
         *error = lstf_parsererror_new(
                 &lstf_sourceref_at_location(parser->file,
@@ -2464,21 +2611,65 @@ lstf_parser_parse_statement_list(lstf_parser *parser, bool in_root_scope)
 }
 
 static void
+lstf_parser_create_builtins(lstf_parser *parser)
+{
+    // create built-in variables and functions
+    lstf_sourceref src = lstf_sourceref_default_from_file(parser->file);
+    lstf_symbol *server_path = lstf_variable_new(&src, 
+            "server_path", lstf_stringtype_new(&src), NULL, true);
+    lstf_function_add_statement(parser->file->main_function,
+            lstf_declaration_new_from_variable(&src, lstf_variable_cast(server_path)));
+
+    lstf_symbol *project_files = lstf_variable_new(&src,
+            "project_files", lstf_arraytype_new(&src, lstf_stringtype_new(&src)), NULL, true);
+    lstf_function_add_statement(parser->file->main_function,
+            lstf_declaration_new_from_variable(&src, lstf_variable_cast(project_files)));
+
+    lstf_function *diagnostics = (lstf_function *)
+        lstf_function_new_for_opcode(&src,
+                "diagnostics",
+                lstf_anytype_new(&src),
+                false,
+                lstf_vm_op_vmcall,
+                lstf_vm_vmcall_diagnostics);
+    lstf_variable *diagnostics_args[] = {
+        (lstf_variable *)lstf_variable_new(&src, "file", lstf_stringtype_new(&src), NULL, true),
+    };
+
+    for (unsigned i = 0; i < sizeof(diagnostics_args) / sizeof(diagnostics_args[0]); i++)
+        lstf_function_add_parameter(diagnostics, diagnostics_args[i]);
+    lstf_function_add_statement(parser->file->main_function,
+            lstf_declaration_new_from_function(&src, diagnostics));
+
+    lstf_function *print = (lstf_function *)
+        lstf_function_new_for_opcode(&src, "print", lstf_voidtype_new(&src), false, lstf_vm_op_print, 0);
+    lstf_variable *print_args[] = {
+        (lstf_variable *)lstf_variable_new(&src, "args", lstf_anytype_new(&src), NULL, true)
+    };
+    for (unsigned i = 0; i < sizeof(print_args) / sizeof(print_args[0]); i++)
+        lstf_function_add_parameter(print, print_args[i]);
+    lstf_function_add_statement(parser->file->main_function,
+            lstf_declaration_new_from_function(&src, print));
+}
+
+static void
 lstf_parser_parse_main_block(lstf_parser *parser)
 {
-    lstf_block_clear_statements(parser->file->main_block);
+    lstf_block_clear_statements(parser->file->main_function->block);
+
+    lstf_parser_create_builtins(parser);
 
     lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     ptr_list *statements = lstf_parser_parse_statement_list(parser, true);
 
     for (iterator it = ptr_list_iterator_create(statements); it.has_next; it = iterator_next(it))
-        lstf_block_add_statement(parser->file->main_block, iterator_get_item(it));
+        lstf_function_add_statement(parser->file->main_function, (lstf_statement *)iterator_get_item(it));
 
-    ((lstf_codenode *)parser->file->main_block)->source_reference = (lstf_sourceref) {
+    lstf_codenode_set_source_reference(parser->file->main_function, &(lstf_sourceref) {
         parser->file,
         begin,
         lstf_scanner_get_location(parser->scanner)
-    };
+    });
 
     ptr_list_destroy(statements);
 }
@@ -2487,11 +2678,4 @@ void lstf_parser_parse(lstf_parser *parser)
 {
     if (parser->scanner->num_errors == 0)
         lstf_parser_parse_main_block(parser);
-}
-
-void lstf_parser_destroy(lstf_parser *parser)
-{
-    lstf_scanner_destroy(parser->scanner);
-    parser->scanner = NULL;
-    free(parser);
 }

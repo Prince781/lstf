@@ -1,5 +1,6 @@
 #pragma once
 
+#include "data-structures/ptr-hashmap.h"
 #include "lstf-vm-value.h"
 #include "lstf-vm-status.h"
 #include "json/json.h"
@@ -7,6 +8,9 @@
 #include <stdint.h>
 
 typedef struct _lstf_vm_stack lstf_vm_stack;
+/**
+ * A stack frame / activation record
+ */
 typedef struct _lstf_vm_stackframe lstf_vm_stackframe;
 
 struct _lstf_vm_stack {
@@ -34,6 +38,22 @@ struct _lstf_vm_stackframe {
     uint64_t offset;
 
     /**
+     * The location to jump back to when this function returns.
+     */
+    uint8_t *return_address;
+
+    /**
+     * Information about the closure we are executing. Can be NULL if the
+     * current function is not a closure.
+     */
+    lstf_vm_closure *closure;
+
+    /**
+     * Maps `(offset: uintptr_t coerced to (void *)) -> (lstf_vm_upvalue *)`
+     */
+    ptr_hashmap *captured_locals;
+
+    /**
      * The number of parameters to pop on return.
      */
     uint8_t parameters;
@@ -45,52 +65,76 @@ void lstf_vm_stack_destroy(lstf_vm_stack *stack);
 
 // --- observes the stack
 
-lstf_vm_status lstf_vm_stack_get_value(lstf_vm_stack  *stack,
-                                       int64_t         fp_offset,
-                                       lstf_vm_value  *value);
+/**
+ * Gets a value from an absolute position on the stack.
+ */
+lstf_vm_status lstf_vm_stack_get_value(lstf_vm_stack *stack,
+                                       uint64_t       stack_offset,
+                                       lstf_vm_value *value);
 
-lstf_vm_status lstf_vm_stack_get_integer(lstf_vm_stack *stack,
-                                         int64_t        fp_offset,
-                                         int64_t       *value);
+lstf_vm_status lstf_vm_stack_get_frame_value(lstf_vm_stack  *stack,
+                                             int64_t         fp_offset,
+                                             lstf_vm_value  *value);
 
-lstf_vm_status lstf_vm_stack_get_double(lstf_vm_stack *stack,
-                                        int64_t        fp_offset,
-                                        double        *value);
+/**
+ * Gets the address of a valid value on the stack, relative to the current
+ * stack frame.
+ */
+lstf_vm_status lstf_vm_stack_get_frame_value_address(lstf_vm_stack  *stack,
+                                                     int64_t         fp_offset,
+                                                     lstf_vm_value **value_ptr);
 
-lstf_vm_status lstf_vm_stack_get_boolean(lstf_vm_stack *stack,
-                                         int64_t        fp_offset,
-                                         bool          *value);
+lstf_vm_status lstf_vm_stack_get_frame_integer(lstf_vm_stack *stack,
+                                               int64_t        fp_offset,
+                                               int64_t       *value);
 
-lstf_vm_status lstf_vm_stack_get_string(lstf_vm_stack *stack,
-                                        int64_t        fp_offset,
-                                        string       **value);
-
-lstf_vm_status lstf_vm_stack_get_code_address(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_get_frame_double(lstf_vm_stack *stack,
                                               int64_t        fp_offset,
-                                              uint8_t      **value);
+                                              double        *value);
 
-lstf_vm_status lstf_vm_stack_get_object(lstf_vm_stack *stack,
-                                        int64_t        fp_offset,
-                                        json_node    **value);
+lstf_vm_status lstf_vm_stack_get_frame_boolean(lstf_vm_stack *stack,
+                                               int64_t        fp_offset,
+                                               bool          *value);
 
-lstf_vm_status lstf_vm_stack_get_array(lstf_vm_stack *stack,
-                                       int64_t        fp_offset,
-                                       json_node    **value);
+lstf_vm_status lstf_vm_stack_get_frame_string(lstf_vm_stack *stack,
+                                              int64_t        fp_offset,
+                                              string       **value);
 
-lstf_vm_status lstf_vm_stack_get_pattern(lstf_vm_stack *stack,
-                                         int64_t        fp_offset,
-                                         json_node    **value);
+lstf_vm_status lstf_vm_stack_get_frame_code_address(lstf_vm_stack *stack,
+                                                    int64_t        fp_offset,
+                                                    uint8_t      **value);
+
+lstf_vm_status lstf_vm_stack_get_frame_object(lstf_vm_stack *stack,
+                                              int64_t        fp_offset,
+                                              json_node    **value);
+
+lstf_vm_status lstf_vm_stack_get_frame_array(lstf_vm_stack *stack,
+                                             int64_t        fp_offset,
+                                             json_node    **value);
+
+lstf_vm_status lstf_vm_stack_get_frame_pattern(lstf_vm_stack *stack,
+                                               int64_t        fp_offset,
+                                               json_node    **value);
 
 // --- writing before the last values on the stack
 
 /**
- * Sets the stack value at `fp_offset` to `*value`. Modifies the value pointed
- * at to no longer take ownership of the underlying reference (if there is
- * one).
+ * Sets the stack value at `stack_offset` to `*value`. Modifies the value
+ * pointed at to no longer take ownership of the underlying reference (if there
+ * is one).
  */
 lstf_vm_status lstf_vm_stack_set_value(lstf_vm_stack *stack,
-                                       int64_t        fp_offset,
+                                       uint64_t       stack_offset,
                                        lstf_vm_value *value);
+
+/**
+ * Sets the stack value at `fp_offset` to `*value`, which is relative to the
+ * current stack frame. Modifies the value pointed at to no longer take
+ * ownership of the underlying reference (if there is one).
+ */
+lstf_vm_status lstf_vm_stack_set_frame_value(lstf_vm_stack *stack,
+                                             int64_t        fp_offset,
+                                             lstf_vm_value *value);
 
 // --- popping the last value off of the stack
 
@@ -115,6 +159,9 @@ lstf_vm_status lstf_vm_stack_pop_string(lstf_vm_stack *stack,
 lstf_vm_status lstf_vm_stack_pop_code_address(lstf_vm_stack *stack,
                                               uint8_t      **value);
 
+lstf_vm_status lstf_vm_stack_pop_closure(lstf_vm_stack    *stack,
+                                         lstf_vm_closure **value);
+
 lstf_vm_status lstf_vm_stack_pop_object(lstf_vm_stack *stack,
                                         json_node    **value);
 
@@ -127,7 +174,8 @@ lstf_vm_status lstf_vm_stack_pop_pattern(lstf_vm_stack *stack,
 // --- pushing a new value onto the stack
 
 /**
- * Pushes a new value onto the stack.
+ * Pushes an unowned (just popped, copied, or just created) value onto the
+ * stack.
  *
  * Modifies the value pointed to by `value` so that it no longer takes
  * ownership of the underlying thing.
@@ -161,6 +209,9 @@ lstf_vm_status lstf_vm_stack_push_array(lstf_vm_stack *stack,
 lstf_vm_status lstf_vm_stack_push_pattern(lstf_vm_stack *stack,
                                           json_node     *value);
 
+lstf_vm_status lstf_vm_stack_push_closure(lstf_vm_stack   *stack,
+                                          lstf_vm_closure *closure);
+
 // --- calling and returning from functions
 
 /**
@@ -188,6 +239,31 @@ lstf_vm_status lstf_vm_stack_frame_set_parameters(lstf_vm_stack *stack,
  * pointers stack.  This is used by the `call` instruction.
  *
  * The `return_address` is saved.
+ *
+ * `closure` is either NULL or points to the closure information for this
+ * function.
  */
-lstf_vm_status lstf_vm_stack_setup_frame(lstf_vm_stack *stack,
-                                         uint8_t       *return_address);
+lstf_vm_status lstf_vm_stack_setup_frame(lstf_vm_stack   *stack,
+                                         uint8_t         *return_address,
+                                         lstf_vm_closure *closure);
+
+// --- up-values
+
+/**
+ * Gets the n'th up-value for the closure of the current stack frame. Will fail
+ * if there is no closure, or if `upvalue_id` is out of range.
+ */
+lstf_vm_status lstf_vm_stack_frame_get_upvalue(lstf_vm_stack    *stack,
+                                               uint8_t           upvalue_id,
+                                               lstf_vm_upvalue **upvalue);
+
+/**
+ * Assuming `upvalue` is a capture of `fp_offset`, this tracks the up-value to
+ * the stack slot so that we know to up-lift it when the current stack frame is
+ * popped.
+ *
+ * `fp_offset` must be > 0
+ */
+lstf_vm_status lstf_vm_stack_frame_track_upvalue(lstf_vm_stack   *stack,
+                                                 int64_t          fp_offset,
+                                                 lstf_vm_upvalue *upvalue);

@@ -4,3 +4,4 @@
 *.a
 *.idx
 .clangd
+compile_commands.json

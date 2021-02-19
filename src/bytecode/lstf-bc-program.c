@@ -60,7 +60,6 @@ void lstf_bc_program_destroy(lstf_bc_program *program)
     free(program->data);
     ptr_hashmap_destroy(program->functions);
     ptr_hashmap_destroy(program->code_offsets);
-    memset(program, 0, sizeof *program);
     free(program);
 }
 
@@ -129,7 +128,7 @@ void lstf_bc_program_add_comment(lstf_bc_program     *program,
     }
 
 
-    ptr_hashmap_insert(program->comments, instruction, strdup(comment));
+    ptr_hashmap_insert(function_comments, instruction, strdup(comment));
 }
 
 char *lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string)

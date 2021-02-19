@@ -31,9 +31,20 @@ static inline lstf_block *lstf_block_cast(void *node)
     return NULL;
 }
 
-lstf_block *lstf_block_new(void);
+/**
+ * Creates a new block, which may be parsed from a series of statements
+ * contained within `{ ... }`, or it could just be a single statement not
+ * contained in braces.
+ */
+lstf_block *lstf_block_new(const lstf_sourceref *source_reference);
 
+/**
+ * Adds a statement to a block
+ */
 void lstf_block_add_statement(lstf_block *block, lstf_statement *stmt)
     __attribute__((nonnull (1, 2)));
 
+/**
+ * Removes all statements from a block
+ */
 void lstf_block_clear_statements(lstf_block *block);

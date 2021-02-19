@@ -60,6 +60,8 @@ lstf_symbol *lstf_variable_new(const lstf_sourceref *source_reference,
 
     lstf_variable_set_variable_type(variable, variable_type);
     variable->initializer = lstf_codenode_ref(initializer);
+    if (variable->initializer)
+        lstf_codenode_set_parent(variable->initializer, variable);
 
     return (lstf_symbol *)variable;
 }

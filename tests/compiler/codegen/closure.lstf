@@ -1,0 +1,57 @@
+// this entire program should print:
+// 
+// outer
+// doughnut
+// bagel
+// doughnut
+// bagel
+
+let x = "global";
+fun outer(): void {                         // fun @outer() {
+    let x = "outer";                        //      %0 = alloc                      [%sp = 1]
+                                            //      %1 = constant "outer"           [%sp = 2]
+                                            //      store %1, *%0                   [%sp = 1]
+    fun inner(): void {                     //
+        print(x);                           //
+    }                                       //
+    inner();                                //      %2 = alloc                      [%sp = 2]
+                                            //      %3 = closure @inner, *%0        [%sp = 3]
+                                            //      store %3, *%2                   [%sp = 2]
+                                            //      calli %2                        [%sp =
+                                            //      return
+}                                           // }
+                                            //
+                                            // fun @inner() {
+                                            //      %0 = getupvalue 0
+                                            //      print %0
+                                            //      return
+                                            // }
+
+// should print 'outer'
+outer();
+
+fun makeClosure(value: string): () => void {
+    fun closure(): void {
+        print(value);
+    }
+    return closure;     // the closure is created at this point, closing over `value`
+}
+
+let doughnut = makeClosure("doughnut");
+let bagel = makeClosure("bagel");
+
+// should print:
+// doughnut
+// bagel
+doughnut();
+bagel();
+
+fun executeClosure(closure: () => void): void {
+    closure();
+}
+
+// should print:
+// doughnut
+// bagel
+executeClosure(doughnut);
+executeClosure(bagel);

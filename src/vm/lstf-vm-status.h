@@ -7,7 +7,8 @@ enum _lstf_vm_status {
     lstf_vm_status_continue,
 
     /**
-     * The `exit` instruction was executed, and the VM should stop.
+     * The `exit` instruction was executed or all coroutines finished, and the
+     * VM should stop.
      */
     lstf_vm_status_exited,
     
@@ -89,13 +90,19 @@ enum _lstf_vm_status {
      * The use of the `params` instruction was invalid in the current context.
      */
     lstf_vm_status_invalid_params,
+
+    /**
+     * The requested up-value was invalid, either because the current function
+     * is not a closure, or because the up-value ID was out-of-range.
+     */
+    lstf_vm_status_invalid_upvalue
 };
 typedef enum _lstf_vm_status lstf_vm_status;
 
 static inline const char *
 lstf_vm_status_to_string(lstf_vm_status status)
 {
-    const char *exception_message = "no exception";
+    const char *exception_message = "continue";
 
     switch (status) {
         case lstf_vm_status_continue:
@@ -143,6 +150,9 @@ lstf_vm_status_to_string(lstf_vm_status status)
             break;
         case lstf_vm_status_invalid_params:
             exception_message = "invalid use of params instruction";
+            break;
+        case lstf_vm_status_invalid_upvalue:
+            exception_message = "invalid up-value";
             break;
     }
 

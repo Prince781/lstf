@@ -19,6 +19,7 @@ static void string_free(string *sb)
 
 string *string_ref(string *sb)
 {
+    assert(sb->floating || sb->refcount > 0);
     if (sb) {
         if (sb->floating) {
             sb->floating = false;

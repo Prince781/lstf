@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include "lstf-common.h"
 
 enum _outputstream_type {
     outputstream_type_file,
@@ -18,10 +19,12 @@ struct _outputstream {
     bool close_or_free_on_destruction : 1;
     union {
         FILE *file;
-        uint8_t *buffer;
+        struct {
+            uint8_t *buffer;
+            size_t buffer_offset;
+            size_t buffer_size;
+        };
     };
-    size_t buffer_offset;
-    size_t buffer_size;
 };
 typedef struct _outputstream outputstream;
 
@@ -46,5 +49,8 @@ size_t outputstream_write_uint32(outputstream *stream, uint32_t integer);
 size_t outputstream_write_string(outputstream *stream, const char *str);
 
 size_t outputstream_write(outputstream *stream, void *buffer, size_t buffer_size);
+
+size_t outputstream_printf(outputstream *stream, const char *format, ...)
+    __attribute__((format(printf, 2, 3)));
 
 char *outputstream_get_name(outputstream *stream);

@@ -2,18 +2,19 @@
 
 #include "data-structures/collection.h"
 #include "iterator.h"
+#include "lstf-common.h"
 #include <stdbool.h>
 
-struct _ptr_list_node {
-    void *data;
-    struct _ptr_list_node *next;
-    struct _ptr_list_node *prev;
-};
 /**
  * NOTE: to retrieve the value, any (ptr_list_node *) can be cast to 
  * (data_type **), where data_type is the type of the data held in the list.
  */
 typedef struct _ptr_list_node ptr_list_node;
+struct _ptr_list_node {
+    void *data;
+    ptr_list_node *next;
+    ptr_list_node *prev;
+};
 
 struct _ptr_list {
     ptr_list_node *head;
@@ -28,16 +29,30 @@ typedef struct _ptr_list ptr_list;
  * @node: a (ptr_list_node *)
  * @type: the pointer data type held in the list
  */
-#define ptr_list_node_get_data(node, type) (*(type *)node)
+#define ptr_list_node_get_data(node, type) ((type) node->data)
 
 ptr_list *ptr_list_new(collection_item_ref_func   data_ref_func,
                        collection_item_unref_func data_unref_func);
 
+/**
+ * Creates a new ptr_list with N initial elements, deliminated by a NULL pointer.
+ */
+ptr_list *ptr_list_new_with_data(collection_item_ref_func   data_ref_func,
+                                 collection_item_unref_func data_unref_func,
+                                 ...)
+    __attribute__((sentinel));
+
 ptr_list_node *ptr_list_append(ptr_list *list, void *pointer);
+
+ptr_list_node *ptr_list_prepend(ptr_list *list, void *pointer);
 
 ptr_list_node *ptr_list_find(ptr_list                     *list,
                              const void                   *query,
                              collection_item_equality_func comparator);
+
+ptr_list_node *ptr_list_query(ptr_list *list,
+                              bool    (*tester)(const void *, void *),
+                              void     *user_data);
 
 ptr_list_node *ptr_list_replace(ptr_list                     *list,
                                 const void                   *query,
@@ -46,6 +61,8 @@ ptr_list_node *ptr_list_replace(ptr_list                     *list,
 
 /**
  * Returns `-1` if [query] is not found.
+ *
+ * `comparator` can be NULL
  */
 long ptr_list_index_of(ptr_list                     *list,
                        const void                   *query,
@@ -63,7 +80,10 @@ void ptr_list_clear(ptr_list *list);
 
 void ptr_list_destroy(ptr_list *list);
 
-bool ptr_list_is_empty(const ptr_list *list);
+static inline bool ptr_list_is_empty(const ptr_list *list)
+{
+    return list->head == NULL;
+}
 
 /**
  * Calling `iterator_get_item()` on the returned iterator gets the element

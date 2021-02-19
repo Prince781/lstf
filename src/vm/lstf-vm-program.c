@@ -34,8 +34,6 @@ static void lstf_vm_program_destroy(lstf_vm_program *prog)
     ptr_hashmap_destroy(prog->debug_symbols);
     free(prog->data);
     free(prog->code);
-    memset(prog, 0, sizeof *prog);
-
     free(prog);
 }
 

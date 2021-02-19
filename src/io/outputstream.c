@@ -3,8 +3,10 @@
 #include "util.h"
 #include "data-structures/string-builder.h"
 #include <assert.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,21 +82,21 @@ outputstream *outputstream_new_from_path(const char *path, const char *mode)
 
 outputstream *outputstream_new_from_buffer(void *buffer, size_t initial_size, bool free_on_destroy)
 {
+    bool created_buffer = false;
+
     if (!buffer) {
         buffer = malloc(initial_size ? initial_size : (initial_size = BUFSIZ));
-        if (!buffer) {
-            fprintf(stderr, "%s: failed to allocate %zu B buffer: %s\n",
-                    __func__, initial_size, strerror(errno));
-            abort();
-        }
+        if (!buffer)
+            return NULL;
+        created_buffer = true;
     }
 
     outputstream *stream = calloc(1, sizeof *stream);
 
     if (!stream) {
-        fprintf(stderr, "%s: failed to allocate outputstream struct: %s\n",
-                __func__, strerror(errno));
-        abort();
+        if (free_on_destroy || created_buffer)
+            free(buffer);
+        return NULL;
     }
 
     stream->stream_type = outputstream_type_buffer;
@@ -113,6 +115,13 @@ static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_
 
     if (stream->buffer_size >= minimum_new_size)
         return true;
+
+    if (!stream->close_or_free_on_destruction) {
+        // we can't call realloc() on a buffer we don't own.
+        // this means that we've exhausted the buffer space.
+        errno = ENOBUFS;
+        return false;
+    }
 
     if (minimum_new_size < stream->buffer_size * 2)
         minimum_new_size = stream->buffer_size * 2;
@@ -174,7 +183,7 @@ size_t outputstream_write_string(outputstream *stream, const char *str)
     size_t string_length = strlen(str);
     switch (stream->stream_type) {
     case outputstream_type_file:
-        return fwrite(str, string_length, 1, stream->file);
+        return fwrite(str, 1, string_length, stream->file);
     case outputstream_type_buffer:
         if (stream->buffer_offset + string_length >= stream->buffer_size) {
             if (!outputstream_resize_buffer(stream, stream->buffer_offset + string_length))
@@ -206,6 +215,22 @@ size_t outputstream_write(outputstream *stream, void *buffer, size_t buffer_size
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
+}
+
+size_t outputstream_printf(outputstream *stream, const char *format, ...)
+{
+    string *temp_string = string_new();
+    size_t amt_written = 0;
+    va_list args;
+
+    va_start(args, format);
+    string_append_va(temp_string, format, args);
+    va_end(args);
+
+    amt_written = outputstream_write_string(stream, temp_string->buffer);
+
+    string_unref(temp_string);
+    return amt_written;
 }
 
 char *outputstream_get_name(outputstream *stream)

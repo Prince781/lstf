@@ -1,7 +1,4 @@
-server_path = '/usr/bin/vala-language-server';
-project_files = ['/dev/null'];
-
-fun select(fds: integer[], execute: (fd: integer) => integer): integer {
+fun select(fds: int[], execute: (fd: int) => int): int {
     return execute(fds[0]);
 }
 

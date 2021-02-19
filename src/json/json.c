@@ -46,6 +46,7 @@ static json_node *json_internal_convert_node_to_pattern(json_node *node)
         case json_node_type_double:
         case json_node_type_ellipsis:
         case json_node_type_null:
+        case json_node_type_pointer:
             break;
     }
 
@@ -106,7 +107,7 @@ void json_node_unref(json_node *node)
         json_node_destroy(node);
 }
 
-static char *json_string_escape(const char *unescaped)
+char *json_string_escape(const char *unescaped)
 {
     string *escaped_sb = string_new();
 
@@ -231,6 +232,9 @@ static void json_node_build_string(json_node *root_node,
     }   break;
     case json_node_type_ellipsis:
         string_appendf(sb, "...");
+        break;
+    case json_node_type_pointer:
+        string_appendf(sb, "[Pointer @ 0x%p]", ((json_pointer *)node)->value);
         break;
     default:
         fprintf(stderr, "%s: invalid node type `%u'", __func__, node->node_type);
@@ -430,6 +434,8 @@ bool json_node_equal_to(json_node *node1, json_node *node2)
     }
     case json_node_type_ellipsis:
         return true;
+    case json_node_type_pointer:
+        return ((json_pointer *)node1)->value == ((json_pointer *)node2)->value;
     }
 
     fprintf(stderr, "%s: unexpected JSON node type `%u'\n", __func__, node1->node_type);
@@ -494,6 +500,10 @@ static json_node *json_node_internal_copy(json_node *node, ptr_hashmap *seen_nod
         break;
     case json_node_type_ellipsis:
         new_node = json_ellipsis_new();
+        json_node_internal_copy_flags(node, new_node);
+        break;
+    case json_node_type_pointer:
+        new_node = json_pointer_new(((json_pointer *)node)->value, ((json_pointer *)node)->ref_func, ((json_pointer *)node)->unref_func);
         json_node_internal_copy_flags(node, new_node);
         break;
     }
@@ -655,11 +665,7 @@ char *json_member_name_canonicalize(const char *member_name)
         // convert from kebab-case or snake_case
         if (*p == '-' || *p == '_') {
             ++p;
-            if (!isalnum(*p)) {
-                free(cmember_name);
-                return NULL;
-            }
-            cmember_name[cmember_length++] = toupper(*p);
+            cmember_name[cmember_length++] = isalnum(*p) ? toupper(*p) : *p;
         } else {
             cmember_name[cmember_length++] = *p;
         }
@@ -710,19 +716,13 @@ json_node *json_object_set_member(json_node *node, const char *member_name, json
     json_object *object = (json_object *)node;
     char *canonicalized_member_name = json_member_name_canonicalize(member_name);
 
-    if (!canonicalized_member_name) {
-        fprintf(stderr, "%s: WARNING: could not canonicalize JSON property name `%s'\n",
-                __func__, member_name);
-        return NULL;
-    }
-
     if (!member_value->is_pattern && node->is_pattern)
         member_value = json_internal_convert_node_to_pattern(member_value);
 
     ptr_hashmap_insert(object->members, canonicalized_member_name, member_value);
     free(canonicalized_member_name);
 
-    return node;
+    return member_value;
 }
 
 json_node *json_object_get_member(json_node *node, const char *member_name)
@@ -731,11 +731,6 @@ json_node *json_object_get_member(json_node *node, const char *member_name)
 
     json_object *object = (json_object *)node;
     char *canonicalized_member_name = json_member_name_canonicalize(member_name);
-
-    if (!canonicalized_member_name) {
-        fprintf(stderr, "%s: WARNING: could not canonicalize JSON property name `%s'\n", __func__, member_name);
-        return NULL;
-    }
 
     ptr_hashmap_entry *entry = ptr_hashmap_get(object->members, canonicalized_member_name);
     free(canonicalized_member_name);
@@ -765,4 +760,22 @@ json_node *json_ellipsis_new(void)
     node->is_pattern = true;
 
     return node;
+}
+
+json_node *json_pointer_new(void *value, collection_item_ref_func ref_func, collection_item_unref_func unref_func)
+{
+    json_pointer *node = calloc(1, sizeof *node);
+
+    if (!node) {
+        perror("failed to create JSON pointer wrapper node");
+        abort();
+    }
+
+    ((json_node *)node)->node_type = json_node_type_pointer;
+    ((json_node *)node)->floating = true;
+    node->value = ref_func ? ref_func(value) : value;
+    node->ref_func = ref_func;
+    node->unref_func = unref_func;
+
+    return (json_node *)node;
 }

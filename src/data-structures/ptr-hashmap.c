@@ -9,7 +9,7 @@
 
 struct _ptr_hashmap_bucket {
     ptr_list_node *node_in_buckets_list;
-    ptr_list *entries_list;
+    ptr_list *entries_list;                 // ptr_list<ptr_hashmap_entry *>
 };
 
 static void ptr_hashmap_bucket_destroy(ptr_hashmap_bucket *bucket)
@@ -25,22 +25,14 @@ static bool ptr_hashmap_default_key_equality_func(const void *pointer1, const vo
     return pointer1 == pointer2;
 }
 
-ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
-                             collection_item_ref_func       key_ref_func,
-                             collection_item_unref_func     key_unref_func,
-                             collection_item_equality_func  key_equality_func,
-                             collection_item_ref_func       value_ref_func,
-                             collection_item_unref_func     value_unref_func)
+void ptr_hashmap_construct(ptr_hashmap                     *map,
+                           collection_item_hash_func        key_hash_func,
+                           collection_item_ref_func         key_ref_func,
+                           collection_item_unref_func       key_unref_func,
+                           collection_item_equality_func    key_equality_func,
+                           collection_item_ref_func         value_ref_func,
+                           collection_item_unref_func       value_unref_func)
 {
-    assert(key_hash_func && "key_hash_func required at the very least");
-
-    ptr_hashmap *map = calloc(1, sizeof *map);
-
-    if (!map) {
-        perror("failed to allocate new hash map");
-        abort();
-    }
-
     map->buckets_list = ptr_list_new(NULL, (collection_item_unref_func) ptr_hashmap_bucket_destroy);
     map->num_bucket_places = 8;
     map->buckets = calloc(map->num_bucket_places, sizeof *map->buckets);
@@ -58,6 +50,29 @@ ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
     map->key_equality_func = key_equality_func ? key_equality_func : ptr_hashmap_default_key_equality_func;
     map->value_ref_func = value_ref_func;
     map->value_unref_func = value_unref_func;
+}
+
+ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
+                             collection_item_ref_func       key_ref_func,
+                             collection_item_unref_func     key_unref_func,
+                             collection_item_equality_func  key_equality_func,
+                             collection_item_ref_func       value_ref_func,
+                             collection_item_unref_func     value_unref_func)
+{
+    assert(key_hash_func && "key_hash_func required at the very least");
+
+    ptr_hashmap *map = calloc(1, sizeof *map);
+
+    if (!map) {
+        perror("failed to allocate new hash map");
+        abort();
+    }
+    
+    ptr_hashmap_construct(map,
+            key_hash_func,
+            key_ref_func, key_unref_func,
+            key_equality_func,
+            value_ref_func, value_unref_func);
 
     return map;
 }
@@ -204,20 +219,20 @@ void ptr_hashmap_delete(ptr_hashmap *map, void *key)
     ptr_hashmap_bucket *bucket = NULL;
 
     if ((bucket = map->buckets[hash])) {
-        ptr_list_node *entry_node = NULL;
+        for (iterator entry_it = ptr_list_iterator_create(bucket->entries_list);
+                entry_it.has_next; entry_it = iterator_next(entry_it)) {
+            ptr_hashmap_entry *entry = iterator_get_item(entry_it);
 
-        if ((entry_node = ptr_list_find(bucket->entries_list, key, map->key_equality_func)))
-            ptr_hashmap_delete_entry(map, ptr_list_node_get_data(entry_node, ptr_hashmap_entry *), hash);
+            if (map->key_equality_func(entry->key, key)) {
+                ptr_hashmap_delete_entry(map, entry, hash);
+                break;
+            }
+        }
     }
 }
 
 bool ptr_hashmap_is_empty(const ptr_hashmap *map) {
     return ptr_list_is_empty(map->entries_list);
-}
-
-iterator ptr_hashmap_iterator_create(ptr_hashmap *map)
-{
-    return ptr_list_iterator_create(map->entries_list);
 }
 
 void ptr_hashmap_destroy(ptr_hashmap *map)

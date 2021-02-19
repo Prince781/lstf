@@ -1,0 +1,19 @@
+let x = 1;
+let y = 2;
+
+if (x > y) {
+    print('x is greater than y');
+} else if (x < y) {
+    print('x is less than y');
+} else {
+    print('x is equal to y');
+}
+
+print('midpoint');
+
+if (x < y)
+    print('x is less than y');
+else if (x > y)
+    print('x is greater than y');
+else
+    print('x is equal to y');

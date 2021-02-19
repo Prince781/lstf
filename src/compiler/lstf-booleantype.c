@@ -54,7 +54,7 @@ static lstf_datatype *lstf_booleantype_copy(lstf_datatype *self)
 static char *lstf_booleantype_to_string(lstf_datatype *self)
 {
     (void) self;
-    return strdup("boolean");
+    return strdup("bool");
 }
 
 static const lstf_datatype_vtable booleantype_datatype_vtable = {

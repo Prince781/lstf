@@ -55,8 +55,11 @@ lstf_expression *lstf_conditionalexpression_new(const lstf_sourceref *source_ref
             lstf_expression_type_conditional);
 
     expr->condition = lstf_codenode_ref(condition);
+    lstf_codenode_set_parent(expr->condition, expr);
     expr->true_expression = lstf_codenode_ref(true_expression);
+    lstf_codenode_set_parent(expr->true_expression, expr);
     expr->false_expression = lstf_codenode_ref(false_expression);
+    lstf_codenode_set_parent(expr->false_expression, expr);
 
     return (lstf_expression *)expr;
 }

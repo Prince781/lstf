@@ -1,6 +1,7 @@
 subdir('bytecode')
 subdir('compiler')
 subdir('data-structures')
+subdir('io')
 subdir('json')
 subdir('jsonrpc')
 subdir('vm')

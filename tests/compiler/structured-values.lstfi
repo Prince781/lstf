@@ -1,0 +1,21 @@
+load []
+load frame(0)
+load 1
+append
+load frame(0)
+load 2
+append
+load frame (0)
+load 3
+append
+load frame (0)
+load 4
+append
+
+
+load {}
+load frame(0)
+load "hi"
+load "a"
+set
+pop

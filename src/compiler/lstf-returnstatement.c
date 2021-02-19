@@ -45,7 +45,10 @@ lstf_statement *lstf_returnstatement_new(const lstf_sourceref *source_reference,
             source_reference,
             lstf_statement_type_return);
 
-    return_stmt->expression = lstf_codenode_ref(expression);
+    if (expression) {
+        return_stmt->expression = lstf_codenode_ref(expression);
+        lstf_codenode_set_parent(return_stmt->expression, return_stmt);
+    }
 
     return (lstf_statement *)return_stmt;
 }

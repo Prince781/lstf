@@ -1,0 +1,15 @@
+let list = [
+    [1, 2, 3],
+    {
+        obj: {
+            hello: true,
+            goodbye: false
+        },
+    },
+    3,
+    4,
+    "string",
+    3.14159
+];
+
+print(list);

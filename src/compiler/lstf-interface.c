@@ -73,9 +73,9 @@ lstf_interfaceproperty *lstf_interfaceproperty_new(const lstf_sourceref *source_
 void lstf_interfaceproperty_set_property_type(lstf_interfaceproperty *property,
                                               lstf_datatype          *property_type)
 {
-    if (((lstf_codenode *)property_type)->parent_node)
-        property_type = lstf_datatype_copy(property_type);
     lstf_codenode_unref(property->property_type);
+    if (lstf_codenode_cast(property_type)->parent_node)
+        property_type = lstf_datatype_copy(property_type);
     property->property_type = lstf_codenode_ref(property_type);
     lstf_codenode_set_parent(property_type, property);
 }

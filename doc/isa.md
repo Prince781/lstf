@@ -79,7 +79,7 @@
 	2. sets up a new stack frame
 	3. pushes the current instruction pointer onto the stack
 	4. jumps to the function pointer
-- `indirect` - indirectly calls a function
+- `calli` - indirectly calls a function
 	1. pops an offset relative to the beginning of the `code` section from the current stack frame
 	2. sets up a new stack frame
 	3. pushes the current instruction pointer onto the stack (as the return address)

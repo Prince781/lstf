@@ -9,10 +9,9 @@ int main(int argc, char *argv[])
         return 1;
     }
     lstf_file *script = lstf_file_load(argv[1]);
-    lstf_parser *parser = lstf_parser_create(script);
+    lstf_parser *parser = lstf_parser_new(script);
     lstf_parser_parse(parser);
     unsigned num_errors = parser->num_errors;
-    lstf_parser_destroy(parser);
-    lstf_file_unload(script);
+    lstf_parser_unref(parser);
     return num_errors ? 1 : 0;
 }

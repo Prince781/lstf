@@ -6,8 +6,11 @@
 #include "lstf-variable.h"
 #include "lstf-block.h"
 #include "lstf-codenode.h"
+#include "lstf-function.h"
+#include "lstf-voidtype.h"
 #include "data-structures/collection.h"
 #include "data-structures/ptr-list.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +44,7 @@ lstf_file *lstf_file_load(const char *filename)
             char *new_content = realloc(content, buffer_size);
             if (!new_content) {
                 perror("could not expand file buffer");
-                exit(EXIT_FAILURE);
+                abort();
             }
             content = new_content;
         }
@@ -62,17 +65,49 @@ lstf_file *lstf_file_load(const char *filename)
 
     fclose(stream);
 
-    file->main_block = lstf_codenode_ref(lstf_block_new());
+    file->main_function = lstf_codenode_ref(lstf_function_new(&(lstf_sourceref) {
+                    file,
+                    (lstf_sourceloc) { 1, 1, file->content },
+                    (lstf_sourceloc) { 1, 1, file->content }
+                }, "main", lstf_voidtype_new(NULL), false, true));
+
+    file->floating = true;
 
     return file;
 }
 
-void lstf_file_unload(lstf_file *file)
+static void lstf_file_free(lstf_file *file)
 {
     free(file->content);
-    file->content = NULL;
     free(file->filename);
-    file->filename = NULL;
-    lstf_codenode_unref(file->main_block);
+    lstf_codenode_unref(file->main_function);
     free(file);
+}
+
+lstf_file *lstf_file_ref(lstf_file *file)
+{
+    if (!file)
+        return NULL;
+
+    assert(file->floating || file->refcount > 0);
+
+    if (file->floating) {
+        file->floating = false;
+        file->refcount = 1;
+    } else {
+        file->refcount++;
+    }
+
+    return file;
+}
+
+void lstf_file_unref(lstf_file *file)
+{
+    if (!file)
+        return;
+
+    assert(file->floating || file->refcount > 0);
+
+    if (file->floating || --file->refcount == 0)
+        lstf_file_free(file);
 }

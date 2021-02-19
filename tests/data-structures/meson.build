@@ -24,3 +24,12 @@ ptr_hashmap_large = executable('ptr-hashmap-large',
 )
 
 test('ptr-hashmap-large', ptr_hashmap_large, suite: 'data-structures')
+
+intset = executable('intset',
+  dependencies: [data_structures, util],
+  c_args: c_args,
+  sources: ['intset.c'],
+  install: false,
+)
+
+test('intset', intset, suite: 'data-structures')

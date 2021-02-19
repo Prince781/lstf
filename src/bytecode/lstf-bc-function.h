@@ -6,7 +6,7 @@
 
 struct _lstf_bc_function {
     /**
-     * The name of the function.
+     * The name of the function. Can be NULL.
      */
     char *name;
 
@@ -20,6 +20,11 @@ struct _lstf_bc_function {
 };
 typedef struct _lstf_bc_function lstf_bc_function;
 
+/**
+ * Creates a new bytecode function.
+ *
+ * @param name can be NULL
+ */
 lstf_bc_function *lstf_bc_function_new(const char *name);
 
 void lstf_bc_function_destroy(lstf_bc_function *function);

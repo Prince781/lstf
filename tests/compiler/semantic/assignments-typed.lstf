@@ -1,17 +1,14 @@
-server_path = '/usr/bin/vala-language-server';
-project_files = ['/dev/null'];
-
 let o: object = {1: 1};
-let i: integer = 1;
+let i: int = 1;
 let d: double = 3.1415;
 let s: string = "hello";
 let a: array = [1, 2, 3, 4, 5, {}];
-let b: boolean = true;
+let b: bool = true;
 
-type thing = integer | boolean;
+type thing = int | bool;
 
 fun do_nothing(x: thing[]): void {
     return;
 }
 
-let f: (x: integer[]) => void = do_nothing;
+let f: (x: int[]) => void = do_nothing;
