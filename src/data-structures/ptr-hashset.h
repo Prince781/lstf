@@ -36,6 +36,11 @@ void *ptr_hashset_get_last_element(const ptr_hashset *set);
 
 bool ptr_hashset_contains(const ptr_hashset *set, const void *element);
 
+static inline void ptr_hashset_clear(ptr_hashset *set)
+{
+    ptr_hashmap_clear((ptr_hashmap *)set);
+}
+
 bool ptr_hashset_is_empty(const ptr_hashset *set);
 
 static inline unsigned long

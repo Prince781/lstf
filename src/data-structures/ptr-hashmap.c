@@ -78,7 +78,7 @@ ptr_hashmap *ptr_hashmap_new(collection_item_hash_func      key_hash_func,
 }
 
 static void
-ptr_hashmap_resize_to_length(ptr_hashmap *map, unsigned new_num_bucket_places)
+ptr_hashmap_resize_to_length(ptr_hashmap *map, unsigned long new_num_bucket_places)
 {
     ptr_list *new_buckets_list = 
         ptr_list_new(map->buckets_list->data_ref_func, map->buckets_list->data_unref_func);
@@ -200,10 +200,9 @@ ptr_hashmap_delete_entry(ptr_hashmap *map, ptr_hashmap_entry *entry, unsigned ha
     entry->node_in_entries_list = NULL;
 
     if (ptr_list_is_empty(bucket->entries_list)) {
-        ptr_list_destroy(bucket->entries_list);
-        bucket->entries_list = NULL;
         ptr_list_remove_link(map->buckets_list, bucket->node_in_buckets_list);
         bucket = NULL;
+        map->buckets[hash] = NULL;
     }
 
     if (map->key_unref_func)
@@ -231,7 +230,17 @@ void ptr_hashmap_delete(ptr_hashmap *map, void *key)
     }
 }
 
-bool ptr_hashmap_is_empty(const ptr_hashmap *map) {
+void ptr_hashmap_clear(ptr_hashmap *map)
+{
+    while (!ptr_hashmap_is_empty(map)) {
+        ptr_hashmap_entry *entry = ptr_list_node_get_data(map->entries_list->head, ptr_hashmap_entry *);
+        unsigned hash = map->key_hash_func(entry->key) % map->num_bucket_places;
+        ptr_hashmap_delete_entry(map, entry, hash);
+    }
+}
+
+bool ptr_hashmap_is_empty(const ptr_hashmap *map)
+{
     return ptr_list_is_empty(map->entries_list);
 }
 
@@ -241,10 +250,10 @@ void ptr_hashmap_destroy(ptr_hashmap *map)
             buckets_it.has_next; 
             buckets_it = iterator_next(buckets_it)) {
         ptr_hashmap_bucket *bucket = iterator_get_item(buckets_it);
-        for (iterator entries_it = ptr_list_iterator_create(bucket->entries_list);
-                entries_it.has_next;
-                entries_it = iterator_next(entries_it)) {
-            ptr_hashmap_entry *entry = iterator_get_item(entries_it);
+        for (iterator entry_it = ptr_list_iterator_create(bucket->entries_list);
+                entry_it.has_next;
+                entry_it = iterator_next(entry_it)) {
+            ptr_hashmap_entry *entry = iterator_get_item(entry_it);
             if (map->key_unref_func)
                 map->key_unref_func(entry->key);
             if (map->value_unref_func)

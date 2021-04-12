@@ -1,16 +1,20 @@
 #include "compiler/lstf-codegenerator.h"
+#include "compiler/lstf-ir-program.h"
 #include "compiler/lstf-parser.h"
 #include "compiler/lstf-report.h"
 #include "compiler/lstf-scanner.h"
 #include "compiler/lstf-file.h"
 #include "compiler/lstf-symbolresolver.h"
 #include "compiler/lstf-semanticanalyzer.h"
+#include "data-structures/string-builder.h"
 #include "io/inputstream.h"
 #include "vm/lstf-virtualmachine.h"
 #include "vm/lstf-vm-loader.h"
 #include "vm/lstf-vm-program.h"
 #include "vm/lstf-vm-status.h"
+#include "util.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <errno.h>
 #include <stdint.h>
@@ -26,6 +30,7 @@ struct lstf_options {
     bool disable_codegen;
     bool disable_interpreter;
     bool no_lsp;
+    bool emit_ir;
     char *input_filename;
     char *output_filename;
 };
@@ -58,7 +63,8 @@ static const char usage_message[] =
 "                           and `interpreter`. Used for debugging and testing.\n"
 "  -no-lsp                  Don't error out when language server protocol\n"
 "                           requirements aren't met. (Use this when you just want\n"
-"                           to test the VM without any LSP features.)";
+"                           to test the VM without any LSP features.)\n"
+"  -emit-ir                 Output IR to a Graphviz file in the current directory.";
 
 static void
 print_usage(const char *progname)
@@ -166,6 +172,19 @@ compile_lstf_script(const char *progname, const char *filename, struct lstf_opti
     if ((num_errors = generator->num_errors) > 0)
         goto cleanup;
 
+    if (options.emit_ir) {
+        char bn_buffer[FILENAME_MAX - 4];
+        strncpy(bn_buffer, options.input_filename, sizeof bn_buffer - 1);
+        char *bname = basename(bn_buffer);
+        char *suffix_ptr = suffix(bname);
+        assert(suffix_ptr && "basename must have file extension");
+        *(suffix_ptr - 1) = '\0';
+
+        char ir_filename[FILENAME_MAX];
+        snprintf(ir_filename, sizeof ir_filename, "%s.dot", bname);
+        if (!lstf_ir_program_visualize(generator->ir, ir_filename))
+            lstf_report_error(NULL, "failed to emit IR to %s: %s", ir_filename, strerror(errno));
+    }
     if (!(bytecode = lstf_codegenerator_get_compiled_bytecode(generator, &bytecode_length)))
         goto cleanup;
 
@@ -280,6 +299,8 @@ int main(int argc, char *argv[])
             }
         } else if (strcmp(option, "-no-lsp") == 0) {
             options.no_lsp = true;
+        } else if (strcmp(option, "-emit-ir") == 0) {
+            options.emit_ir = true;
         } else if (strncmp(option, "-a", sizeof "-a" - 1) == 0) {
             // TODO: assembly
             is_assembling = true;

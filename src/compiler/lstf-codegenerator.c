@@ -1613,8 +1613,6 @@ void lstf_codegenerator_compile(lstf_codegenerator *generator)
     if (generator->num_errors == 0)
         generator->num_errors = lstf_ir_program_analyze(generator->ir);
 
-    lstf_ir_program_visualize(generator->ir, "ir.dot");
-
     if (generator->num_errors == 0) {
         lstf_bc_program *bc = lstf_ir_program_assemble(generator->ir);
         bool status = lstf_bc_program_serialize_to_binary(bc, generator->output);

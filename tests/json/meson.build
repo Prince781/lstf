@@ -48,3 +48,30 @@ json_parser_memory = executable('json-parser-memory',
 )
 
 test('parse-in-memory-string', json_parser_memory, suite: 'json')
+
+json_pattern_array = executable('json-pattern-array',
+  dependencies: [json],
+  c_args: c_args,
+  sources: ['json-pattern-array.c'],
+  install: false,
+)
+
+test('pattern-array', json_pattern_array, suite: 'json')
+
+json_pattern_object = executable('json-pattern-object',
+  dependencies: [json],
+  c_args: c_args,
+  sources: ['json-pattern-object.c'],
+  install: false,
+)
+
+test('pattern-object', json_pattern_object, suite: 'json')
+
+json_pattern_optional_member = executable('json-pattern-optional-member',
+  dependencies: [json],
+  c_args: c_args,
+  sources: ['json-pattern-optional-member.c'],
+  install: false,
+)
+
+test('pattern-optional-member', json_pattern_optional_member, suite: 'json')

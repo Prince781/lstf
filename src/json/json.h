@@ -23,7 +23,7 @@ typedef enum _json_node_type json_node_type;
 
 struct _json_node {
     json_node_type node_type;
-    unsigned long refcount : sizeof(unsigned long)*CHAR_BIT - (1 + 1 + 1 + 1 + 1);
+    unsigned long refcount : sizeof(unsigned long)*CHAR_BIT - (1 + 1 + 1 + 1);
 
     /**
      * Whether this node is a floating reference.
@@ -52,12 +52,6 @@ struct _json_node {
      * ```
      */
     bool optional : 1;
-
-    /**
-     * Whether this node should be partially matched to the other node, instead
-     * of fully matched. Only meaningful for JSON objects.
-     */
-    bool partial_match : 1;
 };
 typedef struct _json_node json_node;
 
@@ -145,6 +139,15 @@ bool json_node_equal_to(json_node *node1, json_node *node2);
  */
 json_node *json_node_copy(json_node *node);
 
+/**
+ * Returns `node` with optional set to true
+ */
+static inline json_node *json_node_set_optional(json_node *node)
+{
+    node->optional = true;
+    return node;
+}
+
 // --- creating new JSON nodes
 
 json_node *json_null_new(void);
@@ -196,8 +199,6 @@ json_node *json_object_set_member(json_node *node, const char *member_name, json
  * Returns the member with `member_name`, or NULL if no such member exists.
  */
 json_node *json_object_get_member(json_node *node, const char *member_name);
-
-void json_object_pattern_set_is_partial_match(json_node *node);
 
 /**
  * Creates a non-standard JSON ellipsis node, used for pattern matching in

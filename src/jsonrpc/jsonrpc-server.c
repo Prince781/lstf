@@ -81,12 +81,12 @@ void jsonrpc_server_handle_notification(jsonrpc_server              *server,
 }
 
 /**
- * Returns number of bytes written, or < 0 if an error occurred.
+ * Returns number of bytes written, or 0 if an error occurred.
  */
-static int jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
+static size_t jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
 {
     char *serialized_message = json_node_to_string(node, false);
-    int ret = outputstream_printf(server->output_stream, "%s\n", serialized_message);
+    size_t ret = outputstream_printf(server->output_stream, "%s\n", serialized_message);
     free(serialized_message);
     return ret;
 }
@@ -257,7 +257,7 @@ json_node *jsonrpc_server_call_remote(jsonrpc_server *server,
     json_object_set_member(request_object, "id", request_id = json_integer_new(server->next_request_id));
     server->next_request_id++;
 
-    if (jsonrpc_server_send_message(server, request_object) < 0) {
+    if (jsonrpc_server_send_message(server, request_object) == 0) {
         fprintf(stderr, "%s: output error: %s\n", __func__, strerror(errno));
         json_node_unref(request_object);
         return NULL;
@@ -311,7 +311,7 @@ void jsonrpc_server_notify_remote(jsonrpc_server *server,
     json_object_set_member(request_object, "method", json_string_new(method));
     json_object_set_member(request_object, "params", parameters);
 
-    if (jsonrpc_server_send_message(server, request_object) < 0)
+    if (jsonrpc_server_send_message(server, request_object) == 0)
         fprintf(stderr, "%s: output error: %s\n", __func__, strerror(errno));
 
     json_node_unref(request_object);

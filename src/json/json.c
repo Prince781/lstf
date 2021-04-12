@@ -1,10 +1,12 @@
 #include "json.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-hashmap.h"
+#include "data-structures/ptr-hashset.h"
 #include "data-structures/ptr-list.h"
 #include "data-structures/string-builder.h"
 #include "util.h"
 #include <ctype.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -297,25 +299,96 @@ bool json_node_equal_to(json_node *node1, json_node *node2)
         node1->visiting = true;
         node2->visiting = true;
         if (node1->is_pattern || node2->is_pattern) {
-            unsigned i = 0;
-            unsigned j = 0;
+            // ptr_hashset<unsigned>
+            ptr_hashset *states1 = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
+            // ptr_hashset<unsigned>
+            ptr_hashset *states2 = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
 
-            while (i < array1->num_elements && j < array2->num_elements) {
-                if (json_node_equal_to(array1->elements[i], array2->elements[j])) {
-                    i++;
-                    j++;
-                    continue;
+            // initial states are 0
+            if (array1->num_elements > 0)
+                ptr_hashset_insert(states1, 0);
+            if (array2->num_elements > 0)
+                ptr_hashset_insert(states2, 0);
+
+            ptr_hashset *states1_new = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
+            ptr_hashset *states2_new = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
+
+            bool reached_end1 = false;
+            bool reached_end2 = false;
+
+            // the comparison should terminate in a finite number of steps or
+            // when both states are empty
+            for (unsigned steps = 0;
+                    steps < (array1->num_elements > array2->num_elements ? array1->num_elements : array2->num_elements) &&
+                    !ptr_hashset_is_empty(states1) && !ptr_hashset_is_empty(states2) &&
+                    !(reached_end1 && reached_end2);
+                    steps++) {
+                reached_end1 = false;
+                reached_end2 = false;
+                for (iterator i_it = ptr_hashset_iterator_create(states1); i_it.has_next; i_it = iterator_next(i_it)) {
+                    unsigned i = (uintptr_t)iterator_get_item(i_it);
+
+                    // if at an ellipsis node, we can transition to two
+                    // states simultaneously: at indices i and i + 1
+                    if (array1->elements[i]->node_type == json_node_type_ellipsis) {
+                        ptr_hashset_insert(states1_new, (void *)(uintptr_t)i);
+                        if (i + 1 < array1->num_elements)
+                            ptr_hashset_insert(states1_new, (void *)(uintptr_t)(i + 1));
+                        else
+                            reached_end1 = true;
+                    }
+
+                    for (iterator j_it = ptr_hashset_iterator_create(states2); j_it.has_next; j_it = iterator_next(j_it)) {
+                        unsigned j = (uintptr_t)iterator_get_item(j_it);
+
+                        // if at an ellipsis node, we can transition to two
+                        // states simultaneously: at indices j and j + 1
+                        if (array2->elements[j]->node_type == json_node_type_ellipsis) {
+                            ptr_hashset_insert(states2_new, (void *)(uintptr_t)j);
+                            if (j + 1 < array2->num_elements)
+                                ptr_hashset_insert(states2_new, (void *)(uintptr_t)(j + 1));
+                            else
+                                reached_end2 = true;
+                        }
+
+                        // if there is a match, we can also transition indices
+                        // for each array: i -> (i + 1) and j -> (j + 1)
+                        if (json_node_equal_to(array1->elements[i], array2->elements[j]) ||
+                                array1->elements[i]->node_type == json_node_type_ellipsis ||
+                                array2->elements[j]->node_type == json_node_type_ellipsis) {
+                            if (i + 1 < array1->num_elements)
+                                ptr_hashset_insert(states1_new, (void *)(uintptr_t)(i + 1));
+                            else
+                                reached_end1 = true;
+                            if (j + 1 < array2->num_elements)
+                                ptr_hashset_insert(states2_new, (void *)(uintptr_t)(j + 1));
+                            else
+                                reached_end2 = true;
+                        }
+                    }
                 }
 
-                if (array1->elements[i]->node_type == json_node_type_ellipsis)
-                    j++;
-                else if (array2->elements[j]->node_type == json_node_type_ellipsis)
-                    i++;
+                ptr_hashset_clear(states1);
+                ptr_hashset_clear(states2);
 
-                node1->visiting = false;
-                node2->visiting = false;
-                return false;
+                for (iterator it = ptr_hashset_iterator_create(states1_new); it.has_next; it = iterator_next(it))
+                    ptr_hashset_insert(states1, iterator_get_item(it));
+
+                for (iterator it = ptr_hashset_iterator_create(states2_new); it.has_next; it = iterator_next(it))
+                    ptr_hashset_insert(states2, iterator_get_item(it));
+
+                ptr_hashset_clear(states1_new);
+                ptr_hashset_clear(states2_new);
             }
+            ptr_hashset_destroy(states1_new);
+            ptr_hashset_destroy(states2_new);
+
+            ptr_hashset_destroy(states1);
+            ptr_hashset_destroy(states2);
+
+            node1->visiting = false;
+            node2->visiting = false;
+            return reached_end1 && reached_end2;
         } else {
             if (array1->num_elements != array2->num_elements) {
                 node1->visiting = false;
@@ -344,33 +417,30 @@ bool json_node_equal_to(json_node *node1, json_node *node2)
         node1->visiting = true;
         node2->visiting = true;
         if (node1->is_pattern || node2->is_pattern) {
-            if (!node1->partial_match && !node2->partial_match &&
-                    ptr_hashmap_num_elements(object1->members) != ptr_hashmap_num_elements(object2->members)) {
-                node1->visiting = false;
-                node2->visiting = false;
-                return false;
-            }
-
-            for (iterator it = ptr_hashmap_iterator_create(object1->members);
-                    it.has_next;
-                    it = iterator_next(it)) {
-                const ptr_hashmap_entry *entry = iterator_get_item(it);
-                const char *member_name = entry->key;
-                json_node *member_value = entry->value;
-                json_node *object2_member_value = json_object_get_member(node2, member_name);
+            // check whether each member in object1 is present in object2
+            for (iterator object1_member_it = ptr_hashmap_iterator_create(object1->members);
+                    object1_member_it.has_next;
+                    object1_member_it = iterator_next(object1_member_it)) {
+                const ptr_hashmap_entry *object1_member_entry = iterator_get_item(object1_member_it);
+                const char *object1_member_name = object1_member_entry->key;
+                json_node *object1_member_value = object1_member_entry->value;
+                json_node *object2_member_value = json_object_get_member(node2, object1_member_name);
 
                 if (!object2_member_value) {
-                    if (member_value->optional || node2->partial_match)
+                    // if the object1 member is optional or object2 is a
+                    // pattern, then we don't care that it isn't seen in the
+                    // other object
+                    if (object1_member_value->optional || node2->is_pattern)
                         continue;
                     node1->visiting = false;
                     node2->visiting = false;
                     return false;
                 }
 
-                if (json_node_equal_to(member_value, object2_member_value))
+                if (json_node_equal_to(object1_member_value, object2_member_value))
                     continue;
 
-                if (member_value->node_type == json_node_type_ellipsis ||
+                if (object1_member_value->node_type == json_node_type_ellipsis ||
                         object2_member_value->node_type == json_node_type_ellipsis)
                     continue;
 
@@ -380,23 +450,25 @@ bool json_node_equal_to(json_node *node1, json_node *node2)
             }
 
             // check whether there are any required fields in object 2 that
-            // aren't present in object 1
-            if (node2->partial_match && !node1->partial_match &&
-                    ptr_hashmap_num_elements(object1->members) != ptr_hashmap_num_elements(object2->members)) {
-                for (iterator it = ptr_hashmap_iterator_create(object2->members);
-                        it.has_next;
-                        it = iterator_next(it)) {
-                    const ptr_hashmap_entry *entry = iterator_get_item(it);
-                    const char *member_name = entry->key;
-                    json_node *member_value = entry->value;
+            // aren't present in object 1 (assuming object 1 is not a pattern)
+            if (!node1->is_pattern) {
+                for (iterator object2_member_it = ptr_hashmap_iterator_create(object2->members);
+                        object2_member_it.has_next;
+                        object2_member_it = iterator_next(object2_member_it)) {
+                    const ptr_hashmap_entry *object2_member_entry = iterator_get_item(object2_member_it);
+                    const char *object2_member_name = object2_member_entry->key;
+                    json_node *object2_member_value = object2_member_entry->value;
 
-                    if (!json_object_get_member(node1, member_name)) {
-                        if (member_value->optional)
+                    if (!json_object_get_member(node1, object2_member_name)) {
+                        if (object2_member_value->optional)
                             continue;
                         node1->visiting = false;
                         node2->visiting = false;
                         return false;
                     }
+
+                    // if the member exists in object 1, we've already compared it
+                    // to the member in object 2
                 }
             }
         } else {
@@ -446,7 +518,6 @@ static void json_node_internal_copy_flags(json_node *source_node, json_node *des
 {
     destination_node->optional = source_node->optional;
     destination_node->is_pattern = source_node->is_pattern;
-    destination_node->partial_match = source_node->partial_match;
 }
 
 static json_node *json_node_internal_copy(json_node *node, ptr_hashmap *seen_nodes)
@@ -736,14 +807,6 @@ json_node *json_object_get_member(json_node *node, const char *member_name)
     free(canonicalized_member_name);
 
     return entry ? entry->value : NULL;
-}
-
-void json_object_pattern_set_is_partial_match(json_node *node)
-{
-    assert(node->node_type == json_node_type_object);
-    assert(node->is_pattern);
-
-    node->partial_match = true;
 }
 
 json_node *json_ellipsis_new(void)

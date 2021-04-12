@@ -29,7 +29,7 @@ typedef struct _ptr_list ptr_list;
  * @node: a (ptr_list_node *)
  * @type: the pointer data type held in the list
  */
-#define ptr_list_node_get_data(node, type) ((type) node->data)
+#define ptr_list_node_get_data(node, type) ((type) (node)->data)
 
 ptr_list *ptr_list_new(collection_item_ref_func   data_ref_func,
                        collection_item_unref_func data_unref_func);

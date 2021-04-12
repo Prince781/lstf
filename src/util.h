@@ -5,6 +5,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <shlwapi.h>
+#else
+#include <libgen.h>
+#endif
 
 unsigned strhash(const char *str);
 
@@ -98,3 +103,17 @@ static inline unsigned popcount(uintmax_t x)
     
     return n;
 }
+
+#if defined(_WIN32) || defined(_WIN64)
+/**
+ * Windows wrapper for PathStripPathA().
+ */
+static inline char *basename(char *path)
+{
+    char buffer[FILENAME_MAX] = { 0 };
+    strncpy(buffer, path, sizeof buffer - 1);
+    PathStripPath(buffer);
+    strncpy(path, buffer, strlen(path));
+    return path;
+}
+#endif

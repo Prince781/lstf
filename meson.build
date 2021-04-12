@@ -41,6 +41,7 @@ else
       '-Wmissing-declarations',
       '-Wshadow',
       '-Wstrict-overflow',
+      '-Wstringop-overflow',
       '-Wsuggest-attribute=malloc',
       '-Wtautological-compare',
       '-Wundef',

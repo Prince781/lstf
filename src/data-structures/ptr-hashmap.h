@@ -82,6 +82,11 @@ ptr_hashmap_entry *ptr_hashmap_get(const ptr_hashmap *map, const void *key);
  */
 void ptr_hashmap_delete(ptr_hashmap *map, void *key);
 
+/**
+ * Removes all elements in the hash map.
+ */
+void ptr_hashmap_clear(ptr_hashmap *map);
+
 bool ptr_hashmap_is_empty(const ptr_hashmap *map);
 
 static inline unsigned long
