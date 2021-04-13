@@ -464,16 +464,16 @@ lstf_codegenerator_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *
             return;
         }
 
-        lstf_codenode_accept_children(assign, visitor);
-
-        lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope);
         // we are writing to an object or a variable
         lstf_memberaccess *maccess = (lstf_memberaccess *)assign->lhs;
 
-        lstf_ir_instruction *rhs_temp = lstf_codegenerator_get_temp_for_expression(generator, assign->rhs);
-
         if (!maccess->inner) {
             // we are writing to a variable
+
+            lstf_codenode_accept_children(assign, visitor);
+            lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope);
+            lstf_ir_instruction *rhs_temp = lstf_codegenerator_get_temp_for_expression(generator, assign->rhs);
+
             // associate our new temporary (rhs_temp) with the symbol
             lstf_codegenerator_set_temp_for_symbol(generator,
                     current_scope,
@@ -486,14 +486,29 @@ lstf_codegenerator_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *
                         lstf_codegenerator_get_alloc_for_local(generator, assign->lhs->symbol_reference)));
         } else {
             // we are writing to an object property
+
+            // [lhs_inner].[member_name] = [rhs]
+            // should serialize to:
+            // [lhs_inner]
+            // [member_name]
+            // [rhs]
+            lstf_codenode_accept(assign->lhs, visitor);
+
             lstf_ir_instruction *lhs_temp = lstf_codegenerator_get_temp_for_expression(generator, maccess->inner);
+
             lstf_ir_instruction *index_inst =
                 lstf_ir_constantinstruction_new(lstf_codenode_cast(maccess), json_string_new(maccess->member_name));
+            lstf_ir_basicblock_add_instruction(
+                    lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope), index_inst);
+
+            lstf_codenode_accept(assign->rhs, visitor);         // current basic block may change
+            lstf_ir_instruction *rhs_temp = lstf_codegenerator_get_temp_for_expression(generator, assign->rhs);
+
             lstf_ir_instruction *set_inst =
                 lstf_ir_setelementinstruction_new(lstf_codenode_cast(maccess), lhs_temp, index_inst, rhs_temp);
 
-            lstf_ir_basicblock_add_instruction(block, index_inst);
-            lstf_ir_basicblock_add_instruction(block, set_inst);
+            lstf_ir_basicblock_add_instruction(
+                    lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope), set_inst);
         }
     } else if (assign->lhs->expr_type == lstf_expression_type_elementaccess) {
         // we are writing to an object or array
@@ -1255,7 +1270,9 @@ lstf_codegenerator_visit_method_call(lstf_codevisitor *visitor, lstf_methodcall 
     } else {
         // this is an indirect call
         // generate instructions to load the function address (or closure) and arguments
-        lstf_codenode_accept_children(mcall, visitor);
+        for (iterator it = ptr_list_iterator_create(mcall->arguments); it.has_next; it = iterator_next(it))
+            lstf_codenode_accept((lstf_expression *)iterator_get_item(it), visitor);
+        lstf_codenode_accept(mcall->call, visitor);
         lstf_ir_instruction *t_call = lstf_codegenerator_get_temp_for_expression(generator, mcall->call);
         ptr_list *icallinst_arguments = ptr_list_new((collection_item_ref_func) lstf_ir_node_ref,
                 (collection_item_unref_func) lstf_ir_node_unref);

@@ -299,6 +299,7 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
         // for all of these expressions, the left-hand side must be a number
 
         lstf_datatype *number_type = lstf_numbertype_new(NULL);
+        bool subexpr_errors = false;
 
         if (expr->left->value_type &&
                 !lstf_datatype_is_supertype_of(number_type, expr->left->value_type)) {
@@ -307,6 +308,7 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
                     "expected `%s' for left-hand side of arithmetic expression", nt_string);
             analyzer->num_errors++;
             free(nt_string);
+            subexpr_errors = true;
         }
 
         if (expr->right->value_type &&
@@ -316,6 +318,12 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
                     "expected `%s' for right-hand side of arithmetic expression", nt_string);
             analyzer->num_errors++;
             free(nt_string);
+            subexpr_errors = true;
+        }
+
+        if (subexpr_errors) {
+            lstf_codenode_unref(number_type);
+            return;
         }
 
         if (expr->op == lstf_binaryoperator_lessthan ||

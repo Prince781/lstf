@@ -1188,8 +1188,8 @@ bool lstf_ir_program_visualize(const lstf_ir_program *program, const char *path)
 
                             string_appendf(bb_insns_buffer, "set %%%lu, %%%lu, %%%lu\\n",
                                     (unsigned long)(uintptr_t)ptr_hashmap_get(insn_result_ids, set_inst->container)->value,
-                                    (unsigned long)(uintptr_t)ptr_hashmap_get(insn_result_ids, set_inst->value)->value,
-                                    (unsigned long)(uintptr_t)ptr_hashmap_get(insn_result_ids, set_inst->index)->value);
+                                    (unsigned long)(uintptr_t)ptr_hashmap_get(insn_result_ids, set_inst->index)->value,
+                                    (unsigned long)(uintptr_t)ptr_hashmap_get(insn_result_ids, set_inst->value)->value);
                         }   break;
 
                         case lstf_ir_instruction_type_setupvalue:
