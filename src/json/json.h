@@ -182,6 +182,12 @@ json_node *json_array_set_element(json_node *node, unsigned index, json_node *el
 json_node *json_array_get_element(json_node *node, unsigned index);
 
 /**
+ * Removes the element at position `index` and then shifts the elements in the
+ * array from the right.
+ */
+void json_array_delete_element(json_node *node, unsigned index);
+
+/**
  * Canonicalize to camelCase. Return value must be free()'d when done with.
  */
 char *json_member_name_canonicalize(const char *member_name);
@@ -199,6 +205,8 @@ json_node *json_object_set_member(json_node *node, const char *member_name, json
  * Returns the member with `member_name`, or NULL if no such member exists.
  */
 json_node *json_object_get_member(json_node *node, const char *member_name);
+
+void json_object_delete_member(json_node *node, const char *member_name);
 
 /**
  * Creates a non-standard JSON ellipsis node, used for pattern matching in

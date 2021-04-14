@@ -717,6 +717,30 @@ json_node *json_array_get_element(json_node *node, unsigned index)
     return array->elements[index];
 }
 
+void json_array_delete_element(json_node *node, unsigned index)
+{
+    assert(node->node_type == json_node_type_array);
+    assert(index < ((json_array *)node)->num_elements);
+
+    json_array *array = (json_array *)node;
+
+    json_node_unref(array->elements[index]);
+    array->elements[index] = NULL;
+
+    for (unsigned i = index; i + 1 < array->num_elements; i++)
+        array->elements[i] = array->elements[i + 1];
+
+    array->num_elements--;
+    if (array->num_elements < array->buffer_size / 2) {
+        array->buffer_size /= 2;
+        array->elements = realloc(array->elements, array->num_elements * sizeof(*array->elements));
+        if (!array->elements) {
+            perror("failed to resize JSON array");
+            abort();
+        }
+    }
+}
+
 char *json_member_name_canonicalize(const char *member_name)
 {
     size_t cmember_size = strlen(member_name) + 1;
@@ -807,6 +831,17 @@ json_node *json_object_get_member(json_node *node, const char *member_name)
     free(canonicalized_member_name);
 
     return entry ? entry->value : NULL;
+}
+
+void json_object_delete_member(json_node *node, const char *member_name)
+{
+    assert(node->node_type == json_node_type_object);
+
+    json_object *object = (json_object *)node;
+    char *canonicalized_member_name = json_member_name_canonicalize(member_name);
+
+    ptr_hashmap_delete(object->members, canonicalized_member_name);
+    free(canonicalized_member_name);
 }
 
 json_node *json_ellipsis_new(void)
