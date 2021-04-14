@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <tgmath.h>
 
 /**
  * The number of dynamic instructions before a context switch to another
@@ -1050,16 +1049,20 @@ lstf_vm_op_pow_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     if (operand1.value_type == lstf_vm_value_type_integer) {
         if (operand2.value_type == lstf_vm_value_type_integer) {
-            status = lstf_vm_stack_push_integer(cr->stack,
-                            pow(operand1.data.integer, operand2.data.integer));
+            if (operand2.data.integer >= 0)
+                status = lstf_vm_stack_push_integer(cr->stack,
+                        powint(operand1.data.integer, operand2.data.integer));
+            else
+                status = lstf_vm_stack_push_double(cr->stack,
+                        pow((double)operand1.data.integer, (double)operand2.data.integer));
         } else {
             status = lstf_vm_stack_push_double(cr->stack,
-                            pow(operand1.data.integer, operand2.data.double_value));
+                            pow((double)operand1.data.integer, operand2.data.double_value));
         }
     } else {
         if (operand2.value_type == lstf_vm_value_type_integer) {
             status = lstf_vm_stack_push_double(cr->stack,
-                            pow(operand1.data.double_value, operand2.data.integer));
+                            pow(operand1.data.double_value, (double)operand2.data.integer));
         } else {
             status = lstf_vm_stack_push_double(cr->stack,
                             pow(operand1.data.double_value, operand2.data.double_value));
@@ -1099,12 +1102,12 @@ lstf_vm_op_mod_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
                     operand1.data.integer % operand2.data.integer);
         } else {
             status = lstf_vm_stack_push_double(cr->stack,
-                    fmod(operand1.data.integer, operand2.data.double_value));
+                    fmod((double)operand1.data.integer, operand2.data.double_value));
         }
     } else {
         if (operand2.value_type == lstf_vm_value_type_integer) {
             status = lstf_vm_stack_push_double(cr->stack,
-                    fmod(operand1.data.double_value, operand2.data.integer));
+                    fmod(operand1.data.double_value, (double)operand2.data.integer));
         } else {
             status = lstf_vm_stack_push_double(cr->stack,
                     fmod(operand1.data.double_value, operand2.data.double_value));

@@ -2,11 +2,13 @@
 
 #include "data-structures/collection.h"
 #include "data-structures/ptr-hashmap.h"
+#include "lstf-common.h"
 #include <assert.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <inttypes.h>
 #include <stdint.h>
+#include <stdalign.h>
 
 enum _json_node_type {
     json_node_type_null,
@@ -22,8 +24,8 @@ enum _json_node_type {
 typedef enum _json_node_type json_node_type;
 
 struct _json_node {
-    json_node_type node_type;
-    unsigned long refcount : sizeof(unsigned long)*CHAR_BIT - (1 + 1 + 1 + 1);
+    alignas(8) json_node_type node_type;
+    unsigned refcount : sizeof(unsigned)*CHAR_BIT - (1 + 1 + 1 + 1);
 
     /**
      * Whether this node is a floating reference.

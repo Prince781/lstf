@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -117,3 +118,19 @@ static inline char *basename(char *path)
     return path;
 }
 #endif
+
+// --- math
+
+static inline int64_t powint(int64_t base, uint64_t expo)
+{
+    int64_t result = 1;
+
+    while (expo > 0) {
+        if (expo & 1)
+            result *= base;
+        expo >>= 1;
+        base *= base;
+    }
+
+    return result;
+}

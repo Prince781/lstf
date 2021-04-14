@@ -654,9 +654,9 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
                 // canonicalized property names of the interface(s) we are
                 // checking
                 while (!found_member && !ptr_list_is_empty(interfaces_to_check)) {
-                    lstf_typesymbol *interface = ptr_list_remove_first_link(interfaces_to_check);
+                    lstf_typesymbol *interface_sym = ptr_list_remove_first_link(interfaces_to_check);
 
-                    for (iterator it = ptr_hashmap_iterator_create(interface->members);
+                    for (iterator it = ptr_hashmap_iterator_create(interface_sym->members);
                             !found_member && it.has_next; it = iterator_next(it)) {
                         const ptr_hashmap_entry *entry = iterator_get_item(it);
                         const char *other_property_name = entry->key;
@@ -668,7 +668,7 @@ lstf_semanticanalyzer_visit_element_access(lstf_codevisitor *visitor, lstf_eleme
                         free(other_canon_property_name);
                     }
 
-                    for (iterator it = ptr_list_iterator_create(lstf_interface_cast(interface)->extends_types);
+                    for (iterator it = ptr_list_iterator_create(lstf_interface_cast(interface_sym)->extends_types);
                             it.has_next; it = iterator_next(it))
                         ptr_list_append(interfaces_to_check, lstf_datatype_cast(iterator_get_item(it))->symbol);
                 }

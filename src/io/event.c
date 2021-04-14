@@ -6,6 +6,7 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <io.h>
+#include <synchapi.h>
 #else
 #include <unistd.h>
 #include <poll.h>
@@ -241,13 +242,14 @@ static int eventloop_poll_thread(void *user_data)
 {
     const eventloop_poll_thread_state *state = user_data;
 
-    int wait_status =
+    DWORD wait_status =
         WaitForMultipleObjects(state->num_handles, state->handles, false, state->timeout_ms);
 
     if (wait_status == WAIT_FAILED) {
         fprintf(stderr, "WaitForMultipleObjects() failed: %s\n", win32_errormsg(GetLastError()));
         abort();
-    } else if (!(wait_status >= WAIT_OBJECT_0 && wait_status < WAIT_OBJECT_0 + state->num_handles || wait_status == WAIT_TIMEOUT)) {
+    } else if (!((wait_status >= WAIT_OBJECT_0 && wait_status < WAIT_OBJECT_0 + state->num_handles) ||
+                wait_status == WAIT_TIMEOUT)) {
         fprintf(stderr, "WaitForMultipleObjects(): unexpected abandoned mutex in wait list\n");
         abort();
     }

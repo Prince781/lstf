@@ -1,8 +1,8 @@
 #pragma once
 
+#include "lstf-common.h"
 #include "data-structures/collection.h"
 #include "iterator.h"
-#include "lstf-common.h"
 #include <stdbool.h>
 
 /**

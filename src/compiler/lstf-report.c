@@ -21,14 +21,6 @@ static const char *lstf_report_domain_to_string(lstf_report_domain domain)
     abort();
 }
 
-#ifdef max
-#undef max
-#endif
-static unsigned max(unsigned a, unsigned b)
-{
-    return a > b ? a : b;
-}
-
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <consoleapi.h>
@@ -45,6 +37,14 @@ static bool is_ascii_terminal(FILE *file) {
     return isatty(fileno(file));
 }
 #endif
+
+#ifdef max
+#undef max
+#endif
+static inline unsigned max(unsigned a, unsigned b)
+{
+    return a > b ? a : b;
+}
 
 void lstf_report(const lstf_sourceref *source_ref, lstf_report_domain domain, const char *message, ...)
 {

@@ -16,6 +16,9 @@
 #include <stdalign.h>
 #include "util.h"
 
+static_assert(alignof(uint64_t) == alignof(lstf_vm_debugentry),
+        "alignment of n_debug_entries must equal alignment of lstf_vm_debugentry");
+
 static inline void *aligned(void *ptr, size_t alignment)
 {
     if (alignment < 2)
@@ -197,8 +200,6 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         uint64_t *offset = aligned(program->debuginfo + source_filename_sz, alignof(lstf_vm_debugentry));
 
         assert((uintptr_t)offset % alignof(lstf_vm_debugentry) == 0 && "offset must be aligned to lstf_vm_debugentry");
-        static_assert(alignof(uint64_t) == alignof(lstf_vm_debugentry),
-                "alignment of n_debug_entries must equal alignment of lstf_vm_debugentry");
 
         if ((uint64_t)((uint8_t *)offset + sizeof(uint64_t) - program->debuginfo) > program->debuginfo_size) {
             if (error)

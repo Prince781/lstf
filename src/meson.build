@@ -167,8 +167,13 @@ bytecode = declare_dependency(
   link_with: [bytecode_lib]
 )
 
+lstf_win32_dependencies = []
+if host_machine.system() == 'windows'
+    lstf_win32_dependencies += [cc.find_library('shlwapi')]
+endif
+
 lstf = executable('lstf',
-  dependencies: [compiler, vm, bytecode],
+  dependencies: [compiler, vm, bytecode] + lstf_win32_dependencies,
   c_args: c_args,
   sources: ['lstf.c'],
   install: true)
