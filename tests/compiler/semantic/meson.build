@@ -44,3 +44,9 @@ test('semantic-string-element-access', lstf, suite: 'compiler',
 
 test('semantic-too-many-arguments', lstf, suite: 'compiler', should_fail: true,
   args: semantic_test_args + [meson.source_root() + '/tests/compiler/semantic/too-many-arguments.lstf'])
+
+test('semantic-type-as-value', lstf, suite: 'compiler', should_fail: true,
+  args: semantic_test_args + [meson.source_root() + '/tests/compiler/semantic/type-as-value.lstf'])
+
+test('semantic-variable-with-void-type', lstf, suite: 'compiler', should_fail: true,
+  args: semantic_test_args + [meson.source_root() + '/tests/compiler/semantic/variable-with-void-type.lstf'])

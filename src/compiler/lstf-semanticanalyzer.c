@@ -201,7 +201,41 @@ lstf_semanticanalyzer_visit_assignment(lstf_codevisitor *visitor, lstf_assignmen
         analyzer->encountered_project_files_assignment = true;
 
     if (!assign->lhs->value_type) {
+        if (lstf_typesymbol_cast(assign->lhs->symbol_reference)) {
+            lstf_report_error(&lstf_codenode_cast(assign->lhs)->source_reference,
+                    "`%s' only refers to a type, but is being used as an l-value here",
+                    assign->lhs->symbol_reference->name);
+        } else if (lstf_interfaceproperty_cast(assign->lhs->symbol_reference)) {
+            lstf_report_error(&lstf_codenode_cast(assign->lhs)->source_reference,
+                    "`%s' only refers to a type member, but is being used as an l-value here",
+                    assign->lhs->symbol_reference->name);
+        } else {
+            lstf_report_error(&lstf_codenode_cast(assign->lhs)->source_reference,
+                    "expected l-value here");
+        }
+        analyzer->num_errors++;
         return;
+    }
+
+    if (assign->lhs->symbol_reference) {
+        switch (assign->lhs->symbol_reference->symbol_type) {
+        case lstf_symbol_type_constant:
+            lstf_report_error(&lstf_codenode_cast(assign)->source_reference,
+                    "cannot assign to a constant");
+            analyzer->num_errors++;
+            return;
+        case lstf_symbol_type_function:
+            lstf_report_error(&lstf_codenode_cast(assign)->source_reference,
+                    "cannot assign to a function");
+            analyzer->num_errors++;
+            return;
+        case lstf_symbol_type_interfaceproperty:
+        case lstf_symbol_type_objectproperty:
+        case lstf_symbol_type_typesymbol:
+        case lstf_symbol_type_variable:
+            // ignore because these cases were already checked
+            break;
+        }
     }
 
     if (!assign->rhs->value_type) {
@@ -752,12 +786,12 @@ lstf_semanticanalyzer_visit_expression(lstf_codevisitor *visitor, lstf_expressio
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
     lstf_datatype *expected_type = lstf_semanticanalyzer_get_current_expected_type(analyzer);
 
-    if (expected_type && expr->value_type) {
+    if (expected_type) {
         // attempt to cast the expression type
         if (expr->value_type &&
                 lstf_datatype_is_supertype_of(expected_type, expr->value_type)) {
             lstf_expression_set_value_type(expr, expected_type);
-        } else {
+        } else if (expr->value_type) {
             char *expr_type_to_string = lstf_datatype_to_string(expr->value_type);
             char *expected_et_to_string = lstf_datatype_to_string(expected_type);
 
@@ -767,6 +801,23 @@ lstf_semanticanalyzer_visit_expression(lstf_codevisitor *visitor, lstf_expressio
             analyzer->num_errors++;
             free(expr_type_to_string);
             free(expected_et_to_string);
+        } else {
+            if (lstf_typesymbol_cast(expr->symbol_reference)) {
+                lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                        "`%s' only refers to a type, but is being used as a value here",
+                        expr->symbol_reference->name);
+            } else if (lstf_interfaceproperty_cast(expr->symbol_reference)) {
+                lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                        "`%s' only refers to a type member, but is being used as a value here",
+                        expr->symbol_reference->name);
+            } else {
+                char *expected_et_to_string = lstf_datatype_to_string(expected_type);
+                lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                        "expected expression of type `%s' here",
+                        expected_et_to_string);
+                free(expected_et_to_string);
+            }
+            analyzer->num_errors++;
         }
     }
 }
@@ -1526,7 +1577,8 @@ lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *v
         analyzer->ellipsis_allowed = old_ellipsis_allowed;
     }
     
-    if (variable->variable_type && variable->variable_type->datatype_type == lstf_datatype_type_voidtype) {
+    lstf_datatype *void_type = lstf_voidtype_new(NULL);
+    if (variable->variable_type && lstf_datatype_is_supertype_of(variable->variable_type, void_type)) {
         char *dt_string = lstf_datatype_to_string(variable->variable_type);
         lstf_report_error(&lstf_codenode_cast(variable)->source_reference,
                 "%s cannot have type `%s'",
@@ -1534,8 +1586,10 @@ lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *v
                 dt_string);
         analyzer->num_errors++;
         free(dt_string);
+        lstf_codenode_unref(void_type);
         return;
     }
+    lstf_codenode_unref(void_type);
 }
 
 static const lstf_codevisitor_vtable semanticanalyzer_vtable = {

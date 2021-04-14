@@ -3,3 +3,9 @@ o.y = 40;
 
 let a = [1, 3.4, {}];
 a = [3, "hello"];
+
+type un = int | string;
+
+un = 3;
+
+print = (args) => print(args);

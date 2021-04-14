@@ -1,3 +1,5 @@
 let x: void | null = null;
 
 print(x);
+
+let y = print(x);

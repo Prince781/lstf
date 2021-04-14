@@ -1,0 +1,6 @@
+interface Point2D {
+    x: int;
+    y: int;
+}
+
+print(Point2D);
