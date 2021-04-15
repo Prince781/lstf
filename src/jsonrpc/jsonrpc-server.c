@@ -6,6 +6,7 @@
 #include "data-structures/ptr-list.h"
 #include "json/json-parser.h"
 #include "data-structures/string-builder.h"
+#include "io/outputstream.h"
 #include "util.h"
 #include "json/json-scanner.h"
 #include "json/json.h"
@@ -25,7 +26,7 @@ enum _jsonrpc_error {
 };
 typedef enum _jsonrpc_error jsonrpc_error;
 
-jsonrpc_server *jsonrpc_server_create(inputstream  *input_stream, 
+jsonrpc_server *jsonrpc_server_new(inputstream  *input_stream, 
                                       outputstream *output_stream)
 {
     jsonrpc_server *server = calloc(1, sizeof *server);
@@ -83,12 +84,31 @@ void jsonrpc_server_handle_notification(jsonrpc_server              *server,
 /**
  * Returns number of bytes written, or 0 if an error occurred.
  */
-static size_t jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
+static bool jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
 {
+    bool success = false;
     char *serialized_message = json_node_to_string(node, false);
-    size_t ret = outputstream_printf(server->output_stream, "%s\n", serialized_message);
+    char *content_length_header =
+        string_destroy(string_appendf(string_new(), "Content-Length: %zu\r\n", strlen(serialized_message)));
+
+    // header field
+    if (outputstream_write_string(server->output_stream, content_length_header) < strlen(content_length_header))
+        goto cleanup;
+
+    // transition between header fields and actual content
+    if (outputstream_write_string(server->output_stream, "\r\n") < 2)
+        goto cleanup;
+
+    // content
+    if (outputstream_printf(server->output_stream, "%s\r\n", serialized_message) < strlen(serialized_message) + 2)
+        goto cleanup;
+
+    success = true;
+
+cleanup:
     free(serialized_message);
-    return ret;
+    free(content_length_header);
+    return success;
 }
 
 void jsonrpc_server_reply_to_remote(jsonrpc_server  *server, 

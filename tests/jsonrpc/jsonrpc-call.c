@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     }
 
     int retval = 1;
-    jsonrpc_server *server = jsonrpc_server_create(json_file_to_parse, outputstream_new_from_file(stdout, false));
+    jsonrpc_server *server = jsonrpc_server_new(json_file_to_parse, outputstream_new_from_file(stdout, false));
 
     jsonrpc_server_handle_call(server, "testmethod", testmethod, &retval, NULL);
     while (jsonrpc_server_process_incoming_messages(server) > 0)

@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
     }
 
     int methods_invoked = 0;
-    jsonrpc_server *server = jsonrpc_server_create(json_file_to_parse, outputstream_new_from_file(stdout, false));
+    jsonrpc_server *server = jsonrpc_server_new(json_file_to_parse, outputstream_new_from_file(stdout, false));
 
     jsonrpc_server_handle_call(server, "test/methodA", testMethod, &methods_invoked, NULL);
     jsonrpc_server_handle_call(server, "test/methodC", testMethod, &methods_invoked, NULL);

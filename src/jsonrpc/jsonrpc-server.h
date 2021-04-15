@@ -39,13 +39,17 @@ struct _jsonrpc_server {
      */
     ptr_hashmap *notif_handlers;
 
-    int64_t next_request_id;
+    uint64_t next_request_id;
 
     ptr_list *received_requests;
 };
 
-jsonrpc_server *jsonrpc_server_create(inputstream  *input_stream, 
-                                      outputstream *output_stream);
+/**
+ * Creates a new JSON-RPC server listening for incoming requests on
+ * [input_stream] and writing messages to [output_stream].
+ */
+jsonrpc_server *jsonrpc_server_new(inputstream  *input_stream, 
+                                   outputstream *output_stream);
 
 /**
  * Establish a new handler for a JSON-RPC call
