@@ -6,9 +6,9 @@ json_serialize_test = executable('json-serialize-test',
 )
 
 test('serialize', json_serialize_test, suite: 'json',
-  args: [meson.source_root() + '/tests/json/serialize.json'])
+  args: [meson.project_source_root() + '/tests/json/serialize.json'])
 test('serialize-pretty', json_serialize_test, suite: 'json',
-  args: [meson.source_root() + '/tests/json/serialize-pretty.json', '--pretty-print'])
+  args: [meson.project_source_root() + '/tests/json/serialize-pretty.json', '--pretty-print'])
 
 json_cycle_serialize_test = executable('json-cycle-serialize-test',
   dependencies: [json],
@@ -18,7 +18,7 @@ json_cycle_serialize_test = executable('json-cycle-serialize-test',
 )
 
 test('cycle-serialize-pretty', json_cycle_serialize_test, suite: 'json',
-  args: [meson.source_root() + '/tests/json/cycle-serialize-pretty.txt', '--pretty-print'])
+  args: [meson.project_source_root() + '/tests/json/cycle-serialize-pretty.txt', '--pretty-print'])
 
 json_parser_object = executable('json-parser-object',
   dependencies: [json],
@@ -28,7 +28,7 @@ json_parser_object = executable('json-parser-object',
 )
 
 test('parse-object', json_parser_object, suite: 'json',
-  args: [meson.source_root() + '/tests/json/parse-object.json'])
+  args: [meson.project_source_root() + '/tests/json/parse-object.json'])
 
 json_parser_double = executable('json-parser-double',
   dependencies: [json],
@@ -38,7 +38,7 @@ json_parser_double = executable('json-parser-double',
 )
 
 test('parse-double', json_parser_double, suite: 'json',
-  args: [meson.source_root() + '/tests/json/parse-double.json'])
+  args: [meson.project_source_root() + '/tests/json/parse-double.json'])
 
 json_parser_memory = executable('json-parser-memory',
   dependencies: [json],

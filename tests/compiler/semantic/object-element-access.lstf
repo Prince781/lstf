@@ -4,3 +4,5 @@ let x: object = {
 
 x["hello"] = 3;
 x["goodbye"] = x["hello"] + 4;
+
+print(x);

@@ -6,7 +6,7 @@ jsonrpc_notification = executable('jsonrpc-notification',
 )
 
 test('notification', jsonrpc_notification, suite: 'jsonrpc',
-  args: [meson.source_root() + '/tests/jsonrpc/notification.json'])
+  args: [meson.project_source_root() + '/tests/jsonrpc/notification.json'])
 
 jsonrpc_call = executable('jsonrpc-call',
   dependencies: [jsonrpc],
@@ -16,7 +16,7 @@ jsonrpc_call = executable('jsonrpc-call',
 )
 
 test('call', jsonrpc_call, suite: 'jsonrpc',
-  args: [meson.source_root() + '/tests/jsonrpc/call.json'])
+  args: [meson.project_source_root() + '/tests/jsonrpc/call.json'])
 
 jsonrpc_batched = executable('jsonrpc-batched',
   dependencies: [jsonrpc],
@@ -26,4 +26,4 @@ jsonrpc_batched = executable('jsonrpc-batched',
 )
 
 test('batched', jsonrpc_batched, suite: 'jsonrpc',
-  args: [meson.source_root() + '/tests/jsonrpc/batched.json'])
+  args: [meson.project_source_root() + '/tests/jsonrpc/batched.json'])

@@ -63,6 +63,20 @@ jsonrpc = declare_dependency(
   link_with: [jsonrpc_lib],
 )
 
+bytecode_lib = static_library('bytecode',
+  [
+    'bytecode/lstf-bc-function.c',
+    'bytecode/lstf-bc-program.c',
+    'bytecode/lstf-bc-serialize.c',
+  ],
+  c_args: c_args
+)
+
+bytecode = declare_dependency(
+  dependencies: [data_structures, util, json, io],
+  link_with: [bytecode_lib]
+)
+
 compiler_lib = static_library('compiler',
   [
     'compiler/lstf-anytype.c',
@@ -132,7 +146,7 @@ compiler_lib = static_library('compiler',
 )
 
 compiler = declare_dependency(
-  dependencies: [data_structures, util, json, jsonrpc, io],
+  dependencies: [bytecode, data_structures, util, json, jsonrpc, io],
   link_with: [compiler_lib],
 )
 
@@ -149,22 +163,14 @@ vm_lib = static_library('vm',
 )
 
 vm = declare_dependency(
-  dependencies: [data_structures, util, json, jsonrpc, io, cc.find_library('m', required: false)],
+  dependencies: [
+    data_structures,
+    util,
+    json,
+    jsonrpc,
+    io,
+    cc.find_library('m', required: host_machine.system() != 'windows')],
   link_with: [vm_lib]
-)
-
-bytecode_lib = static_library('bytecode',
-  [
-    'bytecode/lstf-bc-function.c',
-    'bytecode/lstf-bc-program.c',
-    'bytecode/lstf-bc-serialize.c',
-  ],
-  c_args: c_args
-)
-
-bytecode = declare_dependency(
-  dependencies: [data_structures, util, json, io, vm],
-  link_with: [bytecode_lib]
 )
 
 lstf_win32_dependencies = []
@@ -173,7 +179,7 @@ if host_machine.system() == 'windows'
 endif
 
 lstf = executable('lstf',
-  dependencies: [compiler, vm, bytecode] + lstf_win32_dependencies,
+  dependencies: [compiler, vm] + lstf_win32_dependencies,
   c_args: c_args,
   sources: ['lstf.c'],
   install: true)

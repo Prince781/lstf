@@ -6,7 +6,7 @@ project('lstf', 'c',
 cc = meson.get_compiler('c')
 
 add_project_arguments([
-  '-I' + meson.source_root() + '/src',
+  '-I' + meson.project_source_root() + '/src',
   '-D_XOPEN_SOURCE=700',
   '-DWIN32_LEAN_AND_MEAN',  # Win32 headers don't pull in more than they need
   '-D_WIN32_WINNT=0x0601',
@@ -62,11 +62,11 @@ endif
 if not cc.has_header('stdatomic.h')
     if cc.has_argument('-isystem')
         add_project_arguments([
-            '-isystem' + meson.source_root() + '/include/c11/atomic'
+            '-isystem' + meson.project_source_root() + '/include/c11/atomic'
         ], language: 'c')
     else
         add_project_arguments([
-            '-I' + meson.source_root() + '/include/c11/atomic'
+            '-I' + meson.project_source_root() + '/include/c11/atomic'
         ], language: 'c')
     endif
 endif
@@ -74,11 +74,11 @@ endif
 if not cc.has_header('threads.h')
     if cc.has_argument('-isystem')
         add_project_arguments([
-            '-isystem' + meson.source_root() + '/include/c11/threads'
+            '-isystem' + meson.project_source_root() + '/include/c11/threads'
         ], language: 'c')
     else
         add_project_arguments([
-            '-I' + meson.source_root() + '/include/c11/threads'
+            '-I' + meson.project_source_root() + '/include/c11/threads'
         ], language: 'c')
     endif
 endif
@@ -86,11 +86,11 @@ endif
 if not cc.has_header('stdalign.h')
     if cc.has_argument('-isystem')
         add_project_arguments([
-            '-isystem' + meson.source_root() + '/include/c11/align'
+            '-isystem' + meson.project_source_root() + '/include/c11/align'
         ], language: 'c')
     else
         add_project_arguments([
-            '-I' + meson.source_root() + '/include/c11/align'
+            '-I' + meson.project_source_root() + '/include/c11/align'
         ], language: 'c')
     endif
 endif

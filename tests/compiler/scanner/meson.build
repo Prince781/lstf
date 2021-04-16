@@ -6,13 +6,13 @@ lstf_scanner_test = executable('lstf-scanner-test',
 )
 
 test('scanner-double', lstf_scanner_test, suite: 'compiler',
-  args: [meson.source_root() + '/tests/compiler/scanner/double.lstf'])
+  args: [meson.project_source_root() + '/tests/compiler/scanner/double.lstf'])
 
 test('scanner-example', lstf_scanner_test, suite: 'compiler',
-  args: [meson.source_root() + '/tests/compiler/scanner/example.lstf'])
+  args: [meson.project_source_root() + '/tests/compiler/scanner/example.lstf'])
 
 test('scanner-malformed-comments', lstf_scanner_test, suite: 'compiler', should_fail: true,
-  args: [meson.source_root() + '/tests/compiler/scanner/malformed-comments.lstf'])
+  args: [meson.project_source_root() + '/tests/compiler/scanner/malformed-comments.lstf'])
 
 test('scanner-unterminated-string', lstf_scanner_test, suite: 'compiler', should_fail: true,
-  args: [meson.source_root() + '/tests/compiler/scanner/malformed-comments.lstf'])
+  args: [meson.project_source_root() + '/tests/compiler/scanner/malformed-comments.lstf'])

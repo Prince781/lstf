@@ -1,5 +1,5 @@
 test('hello-world.lstfc', lstf, suite: 'vm',
-  args: [meson.source_root() + '/tests/vm/hello-world.lstfc'])
+  args: [meson.project_source_root() + '/tests/vm/hello-world.lstfc'])
 
 lstf_vm_factorial_test = executable('vm-factorial-test',
   dependencies: [bytecode, vm, io],
