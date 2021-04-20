@@ -2570,10 +2570,11 @@ lstf_parser_parse_statement_list(lstf_parser *parser, bool in_root_scope)
                 case lstf_token_keyword_let:
                 case lstf_token_keyword_await:
                 case lstf_token_keyword_for:
-                case lstf_token_keyword_const:
                 case lstf_token_keyword_async:
                 case lstf_token_keyword_fun:
-                case lstf_token_keyword_class:
+                // XXX: enable these if such statements become supported
+                // case lstf_token_keyword_const:
+                // case lstf_token_keyword_class:
                 case lstf_token_keyword_enum:
                 case lstf_token_keyword_interface:
                 case lstf_token_keyword_type:

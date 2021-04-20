@@ -17,7 +17,6 @@ if cc.get_id() == 'msvc'
       '/D_CRT_SECURE_NO_WARNINGS',
       '/wd4996',      # suppress POSIX name deprecation warnings
       '/wd4706',      # suppress assignment within conditional expression
-      '/wd5105',      # suppress 'macro undefined' errors
       '/std:c17',
     ])
 else
@@ -43,8 +42,6 @@ else
       '-Wlogical-op',
       '-Wmissing-include-dirs',
       '-Wmissing-declarations',
-      '-Wno-deprecated-declarations',
-      '-Wno-format-nonliteral',
       '-Wshadow',
       '-Wstrict-overflow',
       '-Wstringop-overflow',
