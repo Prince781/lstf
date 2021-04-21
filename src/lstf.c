@@ -8,6 +8,7 @@
 #include "compiler/lstf-semanticanalyzer.h"
 #include "data-structures/string-builder.h"
 #include "io/inputstream.h"
+#include "io/outputstream.h"
 #include "vm/lstf-virtualmachine.h"
 #include "vm/lstf-vm-loader.h"
 #include "vm/lstf-vm-program.h"
@@ -19,6 +20,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /**
@@ -33,6 +35,7 @@ struct lstf_options {
     bool emit_ir;
     char *input_filename;
     char *output_filename;
+    char *expected_output;
 };
 
 static inline char *suffix(const char *str)
@@ -64,7 +67,8 @@ static const char usage_message[] =
 "  -no-lsp                  Don't error out when language server protocol\n"
 "                           requirements aren't met. (Use this when you just want\n"
 "                           to test the VM without any LSP features.)\n"
-"  -emit-ir                 Output IR to a Graphviz file in the current directory.";
+"  -emit-ir                 Output IR to a Graphviz file in the current directory.\n"
+"  -expect <string>         Test the program output against <string>.";
 
 static void
 print_usage(const char *progname)
@@ -118,6 +122,46 @@ static void report_load_error(const char          *progname,
     case lstf_vm_loader_error_none:
         break;
     }
+}
+
+static int run_program(lstf_vm_program *program, struct lstf_options options)
+{
+    int retval = 0;
+    lstf_virtualmachine *vm =
+        lstf_virtualmachine_new(program,
+            options.expected_output ? outputstream_new_from_buffer(NULL, 0, false) : NULL,
+            false);
+    while (lstf_virtualmachine_run(vm)) {
+        fprintf(stderr, "VM paused. press any key to continue...\n");
+        getchar();
+    }
+    if (vm->last_status != lstf_vm_status_exited) {
+        lstf_report_error(NULL, "VM: %s", lstf_vm_status_to_string(vm->last_status));
+        retval = 1;
+    } else {
+        retval = vm->return_code;
+        if (options.expected_output) {
+            // test the output buffer
+            inputstream *istream = inputstream_new_from_outputstream(vm->ostream);
+            char *buffer = calloc(1, vm->ostream->buffer_offset + 1);
+
+            if (inputstream_read(istream, buffer, vm->ostream->buffer_offset) > 0 &&
+                    strcmp(buffer, options.expected_output) == 0) {
+                lstf_report_note(NULL, "VM output matches");
+            } else {
+                lstf_report_error(NULL, "VM output differs");
+                lstf_report_note(NULL, "\n---expected:---\n%s------\n---got:---\n%s------",
+                        options.expected_output, buffer);
+                retval = 1;
+            }
+
+            free(buffer);
+            inputstream_unref(istream);
+        }
+    }
+
+    lstf_virtualmachine_destroy(vm);
+    return retval;
 }
 
 static int
@@ -206,41 +250,12 @@ cleanup:
         retval = 1;
     } else if (program) {
         // all clear. run interpreter
-        lstf_virtualmachine *vm = lstf_virtualmachine_new(program, NULL, false);
-        while (lstf_virtualmachine_run(vm)) {
-            fprintf(stderr, "VM paused. press any key to continue...\n");
-            getchar();
-        }
-        if (vm->last_status != lstf_vm_status_exited) {
-            lstf_report_error(NULL, "VM: %s", lstf_vm_status_to_string(vm->last_status));
-            retval = 1;
-        } else {
-            retval = vm->return_code;
-        }
-
-        lstf_virtualmachine_destroy(vm);
+        retval = run_program(program, options);
     }
     return retval;
 }
 
-static int run_program(lstf_vm_program *program)
-{
-    lstf_virtualmachine *vm = lstf_virtualmachine_new(program, NULL, false);
-    int return_code = 0;
-
-    if (!lstf_virtualmachine_run(vm) &&
-            vm->last_status && vm->last_status != lstf_vm_status_exited) {
-        lstf_report_error(NULL, "VM hit an exception: %s", lstf_vm_status_to_string(vm->last_status));
-        return_code = 1;
-    } else {
-        return_code = vm->return_code;
-    }
-
-    lstf_virtualmachine_destroy(vm);
-    return return_code;
-}
-
-static int load_and_run_file(const char *progname, const char *filename)
+static int load_and_run_file(const char *progname, const char *filename, struct lstf_options options)
 {
     lstf_vm_loader_error error = lstf_vm_loader_error_none;
     lstf_vm_program *program = lstf_vm_loader_load_from_path(filename, &error);
@@ -250,7 +265,7 @@ static int load_and_run_file(const char *progname, const char *filename)
         return 1;
     }
 
-    return run_program(program);
+    return run_program(program, options);
 }
 
 int main(int argc, char *argv[])
@@ -329,6 +344,28 @@ int main(int argc, char *argv[])
                 lstf_report_error(NULL, "missing argument to `%s`", option);
                 return 1;
             }
+        } else if (strncmp(option, "-expect", sizeof "-expect" - 1) == 0) {
+            if (options.expected_output) {
+                lstf_report_error(NULL, "`%s` specified multiple times", option);
+                return 1;
+            }
+
+            char *eqc = strchr(option, '=');
+            char *expected_output = NULL;
+
+            if (eqc) {
+                *eqc = '\0';
+                expected_output = eqc + 1;
+            } else if (*++argp) {
+                expected_output = *argp;
+            }
+
+            if (!expected_output) {
+                lstf_report_error(NULL, "missing argument to `%s'", option);
+                return 1;
+            }
+
+            options.expected_output = expected_output;
         } else if (strcmp(option, "-h") == 0 || strcmp(option, "--help") == 0) {
             break;
         } else if (option[0] == '-') {
@@ -392,7 +429,7 @@ int main(int argc, char *argv[])
     if (is_compiling)
         retval = compile_lstf_script(argv[0], options.input_filename, options);
     else if (is_interpreting)
-        retval = load_and_run_file(argv[0], options.input_filename);
+        retval = load_and_run_file(argv[0], options.input_filename, options);
     else {
         print_usage(argv[0]);
         retval = 1;
