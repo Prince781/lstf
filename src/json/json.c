@@ -221,7 +221,7 @@ static void json_node_build_string(json_node *root_node,
             } else if (!it.is_first) {
                 string_appendf(sb, " ");
             }
-            string_appendf(sb, "\"%s\": ", member_name);
+            string_appendf(sb, "\"%s\"%s: ", member_name, member_value->optional ? "?" : "");
             json_node_build_string(root_node, member_value, pretty, tabulation + 1, sb);
             if (iterator_next(it).has_next)
                 string_appendf(sb, ",");

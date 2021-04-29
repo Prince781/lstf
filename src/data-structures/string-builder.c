@@ -76,6 +76,7 @@ string *string_new_with_static_data(const char *data)
     sb->copy_on_write = true;
     sb->buffer_size = 0;
     sb->floating = true;
+    sb->length = strlen(data);
 
     return sb;
 }
@@ -95,6 +96,7 @@ string *string_new_copy_data(const char *data)
     }
     sb->buffer_size = strlen(sb->buffer);
     sb->floating = true;
+    sb->length = strlen(sb->buffer);
 
     return sb;
 }
@@ -111,6 +113,7 @@ string *string_new_take_data(char *data)
     sb->buffer = data;
     sb->buffer_size = strlen(data);
     sb->floating = true;
+    sb->length = strlen(data);
 
     return sb;
 }

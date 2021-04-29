@@ -164,14 +164,6 @@ static inline lstf_bc_instruction lstf_bc_instruction_in_new(void)
     };
 }
 
-static inline lstf_bc_instruction lstf_bc_instruction_match_new(void)
-{
-    return (lstf_bc_instruction) {
-        .opcode = lstf_vm_op_match,
-        { 0 }
-    };
-}
-
 
 static inline lstf_bc_instruction lstf_bc_instruction_params_new(uint8_t num_parameters)
 {
@@ -499,6 +491,15 @@ static inline lstf_bc_instruction lstf_bc_instruction_exit_new(uint8_t exit_code
     };
 }
 
+
+static inline lstf_bc_instruction lstf_bc_instruction_assert_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_assert,
+        { 0 }
+    };
+}
+
 static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instruction)
 {
     switch (instruction->opcode) {
@@ -519,8 +520,6 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
     case lstf_vm_op_set:
         return sizeof(uint8_t);
     case lstf_vm_op_in:
-        return sizeof(uint8_t);
-    case lstf_vm_op_match:
         return sizeof(uint8_t);
     case lstf_vm_op_params:
         return sizeof(uint8_t) + sizeof(uint8_t);
@@ -595,6 +594,8 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t);
     case lstf_vm_op_exit:
         return sizeof(uint8_t) + sizeof(uint8_t);
+    case lstf_vm_op_assert:
+        return sizeof(uint8_t);
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected VM opcode `%u'\n", __func__, instruction->opcode);
@@ -617,7 +618,6 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_get:
     case lstf_vm_op_set:
     case lstf_vm_op_in:
-    case lstf_vm_op_match:
     case lstf_vm_op_params:
     case lstf_vm_op_call:
     case lstf_vm_op_calli:
@@ -658,6 +658,7 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_not:
     case lstf_vm_op_print:
     case lstf_vm_op_exit:
+    case lstf_vm_op_assert:
         break;
     }
 }

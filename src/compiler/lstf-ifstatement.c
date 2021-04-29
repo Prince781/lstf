@@ -47,7 +47,7 @@ lstf_statement *lstf_ifstatement_new(const lstf_sourceref *source_reference,
     lstf_statement_construct((lstf_statement *)if_stmt,
             &lstf_ifstatement_vtable,
             source_reference,
-            lstf_statement_type_ifstatement);
+            lstf_statement_type_if);
 
     if_stmt->condition = lstf_codenode_ref(condition);
     lstf_codenode_set_parent(if_stmt->condition, if_stmt);

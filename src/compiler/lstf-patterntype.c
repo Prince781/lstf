@@ -51,6 +51,7 @@ static bool lstf_patterntype_is_supertype_of(lstf_datatype *self, lstf_datatype 
         case lstf_datatype_type_functiontype:
         case lstf_datatype_type_unresolvedtype:
         case lstf_datatype_type_voidtype:
+        case lstf_datatype_type_future:
             return false;
         case lstf_datatype_type_uniontype:
             for (iterator it = ptr_list_iterator_create(lstf_uniontype_cast(other)->options);
@@ -78,7 +79,9 @@ static char *lstf_patterntype_to_string(lstf_datatype *self)
 static const lstf_datatype_vtable patterntype_datatype_vtable = {
     lstf_patterntype_is_supertype_of,
     lstf_patterntype_copy,
-    lstf_patterntype_to_string
+    lstf_patterntype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_patterntype_new(const lstf_sourceref *source_reference)

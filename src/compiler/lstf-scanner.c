@@ -90,6 +90,8 @@ const char *lstf_token_to_string(lstf_token token)
             return "`**'";
         case lstf_token_modulo:
             return "`%'";
+        case lstf_token_keyword_assert:
+            return "`assert'";
         case lstf_token_keyword_await:
             return "`await'";
         case lstf_token_keyword_const:
@@ -498,7 +500,9 @@ lstf_scanner *lstf_scanner_new(lstf_file *script)
                 }
                 
                 // keywords
-                if (strncmp(begin.pos, "async", max(sizeof "async" - 1, current.pos - begin.pos)) == 0)
+                if (strncmp(begin.pos, "assert", max(sizeof "assert" - 1, current.pos - begin.pos)) == 0)
+                    current_token = lstf_token_keyword_assert;
+                else if (strncmp(begin.pos, "async", max(sizeof "async" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_async;
                 else if (strncmp(begin.pos, "true", max(sizeof "true" - 1, current.pos - begin.pos)) == 0)
                     current_token = lstf_token_keyword_true;

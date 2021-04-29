@@ -51,6 +51,7 @@ lstf_ir_instruction_destruct(lstf_ir_node *node)
         case lstf_ir_instruction_type_load:
         case lstf_ir_instruction_type_loadfunction:
         case lstf_ir_instruction_type_store:
+        case lstf_ir_instruction_type_assert:
             break;
     }
 }
@@ -480,6 +481,25 @@ lstf_ir_instruction *lstf_ir_matchinstruction_new(lstf_codenode       *code_node
     return (lstf_ir_instruction *)match_inst;
 }
 
+lstf_ir_instruction *lstf_ir_assertinstruction_new(lstf_codenode       *code_node,
+                                                   lstf_ir_instruction *source)
+{
+    lstf_ir_assertinstruction *assert_inst = calloc(1, sizeof *assert_inst);
+
+    if (!assert_inst) {
+        perror("failed to create IR assert instruction");
+        abort();
+    }
+
+    lstf_ir_instruction_construct(code_node,
+            (lstf_ir_instruction *)assert_inst,
+            lstf_ir_instruction_type_assert);
+
+    assert_inst->source = source;
+
+    return (lstf_ir_instruction *)assert_inst;
+}
+
 bool lstf_ir_instruction_has_result(const lstf_ir_instruction *insn)
 {
     switch (insn->insn_type) {
@@ -489,6 +509,7 @@ bool lstf_ir_instruction_has_result(const lstf_ir_instruction *insn)
         case lstf_ir_instruction_type_setelement:
         case lstf_ir_instruction_type_setupvalue:
         case lstf_ir_instruction_type_store:
+        case lstf_ir_instruction_type_assert:
             return false;
         case lstf_ir_instruction_type_alloc:
         case lstf_ir_instruction_type_binary:

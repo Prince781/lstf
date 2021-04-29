@@ -95,7 +95,12 @@ enum _lstf_vm_status {
      * The requested up-value was invalid, either because the current function
      * is not a closure, or because the up-value ID was out-of-range.
      */
-    lstf_vm_status_invalid_upvalue
+    lstf_vm_status_invalid_upvalue,
+
+    /**
+     * An assertion failed
+     */
+    lstf_vm_status_assertion_failed
 };
 typedef enum _lstf_vm_status lstf_vm_status;
 
@@ -153,6 +158,9 @@ lstf_vm_status_to_string(lstf_vm_status status)
             break;
         case lstf_vm_status_invalid_upvalue:
             exception_message = "invalid up-value";
+            break;
+        case lstf_vm_status_assertion_failed:
+            exception_message = "assertion failed";
             break;
     }
 

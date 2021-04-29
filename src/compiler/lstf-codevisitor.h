@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lstf-assertstatement.h"
 #include "lstf-ifstatement.h"
 #include "lstf-conditionalexpression.h"
 #include "lstf-lambdaexpression.h"
@@ -13,7 +14,6 @@
 #include "lstf-enum.h"
 #include "lstf-datatype.h"
 #include "lstf-expressionstatement.h"
-#include "lstf-patterntest.h"
 #include "lstf-function.h"
 #include "lstf-variable.h"
 #include "lstf-statement.h"
@@ -39,6 +39,11 @@ struct _lstf_codevisitor_vtable {
      * Visits an array element
      */
     void (*visit_array)(lstf_codevisitor *code_visitor, lstf_array *array);
+
+    /**
+     * Visits an assert statement
+     */
+    void (*visit_assert_statement)(lstf_codevisitor *code_visitor, lstf_assertstatement *stmt);
 
     /**
      * Visits an assignment
@@ -156,11 +161,6 @@ struct _lstf_codevisitor_vtable {
     void (*visit_object_property)(lstf_codevisitor *code_visitor, lstf_objectproperty *property);
 
     /**
-     * Visits a pattern test statement
-     */
-    void (*visit_pattern_test)(lstf_codevisitor *code_visitor, lstf_patterntest *stmt);
-
-    /**
      * Visits a return statement
      */
     void (*visit_return_statement)(lstf_codevisitor *code_visitor, lstf_returnstatement *stmt);
@@ -189,6 +189,8 @@ struct _lstf_codevisitor {
 void lstf_codevisitor_construct(lstf_codevisitor *code_visitor, const lstf_codevisitor_vtable *vtable);
 
 void lstf_codevisitor_visit_array(lstf_codevisitor *code_visitor, lstf_array *array);
+
+void lstf_codevisitor_visit_assert_statement(lstf_codevisitor *code_visitor, lstf_assertstatement *stmt);
 
 void lstf_codevisitor_visit_assignment(lstf_codevisitor *code_visitor, lstf_assignment *assign);
 
@@ -235,8 +237,6 @@ void lstf_codevisitor_visit_method_call(lstf_codevisitor *code_visitor, lstf_met
 void lstf_codevisitor_visit_object(lstf_codevisitor *code_visitor, lstf_object *object);
 
 void lstf_codevisitor_visit_object_property(lstf_codevisitor *code_visitor, lstf_objectproperty *property);
-
-void lstf_codevisitor_visit_pattern_test(lstf_codevisitor *code_visitor, lstf_patterntest *stmt);
 
 void lstf_codevisitor_visit_return_statement(lstf_codevisitor *code_visitor, lstf_returnstatement *stmt);
 

@@ -1,4 +1,6 @@
 #include "lstf-symbolresolver.h"
+#include "compiler/lstf-futuretype.h"
+#include "lstf-assertstatement.h"
 #include "lstf-file.h"
 #include "lstf-ifstatement.h"
 #include "lstf-conditionalexpression.h"
@@ -29,7 +31,6 @@
 #include "lstf-codevisitor.h"
 #include "lstf-datatype.h"
 #include "lstf-expression.h"
-#include "lstf-patterntest.h"
 #include "lstf-sourceref.h"
 #include "lstf-statement.h"
 #include "lstf-variable.h"
@@ -59,6 +60,12 @@ static void
 lstf_symbolresolver_visit_array(lstf_codevisitor *visitor, lstf_array *array)
 {
     lstf_codenode_accept_children(array, visitor);
+}
+
+static void
+lstf_symbolresolver_visit_assert_statement(lstf_codevisitor *visitor, lstf_assertstatement *stmt)
+{
+    lstf_codenode_accept_children(stmt, visitor);
 }
 
 static void
@@ -122,6 +129,32 @@ lstf_symbolresolver_resolve_data_type(lstf_symbolresolver *resolver, lstf_dataty
         replacement_type = lstf_patterntype_new(&((lstf_codenode *)data_type)->source_reference);
     } else if (strcmp(unresolved_type->name, "void") == 0) {
         replacement_type = lstf_voidtype_new(&((lstf_codenode *)data_type)->source_reference);
+    } else if (strcmp(unresolved_type->name, "future") == 0) {
+        if (ptr_list_is_empty(data_type->parameters)) {
+            char *ut_string = lstf_datatype_to_string(data_type);
+            lstf_report_error(&lstf_codenode_cast(data_type)->source_reference,
+                    "`%s' requires one type parameter", ut_string);
+            resolver->num_errors++;
+            free(ut_string);
+            lstf_codenode_unref(unresolved_type);
+            return;
+        }
+        iterator typeparam_it = ptr_list_iterator_create(data_type->parameters);
+        replacement_type = lstf_futuretype_new(&lstf_codenode_cast(data_type)->source_reference, iterator_get_item(typeparam_it));
+        typeparam_it = iterator_next(typeparam_it);
+        while (typeparam_it.has_next) {
+            typeparam_it = iterator_next(typeparam_it);
+            if (!lstf_datatype_add_type_parameter(data_type, iterator_get_item(typeparam_it))) {
+                char *ut_string = lstf_datatype_to_string(data_type);
+                lstf_report_error(&lstf_codenode_cast(data_type)->source_reference,
+                        "`%s' has too many type arguments (requires exactly 1)", ut_string);
+                resolver->num_errors++;
+                free(ut_string);
+                lstf_codenode_unref(unresolved_type);
+                lstf_codenode_unref(replacement_type);
+                return;
+            }
+        }
     } else {
         lstf_scope *current_scope = ptr_list_node_get_data(resolver->scopes->tail, lstf_scope *);
         lstf_symbol *found_symbol = NULL;
@@ -153,7 +186,7 @@ lstf_symbolresolver_resolve_data_type(lstf_symbolresolver *resolver, lstf_dataty
     }
 
     // replace the type
-    lstf_codenode *parent = ((lstf_codenode *)unresolved_type)->parent_node;
+    lstf_codenode *parent = lstf_codenode_cast(unresolved_type)->parent_node;
 
     if (parent->codenode_type == lstf_codenode_type_symbol) {
         lstf_symbol *parent_symbol = (lstf_symbol *)parent;
@@ -190,7 +223,21 @@ lstf_symbolresolver_resolve_data_type(lstf_symbolresolver *resolver, lstf_dataty
         lstf_expression_set_value_type(parent_expression, replacement_type);
     } else if (parent->codenode_type == lstf_codenode_type_datatype) {
         lstf_datatype *parent_dt = lstf_datatype_cast(parent);
-        if (parent_dt->datatype_type == lstf_datatype_type_uniontype) {
+
+        if (lstf_datatype_is_type_parameter(data_type)) {
+            if (!lstf_datatype_replace_type_parameter(parent_dt, data_type, replacement_type)) {
+                char *parent_dt_string = lstf_datatype_to_string(parent_dt);
+                if (ptr_list_is_empty(parent_dt->parameters)) {
+                    lstf_report_error(&lstf_codenode_cast(parent_dt)->source_reference,
+                            "type `%s' does not take any parameters", parent_dt_string);
+                } else {
+                    lstf_report_error(&lstf_codenode_cast(parent_dt)->source_reference,
+                            "type `%s' is already fully parameterized", parent_dt_string);
+                }
+                resolver->num_errors++;
+                free(parent_dt_string);
+            }
+        } else if (parent_dt->datatype_type == lstf_datatype_type_uniontype) {
             lstf_union_type_replace_option(lstf_uniontype_cast(parent_dt), 
                     (lstf_datatype *)unresolved_type, replacement_type);
         } else if (parent_dt->datatype_type == lstf_datatype_type_functiontype) {
@@ -379,7 +426,6 @@ lstf_symbolresolver_visit_member_access(lstf_codevisitor *visitor, lstf_memberac
                     (lstf_function_cast(parent) || lstf_lambdaexpression_cast(parent))) {
                 lstf_function *current_function = lstf_function_cast(parent);
                 lstf_lambdaexpression *current_lambda = lstf_lambdaexpression_cast(parent);
-                lstf_patterntest *current_patterntest = lstf_patterntest_cast(parent);
 
                 if (current_function) {
                     lstf_function_add_captured_local(current_function, expr->symbol_reference);
@@ -403,11 +449,6 @@ lstf_symbolresolver_visit_member_access(lstf_codevisitor *visitor, lstf_memberac
                         resolver->num_errors++;
                         return;
                     }
-                } else if (current_patterntest) {
-                    // add the captured local, and check LSTF_VM_MAX_CAPTURES later
-                    // because we only care about LSTF_VM_MAX_CAPTURES when this
-                    // pattern test will be outlined
-                    lstf_patterntest_add_captured_local(current_patterntest, expr->symbol_reference);
                 }
 
                 parent = parent->parent_node;
@@ -432,25 +473,6 @@ static void
 lstf_symbolresolver_visit_object_property(lstf_codevisitor *visitor, lstf_objectproperty *property)
 {
     lstf_codenode_accept_children(property, visitor);
-}
-
-static void
-lstf_symbolresolver_visit_pattern_test(lstf_codevisitor *visitor, lstf_patterntest *stmt)
-{
-    lstf_symbolresolver *resolver = (lstf_symbolresolver *)visitor;
-
-    lstf_codenode_accept_children(stmt, visitor);
-
-    const unsigned long num_captures = ptr_hashset_num_elements(stmt->captured_locals);
-    if (stmt->is_async && num_captures > LSTF_VM_MAX_CAPTURES) {
-        lstf_report_error(&lstf_codenode_cast(stmt)->source_reference,
-                "this pattern test captures too many variables (max is %u)",
-                LSTF_VM_MAX_CAPTURES);
-        lstf_report_note(&lstf_codenode_cast(stmt)->source_reference,
-                "because this pattern test is asynchronous, it will be converted to an anonymous function");
-        resolver->num_errors++;
-        return;
-    }
 }
 
 static void
@@ -536,6 +558,7 @@ lstf_symbolresolver_visit_variable(lstf_codevisitor *visitor, lstf_variable *var
 
 static const lstf_codevisitor_vtable symbolresolver_vtable = {
     lstf_symbolresolver_visit_array,
+    lstf_symbolresolver_visit_assert_statement,
     lstf_symbolresolver_visit_assignment,
     lstf_symbolresolver_visit_binary_expression,
     lstf_symbolresolver_visit_block,
@@ -559,7 +582,6 @@ static const lstf_codevisitor_vtable symbolresolver_vtable = {
     lstf_symbolresolver_visit_method_call,
     lstf_symbolresolver_visit_object,
     lstf_symbolresolver_visit_object_property,
-    lstf_symbolresolver_visit_pattern_test,
     lstf_symbolresolver_visit_return_statement,
     lstf_symbolresolver_visit_type_alias,
     lstf_symbolresolver_visit_unary_expression,

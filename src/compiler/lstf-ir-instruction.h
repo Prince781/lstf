@@ -30,6 +30,7 @@ enum _lstf_ir_instruction_type {
     lstf_ir_instruction_type_phi,           // pseudo-instruction
     lstf_ir_instruction_type_append,
     lstf_ir_instruction_type_match,
+    lstf_ir_instruction_type_assert
 };
 typedef enum _lstf_ir_instruction_type lstf_ir_instruction_type;
 
@@ -405,6 +406,15 @@ typedef struct _lstf_ir_matchinstruction lstf_ir_matchinstruction;
 lstf_ir_instruction *lstf_ir_matchinstruction_new(lstf_codenode       *code_node,
                                                   lstf_ir_instruction *pattern,
                                                   lstf_ir_instruction *expression);
+
+struct _lstf_ir_assertinstruction {
+    lstf_ir_instruction parent_struct;
+    lstf_ir_instruction *source;
+};
+typedef struct _lstf_ir_assertinstruction lstf_ir_assertinstruction;
+
+lstf_ir_instruction *lstf_ir_assertinstruction_new(lstf_codenode       *code_node,
+                                                   lstf_ir_instruction *source);
 
 /**
  * Whether this is an instruction that produces a result.

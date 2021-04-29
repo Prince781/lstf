@@ -4,7 +4,6 @@
 
 enum _lstf_statement_type {
     lstf_statement_type_assignment,
-    lstf_statement_type_patterntest,
 
     /**
      * An expression statement.
@@ -21,7 +20,12 @@ enum _lstf_statement_type {
      */
     lstf_statement_type_return,
 
-    lstf_statement_type_ifstatement,
+    lstf_statement_type_if,
+
+    /**
+     * `assert <expression>;`
+     */
+    lstf_statement_type_assert,
 };
 typedef enum _lstf_statement_type lstf_statement_type;
 
@@ -40,9 +44,9 @@ static inline lstf_statement *lstf_statement_cast(void *node)
         case lstf_statement_type_assignment:
         case lstf_statement_type_declaration:
         case lstf_statement_type_expression:
-        case lstf_statement_type_ifstatement:
-        case lstf_statement_type_patterntest:
+        case lstf_statement_type_if:
         case lstf_statement_type_return:
+        case lstf_statement_type_assert:
             return node;
         }
     }

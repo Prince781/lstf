@@ -65,11 +65,18 @@ lstf_file *lstf_file_load(const char *filename)
 
     fclose(stream);
 
-    file->main_function = lstf_codenode_ref(lstf_function_new(&(lstf_sourceref) {
+    file->main_function = lstf_codenode_ref(
+            lstf_function_new(&(lstf_sourceref) {
                     file,
                     (lstf_sourceloc) { 1, 1, file->content },
                     (lstf_sourceloc) { 1, 1, file->content }
-                }, "main", lstf_voidtype_new(NULL), false, true));
+                }, "main",
+                lstf_voidtype_new(&(lstf_sourceref) {
+                    file,
+                    (lstf_sourceloc){ 1, 1, file->content },
+                    (lstf_sourceloc){ 1, 1, file->content }
+                }),
+                false, false));
 
     file->floating = true;
 

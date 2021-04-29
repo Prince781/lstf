@@ -14,6 +14,12 @@ void lstf_codevisitor_visit_array(lstf_codevisitor *code_visitor, lstf_array *ar
         code_visitor->vtable->visit_array(code_visitor, array);
 }
 
+void lstf_codevisitor_visit_assert_statement(lstf_codevisitor *code_visitor, lstf_assertstatement *stmt)
+{
+    if (code_visitor->vtable->visit_assert_statement)
+        code_visitor->vtable->visit_assert_statement(code_visitor, stmt);
+}
+
 void lstf_codevisitor_visit_assignment(lstf_codevisitor *code_visitor, lstf_assignment *assign)
 {
     if (code_visitor->vtable->visit_assignment)
@@ -150,12 +156,6 @@ void lstf_codevisitor_visit_object_property(lstf_codevisitor *code_visitor, lstf
 {
     if (code_visitor->vtable->visit_object_property)
         code_visitor->vtable->visit_object_property(code_visitor, property);
-}
-
-void lstf_codevisitor_visit_pattern_test(lstf_codevisitor *code_visitor, lstf_patterntest *stmt)
-{
-    if (code_visitor->vtable->visit_pattern_test)
-        code_visitor->vtable->visit_pattern_test(code_visitor, stmt);
 }
 
 void lstf_codevisitor_visit_return_statement(lstf_codevisitor *code_visitor, lstf_returnstatement *stmt)

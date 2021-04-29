@@ -59,11 +59,6 @@ enum _lstf_vm_opcode {
      */
     lstf_vm_op_in,
 
-    /**
-     * `match` - match a pattern to an expression
-     */
-    lstf_vm_op_match,
-
     // --- calling/returning from functions
 
     /**
@@ -148,6 +143,10 @@ enum _lstf_vm_opcode {
     // --- comparison operations
     lstf_vm_op_lessthan,
     lstf_vm_op_lessthan_equal,
+
+    /**
+     * `equal` - check for equality between two items, or check that a pattern matches an expression.
+     */
     lstf_vm_op_equal,
     lstf_vm_op_greaterthan,
     lstf_vm_op_greaterthan_equal,
@@ -178,7 +177,13 @@ enum _lstf_vm_opcode {
     /**
      * `exit <integer: 0-255>` exits with the exit code
      */
-    lstf_vm_op_exit
+    lstf_vm_op_exit,
+
+    // --- miscellaneous
+    /**
+     * Raise an exception if the previous result was not true.
+     */
+    lstf_vm_op_assert
 } __attribute__((packed));
 typedef enum _lstf_vm_opcode lstf_vm_opcode;
 
@@ -226,8 +231,6 @@ static inline const char *lstf_vm_opcode_to_string(lstf_vm_opcode opcode)
             return "set";
         case lstf_vm_op_in:
             return "in";
-        case lstf_vm_op_match:
-            return "match";
         case lstf_vm_op_params:
             return "params";
         case lstf_vm_op_call:
@@ -300,6 +303,8 @@ static inline const char *lstf_vm_opcode_to_string(lstf_vm_opcode opcode)
             return "print";
         case lstf_vm_op_exit:
             return "exit";
+        case lstf_vm_op_assert:
+            return "assert";
     }
 
     fprintf(stderr, "%s: unreachable code (unexpected opcode %u)\n",

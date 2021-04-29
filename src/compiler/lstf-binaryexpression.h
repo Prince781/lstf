@@ -20,6 +20,7 @@ enum _lstf_binaryoperator {
     lstf_binaryoperator_greaterthan_equal,
     lstf_binaryoperator_equal,
     lstf_binaryoperator_notequal,
+    lstf_binaryoperator_equivalent,
     lstf_binaryoperator_logical_or,
     lstf_binaryoperator_logical_and,
     lstf_binaryoperator_bitwise_or,

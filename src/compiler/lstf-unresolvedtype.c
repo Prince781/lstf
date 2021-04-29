@@ -1,4 +1,7 @@
 #include "lstf-unresolvedtype.h"
+#include "compiler/lstf-report.h"
+#include "data-structures/iterator.h"
+#include "data-structures/ptr-list.h"
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
@@ -14,8 +17,11 @@ static void lstf_unresolvedtype_accept(lstf_codenode *code_node, lstf_codevisito
 
 static void lstf_unresolvedtype_accept_children(lstf_codenode *code_node, lstf_codevisitor *visitor)
 {
-    (void) code_node;
-    (void) visitor;
+    lstf_datatype *data_type = (lstf_datatype *)code_node;
+
+    for (iterator typeparam_it = ptr_list_iterator_create(data_type->parameters);
+            typeparam_it.has_next; typeparam_it = iterator_next(typeparam_it))
+        lstf_codenode_accept(iterator_get_item(typeparam_it), visitor);
 }
 
 static void lstf_unresolvedtype_destruct(lstf_codenode *code_node)
@@ -46,7 +52,11 @@ static lstf_datatype *lstf_unresolvedtype_copy(lstf_datatype *self_dt)
     lstf_codenode *code_node = (lstf_codenode *)self_dt;
     lstf_unresolvedtype *self = (lstf_unresolvedtype *)self_dt;
 
-    return lstf_unresolvedtype_new(&code_node->source_reference, self->name);
+    lstf_datatype *new_datatype = lstf_unresolvedtype_new(&code_node->source_reference, self->name);
+
+    for (iterator typeparam_it = ptr_list_iterator_create(self_dt->parameters); typeparam_it.has_next; typeparam_it = iterator_next(typeparam_it))
+        lstf_datatype_add_type_parameter(new_datatype, iterator_get_item(typeparam_it));
+    return new_datatype;
 }
 
 static char *lstf_unresolvedtype_to_string(lstf_datatype *self_dt)
@@ -56,10 +66,31 @@ static char *lstf_unresolvedtype_to_string(lstf_datatype *self_dt)
     return strdup(self->name);
 }
 
+static bool lstf_unresolvedtype_add_type_parameter(lstf_datatype *self, lstf_datatype *parameter_type)
+{
+    if (lstf_codenode_cast(parameter_type)->parent_node)
+        parameter_type = lstf_datatype_copy(parameter_type);
+
+    lstf_codenode_set_parent(parameter_type, self);
+    ptr_list_append(self->parameters, parameter_type);
+    return true;
+}
+
+static bool lstf_unresolvedtype_replace_type_parameter(lstf_datatype *self, lstf_datatype *parameter_type, lstf_datatype *replacement_type)
+{
+    if (lstf_codenode_cast(replacement_type)->parent_node)
+        replacement_type = lstf_datatype_copy(replacement_type);
+
+    lstf_codenode_set_parent(replacement_type, self);
+    return ptr_list_replace(self->parameters, parameter_type, NULL, replacement_type);
+}
+
 static const lstf_datatype_vtable unresolvedtype_datatype_vtable = {
     lstf_unresolvedtype_is_supertype_of,
     lstf_unresolvedtype_copy,
-    lstf_unresolvedtype_to_string
+    lstf_unresolvedtype_to_string,
+    lstf_unresolvedtype_add_type_parameter,
+    lstf_unresolvedtype_replace_type_parameter
 };
 
 lstf_datatype *lstf_unresolvedtype_new(const lstf_sourceref *source_reference,

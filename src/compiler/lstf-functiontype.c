@@ -152,7 +152,9 @@ static char *lstf_functiontype_to_string(lstf_datatype *self_dt)
 static const lstf_datatype_vtable functiontype_datatype_vtable = {
     lstf_functiontype_is_supertype_of,
     lstf_functiontype_copy,
-    lstf_functiontype_to_string
+    lstf_functiontype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_functiontype_new(const lstf_sourceref *source_reference,

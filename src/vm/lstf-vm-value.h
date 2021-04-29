@@ -67,6 +67,18 @@ typedef enum _lstf_vm_value_type lstf_vm_value_type;
 static_assert(sizeof(json_integer) - sizeof(json_node) >= sizeof(uint8_t *),
         "json_integer must be able to hold a code address");
 
+static inline bool lstf_vm_value_type_is_json(lstf_vm_value_type value_type)
+{
+    switch (value_type) {
+        case lstf_vm_value_type_pattern_ref:
+        case lstf_vm_value_type_object_ref:
+        case lstf_vm_value_type_array_ref:
+            return true;
+        default:
+            return false;
+    }
+}
+
 typedef struct _lstf_vm_closure lstf_vm_closure;
 
 struct _lstf_vm_value {

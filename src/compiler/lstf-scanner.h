@@ -49,6 +49,7 @@ enum _lstf_token {
     lstf_token_divide,
     lstf_token_exponentiation,
     lstf_token_modulo,
+    lstf_token_keyword_assert,
     lstf_token_keyword_await,
     lstf_token_keyword_true,
     lstf_token_keyword_false,

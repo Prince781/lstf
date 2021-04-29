@@ -1,7 +1,9 @@
 #include "lstf-parser.h"
+#include "lstf-language-builtins.h"
 #include "lstf-anytype.h"
 #include "lstf-stringtype.h"
 #include "lstf-voidtype.h"
+#include "lstf-assertstatement.h"
 #include "lstf-ifstatement.h"
 #include "data-structures/string-builder.h"
 #include "lstf-lambdaexpression.h"
@@ -26,7 +28,6 @@
 #include "lstf-block.h"
 #include "lstf-elementaccess.h"
 #include "lstf-file.h"
-#include "lstf-patterntest.h"
 #include "lstf-unresolvedtype.h"
 #include "lstf-array.h"
 #include "lstf-object.h"
@@ -922,6 +923,9 @@ lstf_parser_parse_equality_expression(lstf_parser *parser, lstf_parsererror **er
         case lstf_token_notequal:
             operator = lstf_binaryoperator_notequal;
             break;
+        case lstf_token_equivalent:
+            operator = lstf_binaryoperator_equivalent;
+            break;
         default:
             found = false;
             break;
@@ -1703,6 +1707,25 @@ lstf_parser_parse_element_data_type(lstf_parser *parser, lstf_parsererror **erro
                         lstf_scanner_get_prev_end_location(parser->scanner)
                     }, type_name);
             free(type_name);
+            if (lstf_parser_accept_token(parser, lstf_token_leftangle)) {
+                lstf_datatype *parameter_type = NULL;
+                if (!(parameter_type = lstf_parser_parse_data_type(parser, error))) {
+                    lstf_codenode_unref(data_type);
+                    return NULL;
+                }
+                lstf_datatype_add_type_parameter(data_type, parameter_type);
+                while (lstf_parser_accept_token(parser, lstf_token_comma)) {
+                    if (!(parameter_type = lstf_parser_parse_data_type(parser, error))) {
+                        lstf_codenode_unref(data_type);
+                        return NULL;
+                    }
+                    lstf_datatype_add_type_parameter(data_type, parameter_type);
+                }
+                if (!lstf_parser_expect_token(parser, lstf_token_rightangle, error)) {
+                    lstf_codenode_unref(data_type);
+                    return NULL;
+                }
+            }
             return data_type;
         }
     } break;
@@ -2326,38 +2349,6 @@ lstf_parser_parse_expression_statement(lstf_parser *parser, lstf_parsererror **e
 }
 
 static lstf_statement *
-lstf_parser_parse_pattern_test_statement(lstf_parser *parser, lstf_parsererror **error)
-{
-    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
-
-    lstf_expression *pattern = lstf_parser_parse_expression(parser, error);
-    if (!pattern)
-        return NULL;
-
-    if (!lstf_parser_expect_token(parser, lstf_token_equivalent, error)) {
-        lstf_codenode_unref(pattern);
-        return NULL;
-    }
-
-    lstf_expression *rhs = lstf_parser_parse_expression(parser, error);
-    if (!rhs) {
-        lstf_codenode_unref(pattern);
-        return NULL;
-    }
-
-    if (!lstf_parser_expect_token(parser, lstf_token_semicolon, error)) {
-        lstf_codenode_unref(pattern);
-        lstf_codenode_unref(rhs);
-        return NULL;
-    }
-
-    return lstf_patterntest_new(
-            &(lstf_sourceref) {parser->file, begin, lstf_scanner_get_prev_end_location(parser->scanner)}, 
-            pattern,
-            rhs);
-}
-
-static lstf_statement *
 lstf_parser_parse_return_statement(lstf_parser *parser, lstf_parsererror **error)
 {
     lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
@@ -2428,6 +2419,30 @@ lstf_parser_parse_if_statement(lstf_parser *parser, lstf_parsererror **error)
             }, condition, true_statements, false_statements);
 }
 
+static lstf_statement *
+lstf_parser_parse_assert_statement(lstf_parser *parser, lstf_parsererror **error)
+{
+    lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
+
+    if (!lstf_parser_expect_token(parser, lstf_token_keyword_assert, error))
+        return NULL;
+
+    lstf_expression *expression = lstf_parser_parse_expression(parser, error);
+    if (!expression)
+        return NULL;
+
+    if (!lstf_parser_expect_token(parser, lstf_token_semicolon, error)) {
+        lstf_codenode_unref(expression);
+        return NULL;
+    }
+
+    return lstf_assertstatement_new(&(lstf_sourceref) {
+                parser->file,
+                begin,
+                lstf_scanner_get_prev_end_location(parser->scanner)
+            }, expression);
+}
+
 static lstf_block *
 lstf_parser_parse_embedded_statement(lstf_parser *parser, lstf_parsererror **error)
 {
@@ -2484,6 +2499,7 @@ lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error)
             return NULL;
         }
 
+        // skip over any expression on the LHS
         while (!(next_token == lstf_token_assignment || next_token == lstf_token_equivalent ||
                     next_token == lstf_token_semicolon || next_token == lstf_token_keyword_let ||
                     next_token == lstf_token_keyword_await || next_token == lstf_token_keyword_const ||
@@ -2495,18 +2511,8 @@ lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error)
 
         if (next_token == lstf_token_assignment)
             return lstf_parser_parse_assignment_statement(parser, error);
-        else if (next_token == lstf_token_equivalent)
-            return lstf_parser_parse_pattern_test_statement(parser, error);
         return lstf_parser_parse_expression_statement(parser, error);
     } break;
-    case lstf_token_openbracket:
-    case lstf_token_openbrace:
-    case lstf_token_integer:
-    case lstf_token_double:
-    case lstf_token_keyword_true:
-    case lstf_token_keyword_false:
-    case lstf_token_keyword_null:
-        return lstf_parser_parse_pattern_test_statement(parser, error);
     case lstf_token_keyword_await:
         return lstf_parser_parse_expression_statement(parser, error);
     case lstf_token_keyword_let:
@@ -2520,6 +2526,8 @@ lstf_parser_parse_statement(lstf_parser *parser, lstf_parsererror **error)
         return lstf_parser_parse_return_statement(parser, error);
     case lstf_token_keyword_if:
         return lstf_parser_parse_if_statement(parser, error);
+    case lstf_token_keyword_assert:
+        return lstf_parser_parse_assert_statement(parser, error);
     default:
         *error = lstf_parsererror_new(
                 &lstf_sourceref_at_location(parser->file,
@@ -2609,48 +2617,6 @@ lstf_parser_parse_statement_list(lstf_parser *parser, bool in_root_scope)
     }
 
     return statements;
-}
-
-static void
-lstf_parser_create_builtins(lstf_parser *parser)
-{
-    // create built-in variables and functions
-    lstf_sourceref src = lstf_sourceref_default_from_file(parser->file);
-    lstf_symbol *server_path = lstf_variable_new(&src, 
-            "server_path", lstf_stringtype_new(&src), NULL, true);
-    lstf_function_add_statement(parser->file->main_function,
-            lstf_declaration_new_from_variable(&src, lstf_variable_cast(server_path)));
-
-    lstf_symbol *project_files = lstf_variable_new(&src,
-            "project_files", lstf_arraytype_new(&src, lstf_stringtype_new(&src)), NULL, true);
-    lstf_function_add_statement(parser->file->main_function,
-            lstf_declaration_new_from_variable(&src, lstf_variable_cast(project_files)));
-
-    lstf_function *diagnostics = (lstf_function *)
-        lstf_function_new_for_opcode(&src,
-                "diagnostics",
-                lstf_anytype_new(&src),
-                false,
-                lstf_vm_op_vmcall,
-                lstf_vm_vmcall_diagnostics);
-    lstf_variable *diagnostics_args[] = {
-        (lstf_variable *)lstf_variable_new(&src, "file", lstf_stringtype_new(&src), NULL, true),
-    };
-
-    for (unsigned i = 0; i < sizeof(diagnostics_args) / sizeof(diagnostics_args[0]); i++)
-        lstf_function_add_parameter(diagnostics, diagnostics_args[i]);
-    lstf_function_add_statement(parser->file->main_function,
-            lstf_declaration_new_from_function(&src, diagnostics));
-
-    lstf_function *print = (lstf_function *)
-        lstf_function_new_for_opcode(&src, "print", lstf_voidtype_new(&src), false, lstf_vm_op_print, 0);
-    lstf_variable *print_args[] = {
-        (lstf_variable *)lstf_variable_new(&src, "args", lstf_anytype_new(&src), NULL, true)
-    };
-    for (unsigned i = 0; i < sizeof(print_args) / sizeof(print_args[0]); i++)
-        lstf_function_add_parameter(print, print_args[i]);
-    lstf_function_add_statement(parser->file->main_function,
-            lstf_declaration_new_from_function(&src, print));
 }
 
 static void

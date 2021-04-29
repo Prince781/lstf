@@ -61,7 +61,9 @@ static char *lstf_integertype_to_string(lstf_datatype *self)
 static const lstf_datatype_vtable integertype_datatype_vtable = {
     lstf_integertype_is_supertype_of,
     lstf_integertype_copy,
-    lstf_integertype_to_string
+    lstf_integertype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_integertype_new(const lstf_sourceref *source_reference)

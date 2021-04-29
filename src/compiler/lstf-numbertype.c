@@ -66,7 +66,9 @@ static char *lstf_numbertype_to_string(lstf_datatype *self)
 static const lstf_datatype_vtable numbertype_datatype_vtable = {
     lstf_numbertype_is_supertype_of,
     lstf_numbertype_copy,
-    lstf_numbertype_to_string
+    lstf_numbertype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_numbertype_new(const lstf_sourceref *source_reference)

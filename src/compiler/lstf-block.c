@@ -1,6 +1,5 @@
 #include "lstf-block.h"
 #include "lstf-scope.h"
-#include "lstf-patterntest.h"
 #include "lstf-codenode.h"
 #include "lstf-codevisitor.h"
 #include "lstf-expressionstatement.h"
@@ -30,17 +29,17 @@ static void lstf_block_accept_children(lstf_codenode *code_node, lstf_codevisito
         case lstf_statement_type_expression:
             lstf_codevisitor_visit_expression_statement(visitor, (lstf_expressionstatement *)stmt);
             break;
-        case lstf_statement_type_patterntest:
-            lstf_codevisitor_visit_pattern_test(visitor, (lstf_patterntest *)stmt);
-            break;
         case lstf_statement_type_declaration:
             lstf_codevisitor_visit_declaration(visitor, (lstf_declaration *)stmt);
             break;
         case lstf_statement_type_return:
             lstf_codevisitor_visit_return_statement(visitor, (lstf_returnstatement *)stmt);
             break;
-        case lstf_statement_type_ifstatement:
+        case lstf_statement_type_if:
             lstf_codevisitor_visit_if_statement(visitor, (lstf_ifstatement *)stmt);
+            break;
+        case lstf_statement_type_assert:
+            lstf_codevisitor_visit_assert_statement(visitor, (lstf_assertstatement *)stmt);
             break;
         }
     }

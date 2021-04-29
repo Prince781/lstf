@@ -1,5 +1,4 @@
 #include "lstf-scope.h"
-#include "compiler/lstf-patterntest.h"
 #include "lstf-expression.h"
 #include "lstf-function.h"
 #include "lstf-lambdaexpression.h"
@@ -47,10 +46,8 @@ lstf_scope *lstf_scope_new(lstf_codenode *owner)
                  (((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_function ||
                   ((lstf_symbol *)owner)->symbol_type == lstf_symbol_type_typesymbol)) ||
                 (owner->codenode_type == lstf_codenode_type_expression &&
-                 ((lstf_expression *)owner)->expr_type == lstf_expression_type_lambda) ||
-                (owner->codenode_type == lstf_codenode_type_statement &&
-                 ((lstf_statement *)owner)->stmt_type == lstf_statement_type_patterntest)) && 
-            "scope owner must be block, function, type symbol, lambda expression, or pattern test");
+                 ((lstf_expression *)owner)->expr_type == lstf_expression_type_lambda)) && 
+            "scope owner must be block, function, type symbol, lambda expression");
 
     lstf_scope *scope = calloc(1, sizeof *scope);
 
@@ -113,10 +110,6 @@ lstf_symbol *lstf_scope_lookup(lstf_scope *scope, const char *name)
         lstf_lambdaexpression *owner_parent_lambda = lstf_lambdaexpression_cast(owner_parent_node);
         if (owner_parent_lambda)
             return lstf_scope_lookup(owner_parent_lambda->scope, name);
-
-        lstf_patterntest *owner_parent_pattern_test = lstf_patterntest_cast(owner_parent_node);
-        if (owner_parent_pattern_test)
-            return lstf_scope_lookup(owner_parent_pattern_test->hidden_scope, name);
 
         owner_parent_node = owner_parent_node->parent_node;
     }

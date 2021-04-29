@@ -62,7 +62,9 @@ static char *lstf_objecttype_to_string(lstf_datatype *self)
 static const lstf_datatype_vtable objecttype_datatype_vtable = {
     lstf_objecttype_is_supertype_of,
     lstf_objecttype_copy,
-    lstf_objecttype_to_string
+    lstf_objecttype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_objecttype_new(const lstf_sourceref *source_reference)

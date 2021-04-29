@@ -1,8 +1,8 @@
 #include "lstf-codegenerator.h"
+#include "lstf-assertstatement.h"
 #include "lstf-block.h"
 #include "lstf-typesymbol.h"
 #include "lstf-variable.h"
-#include "lstf-patterntest.h"
 #include "lstf-returnstatement.h"
 #include "lstf-unaryexpression.h"
 #include "lstf-constant.h"
@@ -56,10 +56,6 @@ lstf_codenode_get_containing_scope(lstf_codenode *node)
         lstf_lambdaexpression *owner_parent_lambda = lstf_lambdaexpression_cast(node);
         if (owner_parent_lambda)
             return owner_parent_lambda->scope;
-
-        lstf_patterntest *owner_parent_pattern_test = lstf_patterntest_cast(node);
-        if (owner_parent_pattern_test)
-            return owner_parent_pattern_test->hidden_scope;
     }
 
     return NULL;
@@ -181,12 +177,6 @@ lstf_codegenerator_get_temp_for_symbol(lstf_codegenerator *generator,
                     break;
                 }
 
-                lstf_patterntest *parent_patterntest = lstf_patterntest_cast(parent);
-                if (parent_patterntest) {
-                    current_scope = parent_patterntest->hidden_scope;
-                    break;
-                }
-
                 parent = parent->parent_node;
             }
         }
@@ -295,12 +285,6 @@ lstf_memberaccess_get_capture_id(lstf_memberaccess *access)
             captured_locals = parent_lambda->captured_locals;
             break;
         }
-
-        lstf_patterntest *parent_patterntest = lstf_patterntest_cast(node);
-        if (parent_patterntest && ptr_hashset_contains(parent_patterntest->captured_locals, symbol)) {
-            captured_locals = parent_patterntest->captured_locals;
-            break;
-        }
     }
 
     if (captured_locals) {
@@ -354,16 +338,12 @@ lstf_codegenerator_generate_closure_for_function(lstf_codegenerator *generator,
     //   variable/parameter declared in the containing function/lambda
 
     lstf_codenode *container = code_node->parent_node;
-    while (container &&
-            !(lstf_function_cast(container) ||
-                lstf_lambdaexpression_cast(container) ||
-                (lstf_patterntest_cast(container) && lstf_patterntest_cast(container)->is_async)))
+    while (container && !(lstf_function_cast(container) || lstf_lambdaexpression_cast(container)))
         container = lstf_codenode_cast(container)->parent_node;
 
     assert(container && "must have a containing function or lambda!");
     lstf_function *containing_function = lstf_function_cast(container);
     lstf_lambdaexpression *containing_lambda = lstf_lambdaexpression_cast(container);
-    lstf_patterntest *containing_pattern_test = lstf_patterntest_cast(container);
     ptr_list *captures = ptr_list_new(NULL, free);
 
     for (iterator it = ptr_hashset_iterator_create(captured_locals); it.has_next; it = iterator_next(it)) {
@@ -374,9 +354,7 @@ lstf_codegenerator_generate_closure_for_function(lstf_codegenerator *generator,
         // (AKA the parent of the function/lambda we're at)
         captured->is_local = !ptr_hashset_contains(containing_function ?
             containing_function->captured_locals :
-            containing_lambda ?
-            containing_lambda->captured_locals :
-            containing_pattern_test->captured_locals,
+            containing_lambda->captured_locals,
             variable);
         if (captured->is_local) {
             captured->local = lstf_codegenerator_get_alloc_for_local(generator, lstf_symbol_cast(variable));
@@ -449,6 +427,22 @@ lstf_codegenerator_visit_array(lstf_codevisitor *visitor, lstf_array *array)
     }
 
     lstf_codegenerator_set_temp_for_expression(generator, lstf_expression_cast(array), array_temp);
+}
+
+static void
+lstf_codegenerator_visit_assert_statement(lstf_codevisitor *visitor, lstf_assertstatement *stmt)
+{
+    lstf_codegenerator *generator = (lstf_codegenerator *)visitor;
+    lstf_scope *current_scope = lstf_codenode_get_containing_scope(lstf_codenode_cast(stmt));
+
+    lstf_codenode_accept_children(stmt, visitor);
+
+    // t_expression = <... expression ...>
+    // assert t_expression
+
+    lstf_ir_instruction *t_expression = lstf_codegenerator_get_temp_for_expression(generator, stmt->expression);
+    lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope);
+    lstf_ir_basicblock_add_instruction(block, lstf_ir_assertinstruction_new(lstf_codenode_cast(stmt), t_expression));
 }
 
 static void
@@ -772,6 +766,9 @@ lstf_codegenerator_visit_binary_expression(lstf_codevisitor *visitor, lstf_binar
             break;
         case lstf_binaryoperator_rightshift:
             opcode = lstf_vm_op_rshift;
+            break;
+        case lstf_binaryoperator_equivalent:
+            opcode = lstf_vm_op_equal;
             break;
         default:
             fprintf(stderr, "%s: unreachable code: invalid expression op `%u'\n",
@@ -1350,68 +1347,6 @@ lstf_codegenerator_visit_object(lstf_codevisitor *visitor, lstf_object *object)
 }
 
 static void
-lstf_codegenerator_visit_pattern_test(lstf_codevisitor *visitor, lstf_patterntest *stmt)
-{
-    lstf_codegenerator *generator = (lstf_codegenerator *)visitor;
-    lstf_scope *current_scope = lstf_codenode_get_containing_scope(lstf_codenode_cast(stmt));
-    lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope);
-
-    // either we generate:
-    //
-    // ...
-    // t_pattern = <... expr 1 ...>         |
-    // t_expression = <... expr 2 ...>      | pattern test statement
-    // match t0, t1                         |
-    // ...
-    //
-    // or we generate:
-    //
-    // __pattern_test.%u:                   |
-    //      t_pattern = <... expr 1 ...>    | <--- sequence of possibly asynchronous instructions
-    //      t_expression = <... expr 2 ...> | <--- sequence of possibly asynchronous instructions
-    //      match t0, t1                    | pattern test
-    //      return                          |
-    //
-
-    if (stmt->is_async) {
-        // create a new function
-        string *function_name = string_appendf(string_new(), "__pattern_test.%u", stmt->id);
-        lstf_ir_function *fn =
-            lstf_ir_function_new_for_userfn(function_name->buffer,
-                    0,
-                    ptr_hashset_num_elements(stmt->captured_locals),
-                    false);
-        lstf_ir_program_add_function(generator->ir, fn);
-        ptr_list_append(generator->ir_functions, fn);
-
-        lstf_ir_basicblock *bb_start = lstf_ir_basicblock_new();
-        fn->entry_block->successors[0] = bb_start;
-
-        lstf_codegenerator_set_current_basicblock_for_scope(generator, stmt->hidden_scope, bb_start);
-        lstf_ir_function_add_basic_block(fn, bb_start);
-
-        lstf_codenode_accept_children(stmt, visitor);
-
-        lstf_ir_instruction *t_pattern = lstf_codegenerator_get_temp_for_expression(generator, stmt->pattern);
-        lstf_ir_instruction *t_expression = lstf_codegenerator_get_temp_for_expression(generator, stmt->expression);
-        lstf_ir_basicblock_add_instruction(bb_start,
-                lstf_ir_matchinstruction_new(lstf_codenode_cast(stmt), t_pattern, t_expression));
-        lstf_ir_basicblock_add_instruction(bb_start,
-                lstf_ir_returninstruction_new(lstf_codenode_cast(stmt), NULL));
-
-        ptr_list_remove_last_link(generator->ir_functions);
-        string_unref(function_name);
-    } else {
-        lstf_codenode_accept_children(stmt, visitor);
-
-        lstf_ir_instruction *t_pattern = lstf_codegenerator_get_temp_for_expression(generator, stmt->pattern);
-        lstf_ir_instruction *t_expression = lstf_codegenerator_get_temp_for_expression(generator, stmt->expression);
-        lstf_ir_basicblock_add_instruction(block,
-                lstf_ir_matchinstruction_new(lstf_codenode_cast(stmt), t_pattern, t_expression));
-    }
-}
-
-static void
 lstf_codegenerator_visit_return_statement(lstf_codevisitor *visitor, lstf_returnstatement *stmt)
 {
     lstf_codegenerator *generator = (lstf_codegenerator *)visitor;
@@ -1507,6 +1442,7 @@ lstf_codegenerator_visit_variable(lstf_codevisitor *visitor, lstf_variable *vari
 
 static const lstf_codevisitor_vtable codegenerator_vtable = {
     lstf_codegenerator_visit_array,
+    lstf_codegenerator_visit_assert_statement,
     lstf_codegenerator_visit_assignment,
     lstf_codegenerator_visit_binary_expression,
     lstf_codegenerator_visit_block,
@@ -1530,7 +1466,6 @@ static const lstf_codevisitor_vtable codegenerator_vtable = {
     lstf_codegenerator_visit_method_call,
     lstf_codegenerator_visit_object,
     NULL /* visit_object_property */,
-    lstf_codegenerator_visit_pattern_test,
     lstf_codegenerator_visit_return_statement,
     NULL /* visit_type_alias */,
     lstf_codegenerator_visit_unary_expression,

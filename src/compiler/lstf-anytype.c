@@ -33,8 +33,9 @@ static bool lstf_anytype_is_supertype_of(lstf_datatype *self, lstf_datatype *oth
 {
     (void) self;
     assert(other != NULL && "cannot compare lstf_anytype to NULL data type");
+    // any must be a value, so it's incompatible with void and future<T> (for now at least)
 
-    return other->datatype_type != lstf_datatype_type_voidtype;
+    return !(other->datatype_type == lstf_datatype_type_voidtype || other->datatype_type == lstf_datatype_type_future);
 }
 
 static lstf_datatype *lstf_anytype_copy(lstf_datatype *self)
@@ -51,7 +52,9 @@ static char *lstf_anytype_to_string(lstf_datatype *self)
 static const lstf_datatype_vtable anytype_datatype_vtable = {
     lstf_anytype_is_supertype_of,
     lstf_anytype_copy,
-    lstf_anytype_to_string
+    lstf_anytype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_anytype_new(const lstf_sourceref *source_reference)

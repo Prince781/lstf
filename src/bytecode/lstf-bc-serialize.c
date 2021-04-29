@@ -313,7 +313,6 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
             case lstf_vm_op_get:
             case lstf_vm_op_set:
             case lstf_vm_op_in:
-            case lstf_vm_op_match:
                 break;
             case lstf_vm_op_params:
                 if (!outputstream_write_byte(ostream, instruction->num_parameters))
@@ -390,6 +389,7 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
             case lstf_vm_op_rshift:
             case lstf_vm_op_not:
             case lstf_vm_op_print:
+            case lstf_vm_op_assert:
                 break;
             case lstf_vm_op_exit:
                 if (!outputstream_write_byte(ostream, instruction->exit_code))

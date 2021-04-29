@@ -950,6 +950,9 @@ lstf_vm_op_equal_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
             operand2.value_type == lstf_vm_value_type_integer) {
         status = lstf_vm_stack_push_boolean(cr->stack,
                         operand1.data.double_value == operand2.data.integer);
+    } else if (lstf_vm_value_type_is_json(operand1.value_type) && lstf_vm_value_type_is_json(operand2.value_type)) {
+        status = lstf_vm_stack_push_boolean(cr->stack,
+                        json_node_equal_to(operand1.data.json_node_ref, operand2.data.json_node_ref));
     } else {
         status = lstf_vm_status_invalid_operand_type;
     }
@@ -1204,6 +1207,22 @@ lstf_vm_op_exit_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     return status;
 }
 
+static lstf_vm_status
+lstf_vm_op_assert_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
+{
+    (void) vm;
+    lstf_vm_status status = lstf_vm_status_continue;
+    bool previous_result;
+
+    if ((status = lstf_vm_stack_pop_boolean(cr->stack, &previous_result)))
+        return status;
+
+    if (!previous_result)
+        status = lstf_vm_status_assertion_failed;
+
+    return status;
+}
+
 static lstf_vm_status (*const instruction_table[256])(lstf_virtualmachine *, lstf_vm_coroutine *) = {
     // --- reading/writing to/from memory
     [lstf_vm_op_load_frameoffset]   = lstf_vm_op_load_frameoffset_exec,
@@ -1263,7 +1282,10 @@ static lstf_vm_status (*const instruction_table[256])(lstf_virtualmachine *, lst
 
     // --- input/output
     [lstf_vm_op_print]              = lstf_vm_op_print_exec,
-    [lstf_vm_op_exit]               = lstf_vm_op_exit_exec
+    [lstf_vm_op_exit]               = lstf_vm_op_exit_exec,
+    
+    // --- miscellaneous
+    [lstf_vm_op_assert]             = lstf_vm_op_assert_exec
 };
 
 bool

@@ -1,4 +1,5 @@
 #include "lstf-voidtype.h"
+#include "compiler/lstf-report.h"
 #include "lstf-codevisitor.h"
 #include "lstf-codenode.h"
 #include "lstf-datatype.h"
@@ -48,7 +49,9 @@ static char *lstf_voidtype_to_string(lstf_datatype *self)
 static const lstf_datatype_vtable voidtype_datatype_vtable = {
     lstf_voidtype_is_supertype_of,
     lstf_voidtype_copy,
-    lstf_voidtype_to_string
+    lstf_voidtype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_voidtype_new(const lstf_sourceref *source_reference)

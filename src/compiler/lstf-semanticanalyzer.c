@@ -1,4 +1,7 @@
 #include "lstf-semanticanalyzer.h"
+#include "compiler/lstf-futuretype.h"
+#include "compiler/lstf-objecttype.h"
+#include "lstf-assertstatement.h"
 #include "lstf-ifstatement.h"
 #include "lstf-voidtype.h"
 #include "lstf-lambdaexpression.h"
@@ -7,7 +10,6 @@
 #include "lstf-numbertype.h"
 #include "lstf-scanner.h"
 #include "lstf-binaryexpression.h"
-#include "lstf-patterntest.h"
 #include "lstf-enumtype.h"
 #include "lstf-patterntype.h"
 #include "lstf-sourceref.h"
@@ -97,26 +99,6 @@ lstf_semanticanalyzer_pop_current_function(lstf_semanticanalyzer *analyzer)
     ptr_list_remove_last_link(analyzer->current_functions);
 }
 
-static lstf_patterntest *
-lstf_semanticanalyzer_get_current_pattern_test(lstf_semanticanalyzer *analyzer)
-{
-    if (ptr_list_is_empty(analyzer->current_pattern_tests))
-        return NULL;
-    return ptr_list_node_get_data(analyzer->current_pattern_tests->tail, lstf_patterntest *);
-}
-
-static void
-lstf_semanticanalyzer_push_current_pattern_test(lstf_semanticanalyzer *analyzer, lstf_patterntest *stmt)
-{
-    ptr_list_append(analyzer->current_pattern_tests, stmt);
-}
-
-static void
-lstf_semanticanalyzer_pop_current_pattern_test(lstf_semanticanalyzer *analyzer)
-{
-    ptr_list_remove_last_link(analyzer->current_pattern_tests);
-}
-
 static void
 lstf_semanticanalyzer_visit_array(lstf_codevisitor *visitor, lstf_array *array)
 {
@@ -180,6 +162,16 @@ lstf_semanticanalyzer_visit_array(lstf_codevisitor *visitor, lstf_array *array)
 }
 
 static void
+lstf_semanticanalyzer_visit_assert_statement(lstf_codevisitor *visitor, lstf_assertstatement *stmt)
+{
+    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
+
+    lstf_semanticanalyzer_push_current_expected_type(analyzer, lstf_booleantype_new(NULL));
+    lstf_codenode_accept_children(stmt, visitor);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
+}
+
+static void
 lstf_semanticanalyzer_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *assign)
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
@@ -205,15 +197,15 @@ lstf_semanticanalyzer_visit_assignment(lstf_codevisitor *visitor, lstf_assignmen
             lstf_report_error(&lstf_codenode_cast(assign->lhs)->source_reference,
                     "`%s' only refers to a type, but is being used as an l-value here",
                     assign->lhs->symbol_reference->name);
+            analyzer->num_errors++;
         } else if (lstf_interfaceproperty_cast(assign->lhs->symbol_reference)) {
             lstf_report_error(&lstf_codenode_cast(assign->lhs)->source_reference,
                     "`%s' only refers to a type member, but is being used as an l-value here",
                     assign->lhs->symbol_reference->name);
+            analyzer->num_errors++;
         } else {
-            lstf_report_error(&lstf_codenode_cast(assign->lhs)->source_reference,
-                    "expected l-value here");
+            // there should've been a specific error already triggered for the LHS expression
         }
-        analyzer->num_errors++;
         return;
     }
 
@@ -456,6 +448,28 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
                 lstf_booleantype_new(&lstf_codenode_cast(expr)->source_reference));
     }   break;
 
+    case lstf_binaryoperator_equivalent:
+    {
+        lstf_datatype *pattern_type =
+            lstf_patterntype_new(&lstf_codenode_cast(expr)->source_reference);
+
+        if (expr->left->value_type &&
+                !lstf_datatype_is_supertype_of(pattern_type, expr->left->value_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
+                    "left-hand side of pattern match expression must be compatible with a pattern type");
+            analyzer->num_errors++;
+        }
+
+        if (expr->right->value_type &&
+                !lstf_datatype_is_supertype_of(pattern_type, expr->right->value_type)) {
+            lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
+                    "right-hand side of pattern match expression must be compatible with a pattern type");
+            analyzer->num_errors++;
+        }
+
+        lstf_codenode_unref(pattern_type);
+    }   break;
+
     case lstf_binaryoperator_logical_or:
     case lstf_binaryoperator_logical_and:
     {
@@ -529,8 +543,13 @@ lstf_semanticanalyzer_visit_block(lstf_codevisitor *visitor, lstf_block *block)
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
     lstf_function *parent_function = lstf_function_cast(lstf_codenode_cast(block)->parent_node);
     
-    if (parent_function)
-        ptr_list_append(analyzer->expected_return_types, parent_function->return_type);
+    if (parent_function) {
+        lstf_futuretype *future_type = lstf_futuretype_cast(parent_function->return_type);
+        if (future_type)
+            ptr_list_append(analyzer->expected_return_types, future_type->wrapped_type);
+        else
+            ptr_list_append(analyzer->expected_return_types, parent_function->return_type);
+    }
     ptr_list_append(analyzer->scopes, block->scope);
     lstf_codenode_accept_children(block, visitor);
     ptr_list_remove_last_link(analyzer->scopes);
@@ -853,12 +872,24 @@ lstf_semanticanalyzer_visit_function(lstf_codevisitor *visitor, lstf_function *f
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
 
+    if (function->is_async && function->block &&
+            function->return_type->datatype_type != lstf_datatype_type_future) {
+        lstf_report_error(&lstf_codenode_cast(function->return_type)->source_reference,
+                "asynchronous functions must return a `future<T>' (where T = type of return value)");
+        analyzer->num_errors++;
+    }
+
     lstf_semanticanalyzer_push_current_function(analyzer, function);
     lstf_codenode_accept_children(function, visitor);
     lstf_semanticanalyzer_pop_current_function(analyzer);
 
     if (!function->has_return_statement && function->block &&
-            function->return_type->datatype_type != lstf_datatype_type_voidtype) {
+            (function->is_async ?
+             // if this is async, we want to ensure the function returns `future<void>'
+             (function->return_type->datatype_type == lstf_datatype_type_future &&
+              lstf_futuretype_cast(function->return_type)->wrapped_type->datatype_type != lstf_datatype_type_voidtype) :
+             // otherwise, we want to ensure the function returns `void'
+             function->return_type->datatype_type != lstf_datatype_type_voidtype)) {
         lstf_report_error(&lstf_codenode_cast(function)->source_reference,
                 "non-void function must return a value");
         analyzer->num_errors++;
@@ -921,19 +952,21 @@ lstf_semanticanalyzer_visit_lambda_expression(lstf_codevisitor *visitor, lstf_la
     // then, peel the expected function type and visit the body
     if (expected_ft) {
         lstf_semanticanalyzer_push_current_expected_type(analyzer, expr->expression_body ? expected_ft->return_type : NULL);
-        ptr_list_append(analyzer->expected_return_types, expected_ft->return_type);
+        lstf_futuretype *future_type = lstf_futuretype_cast(expected_ft->return_type);
+        if (future_type)
+            ptr_list_append(analyzer->expected_return_types, future_type->wrapped_type);
+        else
+            ptr_list_append(analyzer->expected_return_types, expected_ft->return_type);
     } else {
         lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
         ptr_list_append(analyzer->expected_return_types, NULL);
     }
-    lstf_semanticanalyzer_push_current_pattern_test(analyzer, NULL);
     if (expr->expression_body)
         lstf_codenode_accept(expr->expression_body, visitor);
     else
         lstf_codenode_accept(expr->statements_body, visitor);
     lstf_semanticanalyzer_pop_current_expected_type(analyzer);
     ptr_list_remove_last_link(analyzer->expected_return_types);
-    lstf_semanticanalyzer_pop_current_pattern_test(analyzer);
 
     lstf_datatype *return_type = NULL;
 
@@ -1004,6 +1037,11 @@ lstf_semanticanalyzer_visit_lambda_expression(lstf_codevisitor *visitor, lstf_la
         }
 
         ptr_list_destroy(lambda_visitor.found_returns);
+    }
+
+    if (expr->is_async) {
+        // the return type should be wrapped into a `future<T>`
+        return_type = lstf_futuretype_new(&lstf_codenode_cast(return_type)->source_reference, return_type);
     }
 
     lstf_functiontype *function_type = (lstf_functiontype *)
@@ -1131,6 +1169,7 @@ lstf_semanticanalyzer_visit_member_access(lstf_codevisitor *visitor, lstf_member
             case lstf_datatype_type_patterntype:
             case lstf_datatype_type_numbertype:
             case lstf_datatype_type_arraytype:
+            case lstf_datatype_type_future:
                 lstf_report_error(&lstf_codenode_cast(access)->source_reference,
                         "request for member `%s' in something not an object", access->member_name);
                 analyzer->num_errors++;
@@ -1251,19 +1290,9 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
 
     // check that await expression is not used in a synchronous context
     if (mcall->is_awaited) {
+        // we are awaiting the result of an asynchronous function call
+        // await <function>(...) => T;
         lstf_function *current_function = lstf_semanticanalyzer_get_current_function(analyzer);
-
-        if (current_function == analyzer->file->main_function && !current_function->is_async)
-            current_function->is_async = true;
-
-        if (current_function && !current_function->is_async) {
-            lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
-                    "%s expressions are only allowed within %s functions and in the global scope",
-                    lstf_token_to_string(lstf_token_keyword_await),
-                    lstf_token_to_string(lstf_token_keyword_async));
-            analyzer->num_errors++;
-            return;
-        }
 
         if (!call_ft->is_async) {
             lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
@@ -1271,16 +1300,50 @@ lstf_semanticanalyzer_visit_method_call(lstf_codevisitor* visitor, lstf_methodca
             analyzer->num_errors++;
             return;
         }
-    } else if (call_ft->is_async) {
-        // if we are calling a function that is not awaited, but is
-        // asynchronous, this is allowed. however, if we're inside a pattern
-        // test then that statement needs to be made asynchronous
-        lstf_patterntest *test = lstf_semanticanalyzer_get_current_pattern_test(analyzer);
-        if (test)
-            test->is_async = true;
-    }
 
-    lstf_expression_set_value_type(lstf_expression_cast(mcall), call_ft->return_type);
+        if (current_function && !(current_function->is_async || current_function == analyzer->file->main_function)) {
+            lstf_report_error(&lstf_codenode_cast(mcall)->source_reference,
+                    "%s expressions are only allowed within %s functions and in the global scope",
+                    lstf_token_to_string(lstf_token_keyword_await),
+                    lstf_token_to_string(lstf_token_keyword_async));
+            analyzer->num_errors++;
+        }
+
+        // if this async function doesn't return a future<T>, it would've
+        // triggered an error earlier in semantic analysis
+        if (call_ft->return_type->datatype_type == lstf_datatype_type_future) {
+            lstf_expression_set_value_type(lstf_expression_cast(mcall), lstf_futuretype_cast(call_ft->return_type)->wrapped_type);
+
+            if (current_function == analyzer->file->main_function) {
+                current_function->is_async = true;
+
+                lstf_futuretype *return_future_type = lstf_futuretype_cast(current_function->return_type);
+                lstf_datatype *void_type = lstf_voidtype_new(&lstf_codenode_cast(current_function->return_type)->source_reference);
+
+                // change the return type of main() to future<T>
+                if (!return_future_type) {
+                    lstf_function_set_return_type(current_function,
+                            lstf_futuretype_new(&lstf_codenode_cast(current_function->return_type)->source_reference,
+                                void_type));
+                } else if (return_future_type->wrapped_type->datatype_type == lstf_datatype_type_uniontype) {
+                    // add a new type T3 to the union type inside future<T1 | T2 | ...> if necessary
+                    if (!lstf_datatype_is_supertype_of(return_future_type->wrapped_type, void_type))
+                        lstf_uniontype_add_option(lstf_uniontype_cast(return_future_type->wrapped_type), void_type);
+                } else {
+                    // change the return type of main() to future<T1 | T2> 
+                    lstf_function_set_return_type(current_function,
+                            lstf_uniontype_new(&lstf_codenode_cast(return_future_type)->source_reference,
+                                return_future_type->wrapped_type,
+                                void_type,
+                                NULL));
+                }
+            }
+        }
+    } else {
+        // this is a call either to a synchronous function or an asynchronous
+        // function that is not awaited
+        lstf_expression_set_value_type(lstf_expression_cast(mcall), call_ft->return_type);
+    }
 }
 
 static void
@@ -1394,16 +1457,6 @@ static void
 lstf_semanticanalyzer_visit_object_property(lstf_codevisitor *visitor, lstf_objectproperty *property)
 {
     lstf_codenode_accept_children(property, visitor);
-}
-
-static void
-lstf_semanticanalyzer_visit_pattern_test(lstf_codevisitor *visitor, lstf_patterntest *stmt)
-{
-    lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
-
-    ptr_list_append(analyzer->current_pattern_tests, stmt);
-    lstf_codenode_accept_children(stmt, visitor);
-    ptr_list_remove_last_link(analyzer->current_pattern_tests);
 }
 
 static void
@@ -1594,6 +1647,7 @@ lstf_semanticanalyzer_visit_variable(lstf_codevisitor *visitor, lstf_variable *v
 
 static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_array,
+    lstf_semanticanalyzer_visit_assert_statement,
     lstf_semanticanalyzer_visit_assignment,
     lstf_semanticanalyzer_visit_binary_expression,
     lstf_semanticanalyzer_visit_block,
@@ -1617,7 +1671,6 @@ static const lstf_codevisitor_vtable semanticanalyzer_vtable = {
     lstf_semanticanalyzer_visit_method_call,
     lstf_semanticanalyzer_visit_object,
     lstf_semanticanalyzer_visit_object_property,
-    lstf_semanticanalyzer_visit_pattern_test,
     lstf_semanticanalyzer_visit_return_statement,
     NULL /* visit_type_alias */,
     lstf_semanticanalyzer_visit_unary_expression,

@@ -60,7 +60,9 @@ static char *lstf_booleantype_to_string(lstf_datatype *self)
 static const lstf_datatype_vtable booleantype_datatype_vtable = {
     lstf_booleantype_is_supertype_of,
     lstf_booleantype_copy,
-    lstf_booleantype_to_string
+    lstf_booleantype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_booleantype_new(const lstf_sourceref *source_reference)

@@ -584,9 +584,9 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             case lstf_vm_op_neg:
             case lstf_vm_op_not:
             case lstf_vm_op_bool:
-            case lstf_vm_op_match:
             case lstf_vm_op_print:
             case lstf_vm_op_exit:
+            case lstf_vm_op_assert:
                 fprintf(stderr, "%s: unreachable code: unexpected op `%u' for binary IR instruction\n",
                         __func__, binst->opcode);
                 abort();
@@ -636,7 +636,6 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
                 case lstf_vm_op_load_frameoffset:
                 case lstf_vm_op_lor:
                 case lstf_vm_op_lshift:
-                case lstf_vm_op_match:
                 case lstf_vm_op_mod:
                 case lstf_vm_op_mul:
                 case lstf_vm_op_or:
@@ -655,6 +654,7 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
                 case lstf_vm_op_upset:
                 case lstf_vm_op_vmcall:
                 case lstf_vm_op_xor:
+                case lstf_vm_op_assert:
                     fprintf(stderr, "%s: unreachable code: unexpected op `%u' for unary IR instruction\n",
                             __func__, uinst->opcode);
                     abort();
@@ -806,6 +806,12 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_set_new());
         }   break;
 
+        case lstf_ir_instruction_type_match:
+        {
+            frame_offset -= 2;
+            bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_equal_new());
+        }   break;
+
         case lstf_ir_instruction_type_loadfunction:
         {
             inst->frame_offset = frame_offset++;
@@ -820,8 +826,11 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_return_new());
             break;
 
+        case lstf_ir_instruction_type_assert:
+            bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_assert_new());
+            break;
+
         case lstf_ir_instruction_type_append:
-        case lstf_ir_instruction_type_match:
             fprintf(stderr, "%s: unsupported IR instruction `%u`\n", __func__, inst->insn_type);
             abort();
         }
@@ -984,6 +993,15 @@ bool lstf_ir_program_visualize(const lstf_ir_program *program, const char *path)
                                 (uintptr_t)ptr_hashmap_get(insn_result_ids, append_inst->value)->value;
 
                             string_appendf(bb_insns_buffer, "append %%%lu, %%%lu\\n", container_i, value_i);
+                        }   break;
+
+                        case lstf_ir_instruction_type_assert:
+                        {
+                            lstf_ir_assertinstruction *assert_inst = (lstf_ir_assertinstruction *)bb->instructions[i];
+                            unsigned long source_i =
+                                (uintptr_t)ptr_hashmap_get(insn_result_ids, assert_inst->source)->value;
+
+                            string_appendf(bb_insns_buffer, "assert %%%lu\\n", source_i);
                         }   break;
 
                         case lstf_ir_instruction_type_branch:

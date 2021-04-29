@@ -125,9 +125,10 @@ ptr_list_node *ptr_list_replace(ptr_list                     *list,
     if (!found_node)
         return NULL;
 
-    if (list->data_unref_func)
-        list->data_unref_func(found_node->data);
+    void *old_data = found_node->data;
     found_node->data = list->data_ref_func ? list->data_ref_func(replacement) : replacement;
+    if (list->data_unref_func)
+        list->data_unref_func(old_data);
     return found_node;
 }
 

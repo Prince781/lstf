@@ -1,5 +1,6 @@
 #pragma once
 
+#include "data-structures/ptr-list.h"
 #include "lstf-common.h"
 #include "lstf-symbol.h"
 #include "lstf-sourceref.h"
@@ -14,6 +15,8 @@ struct _lstf_datatype_vtable {
     bool (*is_supertype_of)(lstf_datatype *self, lstf_datatype *other);
     lstf_datatype *(*copy)(lstf_datatype *self);
     char *(*to_string)(lstf_datatype *self);
+    bool (*add_type_parameter)(lstf_datatype *self, lstf_datatype *type_parameter);
+    bool (*replace_type_parameter)(lstf_datatype *self, lstf_datatype *type_parameter, lstf_datatype *replacement_type);
 };
 
 /**
@@ -35,7 +38,8 @@ enum _lstf_datatype_type {
     lstf_datatype_type_stringtype,
     lstf_datatype_type_arraytype,
     lstf_datatype_type_functiontype,
-    lstf_datatype_type_patterntype
+    lstf_datatype_type_patterntype,
+    lstf_datatype_type_future
 };
 typedef enum _lstf_datatype_type lstf_datatype_type;
 
@@ -54,6 +58,11 @@ struct _lstf_datatype {
      * (weak ref) (nullable) the symbol that creates this data type
      */
     lstf_symbol *symbol;
+
+    /**
+     * type parameters: `ptr_list<lstf_datatype *>`
+     */
+    ptr_list *parameters;
 };
 
 static inline lstf_datatype *lstf_datatype_cast(void *node)
@@ -95,3 +104,21 @@ lstf_datatype *lstf_datatype_copy(lstf_datatype *self);
 bool lstf_datatype_equals(lstf_datatype *self, lstf_datatype *other);
 
 char *lstf_datatype_to_string(lstf_datatype *self);
+
+/**
+ * Returns true if this is a type parameter for a data type, or false otherwise.
+ */
+bool lstf_datatype_is_type_parameter(lstf_datatype *self);
+
+/**
+ * Attempt to add a type parameter to `self`. Returns false if the type does
+ * not support parameterization or is already fully parameterized, true otherwise.
+ */
+bool lstf_datatype_add_type_parameter(lstf_datatype *self, lstf_datatype *type_parameter);
+
+/**
+ * Attempt to replace a type parameter for `self` with `replacement_type`.
+ * Returns false if the type does not support parameterization or is already
+ * fully parameterized, true otherwise.
+ */
+bool lstf_datatype_replace_type_parameter(lstf_datatype *self, lstf_datatype *type_parameter, lstf_datatype *replacement_type);

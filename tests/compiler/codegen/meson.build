@@ -2,6 +2,10 @@ test('codegen-array', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/array.lstf',
     '-expect', '[\n    [\n        1,\n        2,\n        3\n    ],\n    {\n        "obj": {\n            "hello": true,\n            "goodbye": false\n        }\n    },\n    3,\n    4,\n    "string",\n    3.141590\n]\n'])
 
+test('codegen-assert', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/assert.lstf',
+    '-expect', 'success\n'])
+
 test('codegen-closure', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/closure.lstf',
     '-expect', 'outer\ndoughnut\nbagel\ndoughnut\nbagel\n'])

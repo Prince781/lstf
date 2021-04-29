@@ -1,5 +1,5 @@
 #include "lstf-uniontype.h"
-#include "compiler/lstf-report.h"
+#include "lstf-report.h"
 #include "lstf-codevisitor.h"
 #include "data-structures/iterator.h"
 #include "data-structures/string-builder.h"
@@ -103,7 +103,9 @@ static char *lstf_uniontype_to_string(lstf_datatype *self_dt)
 static const lstf_datatype_vtable uniontype_datatype_vtable = {
     lstf_uniontype_is_supertype_of,
     lstf_uniontype_copy,
-    lstf_uniontype_to_string
+    lstf_uniontype_to_string,
+    /* add_type_parameter = */ NULL,
+    /* replace_type_parameter = */ NULL
 };
 
 lstf_datatype *lstf_uniontype_new(const lstf_sourceref *source_reference,
