@@ -114,7 +114,7 @@ int main(void)
                             printf("factorial program exited with expected output:\n%s", expected_output);
                         }
                     } else {
-                        retval = 1;
+                        retval = 99;
                         fprintf(stderr, "could not check output of VM: %s\n", strerror(errno));
                     }
                 } else {
@@ -130,12 +130,12 @@ int main(void)
             lstf_virtualmachine_destroy(vm);
             inputstream_unref(istream);
         } else {
-            retval = 1;
+            retval = 99;
             fprintf(stderr, "failed to load program\n");
             // TODO: make use of [[error]]
         }
     } else {
-        retval = 1;
+        retval = 99;
         fprintf(stderr, "failed to assemble code: %s\n", strerror(errno));
     }
 

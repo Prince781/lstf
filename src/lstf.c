@@ -236,6 +236,7 @@ compile_lstf_script(const char *progname, const char *filename, struct lstf_opti
         goto cleanup;
     if (!(program = lstf_vm_loader_load_from_buffer(bytecode, bytecode_length, &loader_error))) {
         report_load_error(progname, filename, loader_error);
+        retval = 99;
         goto cleanup;
     }
 
@@ -262,7 +263,7 @@ static int load_and_run_file(const char *progname, const char *filename, struct 
 
     if (!program) {
         report_load_error(progname, filename, error);
-        return 1;
+        return 99;
     }
 
     return run_program(program, options);

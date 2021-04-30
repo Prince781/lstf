@@ -1,7 +1,7 @@
 #pragma once
 
 // Win32 compatibility
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #define __attribute__(x) 
 #endif
 

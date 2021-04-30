@@ -5,18 +5,28 @@ project('lstf', 'c',
 
 cc = meson.get_compiler('c')
 
+# MSVC supports both '-' and '/' in front of a command line flag
 add_project_arguments([
   '-I' + meson.project_source_root() + '/src',
-  '-D_XOPEN_SOURCE=700',
-  '-DWIN32_LEAN_AND_MEAN',  # Win32 headers don't pull in more than they need
-  '-D_WIN32_WINNT=0x0601',
 ], language: 'c')
+
+if host_machine.system() == 'windows'
+  add_project_arguments([
+    '-DWIN32_LEAN_AND_MEAN',  # Win32 headers don't pull in more than they need
+    '-D_WIN32_WINNT=0x0601',
+    '-D_CRT_SECURE_NO_WARNINGS',
+  ], language: 'c')
+else
+  add_project_arguments([
+    '-D_XOPEN_SOURCE=700',
+  ], language: 'c')
+endif
 
 if cc.get_id() == 'msvc'
     c_args = cc.get_supported_arguments([
-      '/D_CRT_SECURE_NO_WARNINGS',
       '/wd4996',      # suppress POSIX name deprecation warnings
       '/wd4706',      # suppress assignment within conditional expression
+      '/wd5105',      # suppress warning about undefined 'defined' macro usage outside of #if
       '/std:c17',
     ])
 else
