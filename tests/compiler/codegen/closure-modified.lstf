@@ -1,0 +1,12 @@
+let x = 10;
+
+fun get_meaning(f: () => int): int {
+    x = 42;
+    return f();
+}
+
+fun meaning_of_life(): int {
+    return x;
+}
+
+print(get_meaning(meaning_of_life));

@@ -1,0 +1,6 @@
+async fun get_meaning(f: async () => future<int>): future<int> {
+    return await f();
+}
+
+let meaning_of_life = async () => 42;
+print(await get_meaning(meaning_of_life));

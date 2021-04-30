@@ -6,9 +6,21 @@ test('codegen-assert', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/assert.lstf',
     '-expect', 'success\n'])
 
+test('codegen-async-lambda', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/async-lambda.lstf',
+    '-expect', '42\n'])
+
+test('codegen-async-no-await', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/async-no-await.lstf',
+    '-expect', '42\n'])
+
 test('codegen-closure', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/closure.lstf',
     '-expect', 'outer\ndoughnut\nbagel\ndoughnut\nbagel\n'])
+
+test('codegen-closure-modified', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/closure-modified.lstf',
+    '-expect', '42\n'])
 
 test('codegen-factorial', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/factorial.lstf',
@@ -17,6 +29,10 @@ test('codegen-factorial', lstf, suite: 'compiler',
 test('codegen-if-statements', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/if-statements.lstf',
     '-expect', 'x is less than y\nmidpoint\nx is less than y\n'])
+
+test('codegen-lambda', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/lambda.lstf',
+    '-expect', '42\n'])
 
 test('codegen-object', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/object.lstf',

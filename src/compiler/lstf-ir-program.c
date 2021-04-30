@@ -1244,16 +1244,16 @@ bool lstf_ir_program_visualize(const lstf_ir_program *program, const char *path)
 
                 const char *bb_name = ptr_hashmap_get(bb_names, bb)->value;
                 if (bb_insns_buffer->buffer[0])
-                    fprintf(dotfile, "        %s_%s [label=\"%s\"];\n", fn->name, bb_name, bb_insns_buffer->buffer);
+                    fprintf(dotfile, "        \"%s_%s\" [label=\"%s\"];\n", fn->name, bb_name, bb_insns_buffer->buffer);
                 else
-                    fprintf(dotfile, "        %s_%s;\n", fn->name, bb_name);
+                    fprintf(dotfile, "        \"%s_%s\";\n", fn->name, bb_name);
 
                 for (unsigned i = 0; i < sizeof(bb->successors) / sizeof(bb->successors[0]); i++) {
                     if (!bb->successors[i])
                         continue;
 
                     const char *bb_successor_name = ptr_hashmap_get(bb_names, bb->successors[i])->value;
-                    fprintf(dotfile, "        %s_%s -> %s_%s;\n", fn->name, bb_name, fn->name, bb_successor_name);
+                    fprintf(dotfile, "        \"%s_%s\" -> \"%s_%s\";\n", fn->name, bb_name, fn->name, bb_successor_name);
                 }
 
                 fprintf(dotfile, "\n");
