@@ -1119,7 +1119,16 @@ lstf_codegenerator_visit_lambda_expression(lstf_codevisitor *visitor, lstf_lambd
     lstf_ir_function_add_basic_block(lambda_fn, bb_start);
 
     lstf_codenode_accept_children(expr, visitor);
-    // TODO: add return statement if necessary and connect to end
+    // add return statement and connect to end
+    if (expr->expression_body) {
+        lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, expr->scope);
+        lstf_ir_instruction *t_expression =
+            lstf_codegenerator_get_temp_for_expression(generator, expr->expression_body);
+
+        lstf_ir_basicblock_add_instruction(block,
+                lstf_ir_returninstruction_new(lstf_codenode_cast(expr->expression_body), t_expression));
+        block->successors[0] = lambda_fn->exit_block;
+    }
     ptr_list_remove_last_link(generator->ir_functions);
     string_unref(lambda_name);
 
