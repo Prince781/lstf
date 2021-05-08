@@ -1165,6 +1165,7 @@ lstf_codegenerator_visit_member_access(lstf_codevisitor *visitor, lstf_memberacc
         lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope);
         lstf_codenode *current_function = lstf_codenode_get_containing_function(lstf_codenode_cast(access));
 
+        // access a variable
         if (!access->inner) {
             int capture_id;
             if ((capture_id = lstf_memberaccess_get_capture_id(access)) != -1) {
@@ -1231,6 +1232,8 @@ lstf_codegenerator_visit_member_access(lstf_codevisitor *visitor, lstf_memberacc
 
             lstf_ir_basicblock_add_instruction(block, t_member);
             lstf_ir_basicblock_add_instruction(block, gei);
+
+            lstf_codegenerator_set_temp_for_expression(generator, lstf_expression_cast(access), gei);
         }
     }
 }

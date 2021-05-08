@@ -1,8 +1,9 @@
-let x: object = {
-    "hello": 1
+let x = {
+    "hello": 3,
+    "goodbye": 0,
 };
 
-x["hello"] = 3;
 x["goodbye"] = x["hello"] + 4;
 
 print(x);
+print(x["hello"]);

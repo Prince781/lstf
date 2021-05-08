@@ -1,0 +1,8 @@
+let o = {
+    hello: 3,
+    goodbye: 4
+};
+
+o.hello = o.hello + o.goodbye;
+
+print(o.hello);

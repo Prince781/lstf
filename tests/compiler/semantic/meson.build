@@ -33,6 +33,9 @@ test('semantic-object-element-access', lstf, suite: 'compiler',
 test('semantic-object-member-write', lstf, suite: 'compiler',
   args: semantic_test_args + [meson.project_source_root() + '/tests/compiler/semantic/object-member-write.lstf'])
 
+test('semantic-object-member-access', lstf, suite: 'compiler',
+  args: semantic_test_args + [meson.project_source_root() + '/tests/compiler/semantic/object-member-access.lstf'])
+
 test('semantic-lambda-as-argument', lstf, suite: 'compiler',
   args: semantic_test_args + [meson.project_source_root() + '/tests/compiler/semantic/passed-lambda-with-expression-body.lstf'])
 

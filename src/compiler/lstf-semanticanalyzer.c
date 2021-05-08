@@ -1,6 +1,6 @@
 #include "lstf-semanticanalyzer.h"
-#include "compiler/lstf-futuretype.h"
-#include "compiler/lstf-objecttype.h"
+#include "lstf-futuretype.h"
+#include "lstf-objecttype.h"
 #include "lstf-assertstatement.h"
 #include "lstf-ifstatement.h"
 #include "lstf-voidtype.h"
@@ -330,20 +330,24 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
         if (expr->left->value_type &&
                 !lstf_datatype_is_supertype_of(number_type, expr->left->value_type)) {
             char *nt_string = lstf_datatype_to_string(number_type);
+            char *dt_string = lstf_datatype_to_string(expr->left->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
-                    "expected `%s' for left-hand side of arithmetic expression", nt_string);
+                    "expected `%s' for left-hand side of arithmetic expression, got `%s'", nt_string, dt_string);
             analyzer->num_errors++;
             free(nt_string);
+            free(dt_string);
             subexpr_errors = true;
         }
 
         if (expr->right->value_type &&
                 !lstf_datatype_is_supertype_of(number_type, expr->right->value_type)) {
             char *nt_string = lstf_datatype_to_string(number_type);
+            char *dt_string = lstf_datatype_to_string(expr->right->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
-                    "expected `%s' for right-hand side of arithmetic expression", nt_string);
+                    "expected `%s' for right-hand side of arithmetic expression, got `%s'", nt_string, dt_string);
             analyzer->num_errors++;
             free(nt_string);
+            free(dt_string);
             subexpr_errors = true;
         }
 
@@ -400,19 +404,23 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
         if (expr->left->value_type &&
                 !lstf_datatype_is_supertype_of(integer_type, expr->left->value_type)) {
             char *it_string = lstf_datatype_to_string(integer_type);
+            char *dt_string = lstf_datatype_to_string(expr->left->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
-                    "expected `%s' for left-hand side of bitwise expression", it_string);
+                    "expected `%s' for left-hand side of bitwise expression, got `%s'", it_string, dt_string);
             analyzer->num_errors++;
             free(it_string);
+            free(dt_string);
         }
 
         if (expr->right->value_type &&
                 !lstf_datatype_is_supertype_of(integer_type, expr->right->value_type)) {
             char *it_string = lstf_datatype_to_string(integer_type);
+            char *dt_string = lstf_datatype_to_string(expr->right->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
-                    "expected `%s' for right-hand side of bitwise expression", it_string);
+                    "expected `%s' for right-hand side of bitwise expression, got `%s'", it_string, dt_string);
             analyzer->num_errors++;
             free(it_string);
+            free(dt_string);
         }
 
         // the type of a bitwise operation is always an integer
@@ -455,16 +463,24 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
 
         if (expr->left->value_type &&
                 !lstf_datatype_is_supertype_of(pattern_type, expr->left->value_type)) {
+            char *dt_string = lstf_datatype_to_string(expr->left->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
                     "left-hand side of pattern match expression must be compatible with a pattern type");
+            lstf_report_note(&lstf_codenode_cast(expr->left)->source_reference,
+                    "`%s' here", dt_string);
             analyzer->num_errors++;
+            free(dt_string);
         }
 
         if (expr->right->value_type &&
                 !lstf_datatype_is_supertype_of(pattern_type, expr->right->value_type)) {
+            char *dt_string = lstf_datatype_to_string(expr->right->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
                     "right-hand side of pattern match expression must be compatible with a pattern type");
+            lstf_report_note(&lstf_codenode_cast(expr->right)->source_reference,
+                    "`%s' here", dt_string);
             analyzer->num_errors++;
+            free(dt_string);
         }
 
         lstf_codenode_unref(pattern_type);
@@ -477,16 +493,24 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
 
         if (expr->left->value_type &&
                 !lstf_datatype_is_supertype_of(boolean_type, expr->left->value_type)) {
+            char *dt_string = lstf_datatype_to_string(expr->left->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
                     "left-hand side of bitwise expression must be a boolean");
+            lstf_report_note(&lstf_codenode_cast(expr->left)->source_reference,
+                    "`%s' here", dt_string);
             analyzer->num_errors++;
+            free(dt_string);
         }
 
         if (expr->right->value_type &&
                 !lstf_datatype_is_supertype_of(boolean_type, expr->right->value_type)) {
+            char *dt_string = lstf_datatype_to_string(expr->right->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
                     "right-hand side of bitwise expression must be a boolean");
+            lstf_report_note(&lstf_codenode_cast(expr->right)->source_reference,
+                    "`%s' here", dt_string);
             analyzer->num_errors++;
+            free(dt_string);
         }
 
         if (expr->left->value_type && expr->right->value_type) {
@@ -502,16 +526,24 @@ lstf_semanticanalyzer_visit_binary_expression(lstf_codevisitor *visitor, lstf_bi
 
         if (expr->left->value_type &&
                 !lstf_datatype_is_supertype_of(expr->left->value_type, null_type)) {
+            char *dt_string = lstf_datatype_to_string(expr->left->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->left)->source_reference,
                     "left-hand side of coalescing expression must be nullable");
+            lstf_report_note(&lstf_codenode_cast(expr->left)->source_reference,
+                    "`%s' is not nullable", dt_string);
             analyzer->num_errors++;
+            free(dt_string);
         }
 
         if (expr->right->value_type &&
                 !lstf_datatype_is_supertype_of(expr->right->value_type, null_type)) {
+            char *dt_string = lstf_datatype_to_string(expr->right->value_type);
             lstf_report_error(&lstf_codenode_cast(expr->right)->source_reference,
                     "right-hand side of coalescing expression must be nullable");
+            lstf_report_note(&lstf_codenode_cast(expr->right)->source_reference,
+                    "`%s' is not nullable", dt_string);
             analyzer->num_errors++;
+            free(dt_string);
         }
 
         if (expr->left->value_type && expr->right->value_type) {
@@ -825,18 +857,20 @@ lstf_semanticanalyzer_visit_expression(lstf_codevisitor *visitor, lstf_expressio
                 lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
                         "`%s' only refers to a type, but is being used as a value here",
                         expr->symbol_reference->name);
+                analyzer->num_errors++;
             } else if (lstf_interfaceproperty_cast(expr->symbol_reference)) {
                 lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
                         "`%s' only refers to a type member, but is being used as a value here",
                         expr->symbol_reference->name);
+                analyzer->num_errors++;
             } else {
-                char *expected_et_to_string = lstf_datatype_to_string(expected_type);
-                lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
-                        "expected expression of type `%s' here",
-                        expected_et_to_string);
-                free(expected_et_to_string);
+                // char *expected_et_to_string = lstf_datatype_to_string(expected_type);
+                // lstf_report_error(&lstf_codenode_cast(expr)->source_reference,
+                //         "expected expression of type `%s' here",
+                //         expected_et_to_string);
+                // free(expected_et_to_string);
+                // analyzer->num_errors++;
             }
-            analyzer->num_errors++;
         }
     }
 }
@@ -1092,7 +1126,9 @@ lstf_semanticanalyzer_visit_member_access(lstf_codevisitor *visitor, lstf_member
 {
     lstf_semanticanalyzer *analyzer = (lstf_semanticanalyzer *)visitor;
 
+    lstf_semanticanalyzer_push_current_expected_type(analyzer, NULL);
     lstf_codenode_accept_children(access, visitor);
+    lstf_semanticanalyzer_pop_current_expected_type(analyzer);
     lstf_expression *expr = lstf_expression_cast(access);
 
     // first, attempt to resolve member access, based on the type
@@ -1170,10 +1206,13 @@ lstf_semanticanalyzer_visit_member_access(lstf_codevisitor *visitor, lstf_member
             case lstf_datatype_type_numbertype:
             case lstf_datatype_type_arraytype:
             case lstf_datatype_type_future:
+            {
+                char *dt_string = lstf_datatype_to_string(access->inner->value_type);
                 lstf_report_error(&lstf_codenode_cast(access)->source_reference,
-                        "request for member `%s' in something not an object", access->member_name);
+                        "member `%s' does not exist on type `%s'", access->member_name, dt_string);
                 analyzer->num_errors++;
-                break;
+                free(dt_string);
+            }   break;
             case lstf_datatype_type_unresolvedtype:
                 fprintf(stderr, "%s: unresolved type found in semantic analysis!", __func__);
                 abort();
