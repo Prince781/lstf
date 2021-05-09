@@ -267,3 +267,12 @@ lstf_vm_status lstf_vm_stack_frame_get_upvalue(lstf_vm_stack    *stack,
 lstf_vm_status lstf_vm_stack_frame_track_upvalue(lstf_vm_stack   *stack,
                                                  int64_t          fp_offset,
                                                  lstf_vm_upvalue *upvalue);
+
+/**
+ * Get the up-value that is already tracked in the current frame.
+ *
+ * `fp_offset` must be > 0
+ */
+lstf_vm_status lstf_vm_stack_frame_get_tracked_upvalue(lstf_vm_stack    *stack,
+                                                       int64_t           fp_offset,
+                                                       lstf_vm_upvalue **upvalue);

@@ -887,3 +887,32 @@ lstf_vm_status lstf_vm_stack_frame_track_upvalue(lstf_vm_stack   *stack,
     stack->values[value_offset].is_captured = true;
     return lstf_vm_status_continue;
 }
+
+lstf_vm_status lstf_vm_stack_frame_get_tracked_upvalue(lstf_vm_stack    *stack,
+                                                       int64_t           fp_offset,
+                                                       lstf_vm_upvalue **upvalue)
+{
+    if (stack->n_frames == 0 || stack->n_values == 0)
+        return lstf_vm_status_invalid_stack_offset;
+
+    const uint64_t value_offset = stack->frames[stack->n_frames - 1].offset + fp_offset;
+    if (value_offset >= stack->n_values)
+        return lstf_vm_status_invalid_stack_offset;
+
+    if (fp_offset < 0)
+        // we never track up-values for stack elements that don't belong to the
+        // current frame
+        // TODO: define a new lstf_vm_status for this condition
+        return lstf_vm_status_invalid_stack_offset;
+
+
+    lstf_vm_stackframe *current_frame = &stack->frames[stack->n_frames - 1];
+
+    const ptr_hashmap_entry *sp_uv_pair = NULL;
+    if (!current_frame->captured_locals ||
+            !(sp_uv_pair = ptr_hashmap_get(current_frame->captured_locals, (void *)(uintptr_t) value_offset)))
+        return lstf_vm_status_invalid_upvalue;
+
+    *upvalue = sp_uv_pair->value;
+    return lstf_vm_status_continue;
+}

@@ -468,16 +468,23 @@ lstf_codegenerator_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *
             lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope);
             lstf_ir_instruction *rhs_temp = lstf_codegenerator_get_temp_for_expression(generator, assign->rhs);
 
-            // associate our new temporary (rhs_temp) with the symbol
+            // associate our new temporary (rhs_temp) with the symbol on the LHS
             lstf_codegenerator_set_temp_for_symbol(generator,
                     current_scope,
                     assign->lhs->symbol_reference,
                     rhs_temp);
-            // write a store instruction
-            lstf_ir_basicblock_add_instruction(block,
-                    lstf_ir_storeinstruction_new(lstf_codenode_cast(assign),
-                        rhs_temp,
-                        lstf_codegenerator_get_alloc_for_local(generator, assign->lhs->symbol_reference)));
+            int capture_id;
+            if ((capture_id = lstf_memberaccess_get_capture_id(maccess)) != -1) {
+                // generate a store to the up-value
+                lstf_ir_basicblock_add_instruction(block,
+                        lstf_ir_setupvalueinstruction_new(lstf_codenode_cast(assign), capture_id, rhs_temp));
+            } else {
+                // generate a store instruction
+                lstf_ir_basicblock_add_instruction(block,
+                        lstf_ir_storeinstruction_new(lstf_codenode_cast(assign),
+                            rhs_temp,
+                            lstf_codegenerator_get_alloc_for_local(generator, assign->lhs->symbol_reference)));
+            }
         } else {
             // we are writing to an object property
 

@@ -1,8 +1,7 @@
-let x = 10;
+let x = 21;
 
 fun get_meaning(f: () => int): int {
-    x = 42;
-    return f();
+    return x + f();
 }
 
 fun meaning_of_life(): int {

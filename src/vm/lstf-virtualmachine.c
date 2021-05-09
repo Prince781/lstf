@@ -576,7 +576,13 @@ lstf_vm_op_closure_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
             if ((status = lstf_vm_stack_get_frame_value_address(cr->stack, fp_offset, &value_ptr)))
                 goto cleanup_upvalues;
 
-            upvalues[i] = lstf_vm_upvalue_new(value_ptr - cr->stack->values, cr);
+            // now check whether this stack offset is already captured in the current frame
+            if ((status = lstf_vm_stack_frame_get_tracked_upvalue(cr->stack, fp_offset, &upvalues[i]))) {
+                if (status != lstf_vm_status_invalid_upvalue)
+                    goto cleanup_upvalues;
+                upvalues[i] = lstf_vm_upvalue_new(value_ptr - cr->stack->values, cr);
+                status = lstf_vm_status_continue;
+            }
             fp_offsets[i] = fp_offset;
         } else {
             // then [index] is the n'th up-value belonging to the current closure
