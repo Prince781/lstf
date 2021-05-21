@@ -255,7 +255,7 @@ lstf_codegenerator_set_alloc_for_local(lstf_codegenerator  *generator,
                                        lstf_ir_function    *fn)
 {
     assert(alloc_inst->insn_type == lstf_ir_instruction_type_alloc);
-    if (!((lstf_ir_allocinstruction *)alloc_inst)->is_automatic)
+    if (((lstf_ir_allocinstruction *)alloc_inst)->initializer)
         fn->num_locals++;
     ptr_hashmap_insert(generator->local_allocs, local, alloc_inst);
 }
@@ -374,14 +374,12 @@ lstf_codegenerator_generate_closure_for_function(lstf_codegenerator *generator,
         lstf_ir_basicblock_add_instruction(block, closure_inst);
         lstf_codegenerator_set_temp_for_expression(generator, lstf_expression_cast(lambda), closure_inst);
     } else if (function) { 
-        lstf_ir_instruction *alloc_inst = lstf_ir_allocinstruction_new(code_node, false);
-        lstf_ir_instruction *store_inst = lstf_ir_storeinstruction_new(code_node, closure_inst, alloc_inst);
         // the containing function
         lstf_ir_function *fn = lstf_codegenerator_get_current_function(generator);
 
-        lstf_ir_basicblock_add_instruction(block, alloc_inst);
         lstf_ir_basicblock_add_instruction(block, closure_inst);
-        lstf_ir_basicblock_add_instruction(block, store_inst);
+        lstf_ir_instruction *alloc_inst = lstf_ir_allocinstruction_new(code_node, closure_inst);
+        lstf_ir_basicblock_add_instruction(block, alloc_inst);
 
         lstf_codegenerator_set_temp_for_symbol(generator, current_scope, lstf_symbol_cast(function), alloc_inst);
         lstf_codegenerator_set_alloc_for_local(generator, lstf_symbol_cast(function), alloc_inst, fn);
@@ -413,6 +411,11 @@ lstf_codegenerator_visit_array(lstf_codevisitor *visitor, lstf_array *array)
             lstf_ir_instruction *element_temp = NULL;
             json_node *element_json = NULL;
 
+            // append instruction consumes all its arguments, so we have to reload the array temp
+            lstf_ir_instruction *reloaded_array_temp =
+                lstf_ir_loadinstruction_new(array_temp->code_node, array_temp);
+            lstf_ir_basicblock_add_instruction(block, reloaded_array_temp);
+
             if ((element_json = lstf_expression_to_json(element))) {
                 element_temp = lstf_ir_constantinstruction_new(lstf_codenode_cast(element), element_json);
                 lstf_ir_basicblock_add_instruction(block, element_temp);
@@ -422,7 +425,7 @@ lstf_codegenerator_visit_array(lstf_codevisitor *visitor, lstf_array *array)
             }
 
             lstf_ir_basicblock_add_instruction(block,
-                    lstf_ir_appendinstruction_new(lstf_codenode_cast(element), array_temp, element_temp));
+                    lstf_ir_appendinstruction_new(lstf_codenode_cast(element), reloaded_array_temp, element_temp));
         }
     }
 
@@ -529,10 +532,10 @@ lstf_codegenerator_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *
         if (eaccess->arguments->length == 1) {
             lstf_codenode_accept_children(assign, visitor);
             lstf_ir_instruction *lhs_temp = lstf_codegenerator_get_temp_for_expression(generator, eaccess->container);
-            lstf_ir_instruction *rhs_temp = lstf_codegenerator_get_temp_for_expression(generator, assign->rhs);
             lstf_ir_instruction *index_inst =
                 lstf_codegenerator_get_temp_for_expression(generator,
                         iterator_get_item(ptr_list_iterator_create(eaccess->arguments)));
+            lstf_ir_instruction *rhs_temp = lstf_codegenerator_get_temp_for_expression(generator, assign->rhs);
             lstf_ir_instruction *set_inst =
                 lstf_ir_setelementinstruction_new(lstf_codenode_cast(eaccess), lhs_temp, index_inst, rhs_temp);
 
@@ -1343,6 +1346,16 @@ lstf_codegenerator_visit_object(lstf_codevisitor *visitor, lstf_object *object)
             lstf_ir_instruction *property_value_temp = NULL;
             json_node *property_value_json = NULL;
 
+            // set-element instruction consumes all its arguments, so we have to reload the object temporary
+            lstf_ir_instruction *reloaded_object_temp =
+                lstf_ir_loadinstruction_new(object_temp->code_node, object_temp);
+            lstf_ir_basicblock_add_instruction(block, reloaded_object_temp);
+
+            lstf_ir_instruction *index_temp =
+                lstf_ir_constantinstruction_new(lstf_codenode_cast(property),
+                        json_string_new(lstf_symbol_cast(property)->name));
+            lstf_ir_basicblock_add_instruction(block, index_temp);
+
             if ((property_value_json = lstf_expression_to_json(property->value))) {
                 property_value_temp =
                     lstf_ir_constantinstruction_new(lstf_codenode_cast(property), property_value_json);
@@ -1352,13 +1365,9 @@ lstf_codegenerator_visit_object(lstf_codevisitor *visitor, lstf_object *object)
                 property_value_temp = lstf_codegenerator_get_temp_for_expression(generator, property->value);
             }
 
-            lstf_ir_instruction *index_temp =
-                lstf_ir_constantinstruction_new(lstf_codenode_cast(property),
-                        json_string_new(lstf_symbol_cast(property)->name));
-            lstf_ir_basicblock_add_instruction(block, index_temp);
             lstf_ir_basicblock_add_instruction(block,
                     lstf_ir_setelementinstruction_new(lstf_codenode_cast(property),
-                        object_temp, index_temp, property_value_temp));
+                        reloaded_object_temp, index_temp, property_value_temp));
         }
     }
 
@@ -1437,10 +1446,7 @@ lstf_codegenerator_visit_variable(lstf_codevisitor *visitor, lstf_variable *vari
 
     if (!lstf_symbol_cast(variable)->is_builtin) {
         lstf_ir_function *fn = lstf_codegenerator_get_current_function(generator);
-        lstf_ir_instruction *alloc_inst =
-            lstf_ir_allocinstruction_new(lstf_codenode_cast(variable), !variable->initializer);
-        lstf_ir_basicblock_add_instruction(block, alloc_inst);
-        lstf_codegenerator_set_alloc_for_local(generator, lstf_symbol_cast(variable), alloc_inst, fn);
+        lstf_ir_instruction *alloc_inst;
 
         if (variable->initializer) {
             // generate temporary for the initializer expression
@@ -1450,10 +1456,15 @@ lstf_codegenerator_visit_variable(lstf_codevisitor *visitor, lstf_variable *vari
             lstf_ir_instruction *t_initializer = lstf_codegenerator_get_temp_for_expression(generator, variable->initializer);
             lstf_codegenerator_set_temp_for_symbol(generator, current_scope, lstf_symbol_cast(variable), t_initializer);
 
-            // generate virtual store instruction
-            lstf_ir_basicblock_add_instruction(block,
-                    lstf_ir_storeinstruction_new(lstf_codenode_cast(variable), t_initializer, alloc_inst));
+            // generate virtual alloc instruction aliasing the temporary
+            alloc_inst = lstf_ir_allocinstruction_new(lstf_codenode_cast(variable), t_initializer);
+        } else {
+            // generate virtual alloc instruction aliasing the parameter
+            alloc_inst = lstf_ir_allocinstruction_new(lstf_codenode_cast(variable), NULL);
         }
+
+        lstf_ir_basicblock_add_instruction(block, alloc_inst);
+        lstf_codegenerator_set_alloc_for_local(generator, lstf_symbol_cast(variable), alloc_inst, fn);
     } else {
         // TODO: handle built-ins like `server_path` and `project_files` here
     }

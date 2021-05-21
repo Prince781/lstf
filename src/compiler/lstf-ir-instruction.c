@@ -203,8 +203,8 @@ lstf_ir_instruction *lstf_ir_callinstruction_new(lstf_codenode    *code_node,
     return (lstf_ir_instruction *)call_inst;
 }
 
-lstf_ir_instruction *lstf_ir_allocinstruction_new(lstf_codenode *code_node,
-                                                  bool           is_automatic)
+lstf_ir_instruction *lstf_ir_allocinstruction_new(lstf_codenode       *code_node,
+                                                  lstf_ir_instruction *initializer)
 {
     lstf_ir_allocinstruction *alloc_inst = calloc(1, sizeof *alloc_inst);
 
@@ -212,8 +212,7 @@ lstf_ir_instruction *lstf_ir_allocinstruction_new(lstf_codenode *code_node,
             (lstf_ir_instruction *)alloc_inst,
             lstf_ir_instruction_type_alloc);
 
-    alloc_inst->is_automatic = is_automatic;
-    alloc_inst->is_initialized = is_automatic;
+    alloc_inst->initializer = initializer;
     return (lstf_ir_instruction *)alloc_inst;
 }
 

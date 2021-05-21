@@ -235,7 +235,7 @@ static void lstf_ir_program_analysis_stack_pop_points(const lstf_ir_function  *f
             lstf_ir_instruction *inst = bb->instructions[i];
             
             if (inst->insn_type == lstf_ir_instruction_type_alloc &&
-                    !((lstf_ir_allocinstruction *)inst)->is_automatic) {
+                    ((lstf_ir_allocinstruction *)inst)->initializer) {
                 ptr_hashmap_insert(ints_to_allocs, (void *)(uintptr_t)num_allocs, inst);
                 intset_set(bb_var_sets->gen, num_allocs);
                 num_allocs++;
@@ -444,7 +444,14 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
 
         case lstf_ir_instruction_type_alloc:
         {   // this is a pseudo-instruction
-            inst->frame_offset = frame_offset++;
+            lstf_ir_allocinstruction *alloc_inst = (lstf_ir_allocinstruction *)inst;
+            if (alloc_inst->initializer) {
+                assert(alloc_inst->initializer->frame_offset+1 == frame_offset &&
+                        "variable alloc must alias previous instruction!");
+                inst->frame_offset = alloc_inst->initializer->frame_offset;
+            } else {
+                inst->frame_offset = frame_offset++;
+            }
 
             // lstf_report_note(&inst->code_node->source_reference,
             //         "frame(%d) = alloc", inst->frame_offset);
@@ -471,13 +478,8 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
                     "store instruction must store to a local variable");
             assert(store_inst->source->frame_offset == frame_offset &&
                     "source is not on top of the stack for store instruction!");
-            lstf_ir_allocinstruction *destin_alloc = (lstf_ir_allocinstruction *)store_inst->destination;
-            if (destin_alloc->is_initialized) {
-                bc_inst = lstf_bc_function_add_instruction(bc_fn,
-                        lstf_bc_instruction_store_new(store_inst->destination->frame_offset));
-            } else {
-                destin_alloc->is_initialized = true;
-            }
+            bc_inst = lstf_bc_function_add_instruction(bc_fn,
+                    lstf_bc_instruction_store_new(store_inst->destination->frame_offset));
         }   break;
 
         case lstf_ir_instruction_type_constant:
@@ -485,10 +487,10 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             inst->frame_offset = frame_offset++;
             lstf_ir_constantinstruction *cinst = (lstf_ir_constantinstruction *)inst;
 
-            char *json_str = json_node_to_string(cinst->json, false);
+            // char *json_str = json_node_to_string(cinst->json, false);
             // lstf_report_note(&inst->code_node->source_reference,
             //         "frame(%d) = constant %s", inst->frame_offset, json_str);
-            free(json_str);
+            // free(json_str);
 
             bc_inst = lstf_bc_function_add_instruction(bc_fn,
                     lstf_bc_instruction_load_expression_new(cinst->json));
@@ -795,7 +797,7 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
 
         case lstf_ir_instruction_type_getelement:
         {
-            frame_offset -= 3;
+            frame_offset -= 2;
             inst->frame_offset = frame_offset++;
             bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_get_new());
         }   break;
@@ -809,6 +811,7 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
         case lstf_ir_instruction_type_match:
         {
             frame_offset -= 2;
+            inst->frame_offset = frame_offset++;
             bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_equal_new());
         }   break;
 
@@ -978,11 +981,16 @@ bool lstf_ir_program_visualize(const lstf_ir_program *program, const char *path)
 
                     switch (bb->instructions[i]->insn_type) {
                         case lstf_ir_instruction_type_alloc:
-                            string_appendf(bb_insns_buffer,
-                                    "%%%lu = alloc%s\\n",
-                                    num_instructions,
-                                    ((lstf_ir_allocinstruction *)bb->instructions[i])->is_automatic ? " auto" : "");
-                            break;
+                        {
+                            lstf_ir_allocinstruction *alloc_inst = (lstf_ir_allocinstruction *)bb->instructions[i];
+                            if (alloc_inst->initializer) {
+                                unsigned long initializer_i =
+                                    (uintptr_t)ptr_hashmap_get(insn_result_ids, alloc_inst->initializer)->value;
+                                string_appendf(bb_insns_buffer, "%%%lu = alloc var %%%lu\\n", num_instructions, initializer_i);
+                            } else {
+                                string_appendf(bb_insns_buffer, "%%%lu = alloc param\\n", num_instructions);
+                            }
+                        } break;
 
                         case lstf_ir_instruction_type_append:
                         {

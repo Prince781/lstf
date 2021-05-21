@@ -224,21 +224,15 @@ struct _lstf_ir_allocinstruction {
     lstf_ir_instruction parent_struct;
 
     /**
-     * Whether this storage is automatically deallocated by the VM on function
-     * return. This is `true` for function parameters.
-     *
-     * Also determines whether this allocation is already (in the IR) initialized to a result.
-     * If `false`, we expect at least one virtual IR `store` instruction to
-     * "write" to this stack area before the stack pointer moves.
+     * (nullable) The temporary that this local variable is constructed from,
+     * or NULL if this is automatically allocated (a parameter).
      */
-    bool is_automatic;
-
-    bool is_initialized;
+    lstf_ir_instruction *initializer;
 };
 typedef struct _lstf_ir_allocinstruction lstf_ir_allocinstruction;
 
-lstf_ir_instruction *lstf_ir_allocinstruction_new(lstf_codenode *code_node,
-                                                  bool           is_automatic);
+lstf_ir_instruction *lstf_ir_allocinstruction_new(lstf_codenode       *code_node,
+                                                  lstf_ir_instruction *initializer);
 
 
 struct _lstf_ir_loadinstruction {

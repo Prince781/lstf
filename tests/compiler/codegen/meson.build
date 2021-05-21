@@ -34,6 +34,10 @@ test('codegen-lambda', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/lambda.lstf',
     '-expect', '42\n'])
 
+test('codegen-object-nonconst', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/object-nonconst.lstf',
+    '-expect', '{\n    "prop": 3\n}\n'])
+
 test('codegen-object', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/object.lstf',
     '-expect', '{\n    "prop1": false,\n    "prop2": "hello",\n    "prop3": {\n        "prop1": false,\n        "prop2": 3.141590\n    },\n    "prop4": 3.141590,\n    "prop5": []\n}\n'])
