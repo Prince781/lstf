@@ -127,7 +127,7 @@ lstf_virtualmachine_read_integer(lstf_virtualmachine *vm,
         uint8_t byte;
         if ((status = lstf_virtualmachine_read_byte(vm, cr, &byte)))
             return status;
-        value |= byte << ((sizeof(value) - 1 - i) * CHAR_BIT);
+        value |= ((uint64_t)byte) << ((sizeof(value) - 1 - i) * CHAR_BIT);
     }
 
     if (integer)

@@ -255,7 +255,7 @@ bool inputstream_read_uint32(inputstream *stream, uint32_t *integer)
         if (!inputstream_has_data(stream))
             return false;
         uint8_t byte = inputstream_read_char(stream);
-        value |= byte << (sizeof(value) - 1 - i) * CHAR_BIT;
+        value |= ((uint32_t)byte) << (sizeof(value) - 1 - i) * CHAR_BIT;
     }
 
     *integer = value;
@@ -270,7 +270,7 @@ bool inputstream_read_uint64(inputstream *stream, uint64_t *integer)
         if (!inputstream_has_data(stream))
             return false;
         uint8_t byte = inputstream_read_char(stream);
-        value |= byte << (sizeof(value) - 1 - i) * CHAR_BIT;
+        value |= ((uint64_t)byte) << (sizeof(value) - 1 - i) * CHAR_BIT;
     }
 
     *integer = value;
