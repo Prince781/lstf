@@ -1,5 +1,6 @@
 util_lib = static_library('util',
   ['util.c'],
+  include_directories: include_dirs,
   c_args: c_args,
 )
 
@@ -15,6 +16,7 @@ data_structures_lib = static_library('data-structures',
     'data-structures/ptr-list.c',
     'data-structures/string-builder.c'
   ],
+  include_directories: include_dirs,
   c_args: c_args,
 )
 
@@ -29,6 +31,7 @@ io_lib = static_library('io',
     'io/io-common.c',
     'io/outputstream.c'
   ],
+  include_directories: include_dirs,
   c_args: c_args,
 )
 
@@ -41,8 +44,10 @@ json_lib = static_library('json',
   [
     'json/json-parser.c',
     'json/json-scanner.c',
+    'json/json-serializable.c',
     'json/json.c'
   ],
+  include_directories: include_dirs,
   c_args: c_args,
 )
 
@@ -55,6 +60,7 @@ jsonrpc_lib = static_library('jsonrpc',
   [
     'jsonrpc/jsonrpc-server.c'
   ],
+  include_directories: include_dirs,
   c_args: c_args,
 )
 
@@ -63,12 +69,31 @@ jsonrpc = declare_dependency(
   link_with: [jsonrpc_lib],
 )
 
+lsp_lib = static_library('lsp',
+  [
+    'lsp/lsp-client.c',
+    'lsp/lsp-diagnostic.c',
+    'lsp/lsp-location.c',
+    'lsp/lsp-position.c',
+    'lsp/lsp-range.c',
+    version_h
+  ],
+  include_directories: include_dirs,
+  c_args: c_args,
+)
+
+lsp = declare_dependency(
+  dependencies: [util, data_structures, json],
+  link_with: [lsp_lib]
+)
+
 bytecode_lib = static_library('bytecode',
   [
     'bytecode/lstf-bc-function.c',
     'bytecode/lstf-bc-program.c',
     'bytecode/lstf-bc-serialize.c',
   ],
+  include_directories: include_dirs,
   c_args: c_args
 )
 
@@ -144,6 +169,7 @@ compiler_lib = static_library('compiler',
     'compiler/lstf-variable.c',
     'compiler/lstf-voidtype.c'
   ],
+  include_directories: include_dirs,
   c_args: c_args,
 )
 
@@ -161,6 +187,7 @@ vm_lib = static_library('vm',
     'vm/lstf-vm-stack.c',
     'vm/lstf-vm-value.c',
   ],
+  include_directories: include_dirs,
   c_args: c_args
 )
 
@@ -170,6 +197,7 @@ vm = declare_dependency(
     util,
     json,
     jsonrpc,
+    lsp,
     io,
     cc.find_library('m', required: host_machine.system() != 'windows')],
   link_with: [vm_lib]
@@ -183,5 +211,6 @@ endif
 lstf = executable('lstf',
   dependencies: [compiler, vm] + lstf_win32_dependencies,
   c_args: c_args,
-  sources: ['lstf.c'],
+  sources: ['lstf.c', version_h],
+  include_directories: include_dirs,
   install: true)

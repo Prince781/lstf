@@ -45,8 +45,8 @@ int main(int argc, char *argv[]) {
     jsonrpc_server *server = jsonrpc_server_new(json_file_to_parse, outputstream_new_from_file(stdout, false));
 
     jsonrpc_server_handle_notification(server, "testmethod", testmethod, &retval, NULL);
-    while (jsonrpc_server_process_incoming_messages(server) > 0)
-        ;
+    while (jsonrpc_server_wait_for_incoming_messages(server) > 0)
+        jsonrpc_server_process_received_requests(server);
 
     jsonrpc_server_destroy(server);
 

@@ -54,3 +54,9 @@ size_t outputstream_printf(outputstream *stream, const char *format, ...)
     __attribute__((format(printf, 2, 3)));
 
 char *outputstream_get_name(outputstream *stream);
+
+/**
+ * If this stream is backed by a file, returns the file descriptor. Otherwise,
+ * returns -1.
+ */
+int outputstream_get_fd(outputstream *stream);

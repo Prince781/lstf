@@ -4,6 +4,7 @@
 #include "json-scanner.h"
 #include "data-structures/iterator.h"
 #include "io/inputstream.h"
+#include "io/event.h"
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -47,6 +48,24 @@ json_parser *json_parser_create_from_stream(inputstream *stream);
  * Otherwise, returns a floating JSON node.
  */
 json_node *json_parser_parse_node(json_parser *parser);
+
+/**
+ * Parses a single node asynchronously. Returns NULL in the callback if the
+ * stream hits EOF. Otherwise, returns a floating JSON node.
+ *
+ * @see json_parser_parse_node
+ */
+void json_parser_parse_node_async(json_parser   *parser,
+                                  eventloop     *loop,
+                                  async_callback callback,
+                                  void          *user_data);
+
+/**
+ * Completes parsing of a single node.
+ *
+ * @see json_parser_parse_node_async
+ */
+json_node *json_parser_parse_node_finish(event *ev, int *error);
 
 /**
  * Returns an iterator on of (char *) messages either from the parser

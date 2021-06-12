@@ -52,24 +52,10 @@ int main(int argc, char *argv[]) {
     jsonrpc_server_handle_call(server, "test/methodA", testMethod, &methods_invoked, NULL);
     jsonrpc_server_handle_call(server, "test/methodC", testMethod, &methods_invoked, NULL);
 
-    ptr_list *methodB_results = NULL;
-    if ((methodB_results = jsonrpc_server_wait_for_notification(server, "test/methodB")))
-        methods_invoked++;
+    while (jsonrpc_server_wait_for_incoming_messages(server) > 0)
+        jsonrpc_server_process_received_requests(server);
 
-    while (jsonrpc_server_process_incoming_messages(server) > 0)
-        ;
-
-    for (iterator it = ptr_list_iterator_create(methodB_results);
-            it.has_next;
-            it = iterator_next(it)) {
-        json_node *methodB_parameters = iterator_get_item(it);
-        json_node *status_obj = json_object_new();
-        json_object_set_member(status_obj, "method", json_string_new("test/methodB"));
-        json_object_set_member(status_obj, "method-b-parameters", methodB_parameters);
-        jsonrpc_server_notify_remote(server, "postStatus", status_obj);
-    }
-    ptr_list_destroy(methodB_results);
     jsonrpc_server_destroy(server);
 
-    return methods_invoked == 3 ? 0 : 1;
+    return methods_invoked == 2 ? 0 : 1;
 }

@@ -5,10 +5,7 @@ project('lstf', 'c',
 
 cc = meson.get_compiler('c')
 
-# MSVC supports both '-' and '/' in front of a command line flag
-add_project_arguments([
-  '-I' + meson.project_source_root() + '/src',
-], language: 'c')
+include_dirs = include_directories('.', 'src', 'include')
 
 if host_machine.system() == 'windows'
   add_project_arguments([
@@ -52,6 +49,7 @@ else
       '-Wlogical-op',
       '-Wmissing-include-dirs',
       '-Wmissing-declarations',
+      '-Wno-free-nonheap-object',
       '-Wshadow',
       '-Wstrict-overflow',
       '-Wstringop-overflow',
@@ -101,6 +99,10 @@ if not cc.has_header('stdalign.h')
         ], language: 'c')
     endif
 endif
+
+version_h = vcs_tag(input: 'include/version.h.in',
+                    output: 'version.h',
+                    command: ['git', 'describe', '--tags', '--dirty'])
 
 subdir('src')
 subdir('tests')

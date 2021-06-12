@@ -380,3 +380,16 @@ char *inputstream_get_name(inputstream *stream)
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
     abort();
 }
+
+int inputstream_get_fd(inputstream *stream)
+{
+    switch (stream->stream_type) {
+    case inputstream_type_file:
+        return fileno(stream->file);
+    case inputstream_type_buffer:
+        return -1;
+    }
+
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
+    abort();
+}

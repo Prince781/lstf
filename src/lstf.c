@@ -14,6 +14,7 @@
 #include "vm/lstf-vm-program.h"
 #include "vm/lstf-vm-status.h"
 #include "util.h"
+#include "version.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -68,7 +69,11 @@ static const char usage_message[] =
 "                           requirements aren't met. (Use this when you just want\n"
 "                           to test the VM without any LSP features.)\n"
 "  -emit-ir                 Output IR to a Graphviz file in the current directory.\n"
-"  -expect <string>         Test the program output against <string>.";
+"  -expect <string>         Test the program output against <string>.\n"
+"\n"
+"Flags:\n"
+"  -h                       Show this help message.\n"
+"  -v                       Print version.\n";
 
 static void
 print_usage(const char *progname)
@@ -369,6 +374,9 @@ int main(int argc, char *argv[])
             options.expected_output = expected_output;
         } else if (strcmp(option, "-h") == 0 || strcmp(option, "--help") == 0) {
             break;
+        } else if (strcmp(option, "-v") == 0 || strcmp(option, "--version") == 0) {
+            printf("LSTF version %s\n", LSTF_VERSION);
+            return 1;
         } else if (option[0] == '-') {
             lstf_report_error(NULL, "unrecognized command line option `%s`", option);
             break;

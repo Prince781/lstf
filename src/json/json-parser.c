@@ -1,6 +1,7 @@
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
 #include "data-structures/string-builder.h"
+#include "io/event.h"
 #include "json-parser.h"
 #include "json-scanner.h"
 #include "json/json.h"
@@ -223,6 +224,297 @@ json_node *json_parser_parse_node(json_parser *parser)
 
     fprintf(stderr, "invalid JSON token `%u'", token);
     abort();
+}
+
+struct parse_array_ctx {
+    json_parser *parser;
+    json_node *array;
+    event *node_parsed_ev;
+};
+
+static void json_parser_parse_array_element_cb(event *ev, void *user_data);
+
+static void json_parse_array_element_scanner_next_cb(event *ev, void *user_data)
+{
+    int errnum = 0;
+    json_token token = json_scanner_next_finish(ev, &errnum);
+    struct parse_array_ctx *ctx = user_data;
+    json_parser *parser = ctx->parser;
+    json_node *array = ctx->array;
+    event *node_parsed_ev = ctx->node_parsed_ev;
+
+    if (token == json_token_closebracket) {
+        // we finished parsing the array
+        event_return(node_parsed_ev, array);
+        free(ctx);
+    } else if (token == json_token_comma) {
+        // continue parsing the next element
+        json_parser_parse_node_async(parser, node_parsed_ev->loop, json_parser_parse_array_element_cb, ctx);
+    } else {
+        string *sb = string_new();
+        string_appendf(sb, "%s:%u:%u: error: expected comma or close bracket", 
+                parser->scanner->filename, 
+                parser->scanner->source_location.line, parser->scanner->source_location.column);
+        ptr_list_append(parser->messages, string_destroy(sb));
+        parser->error = true;
+        json_node_unref(array);
+        event_cancel_with_errno(node_parsed_ev, errnum);
+        free(ctx);
+    }
+}
+
+static void json_parser_parse_array_element_cb(event *ev, void *user_data)
+{
+    int errnum = 0;
+    json_node *element = json_parser_parse_node_finish(ev, &errnum);
+    struct parse_array_ctx *ctx = user_data;
+    json_parser *parser = ctx->parser;
+    json_node *array = ctx->array;
+    event *node_parsed_ev = ctx->node_parsed_ev;
+
+    if (!element) {     // bail out of parsing loop
+        if (parser->scanner->last_token != json_token_closebracket) {
+            string *sb = string_new();
+            string_appendf(sb, "%s:%u:%u: error: expected close bracket at end of array",
+                    parser->scanner->filename,
+                    parser->scanner->source_location.line, parser->scanner->source_location.column);
+            ptr_list_append(parser->messages, string_destroy(sb));
+            parser->error = true;
+            event_cancel_with_errno(node_parsed_ev, errnum);
+            json_node_unref(array);
+        } else {
+            // we finished parsing, so return the floating array
+            event_return(node_parsed_ev, array);
+        }
+        free(ctx);
+        return;
+    }
+
+    json_array_add_element(array, element);
+
+    // continue parsing the array
+    json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parse_array_element_scanner_next_cb, ctx);
+}
+
+struct parse_object_entry_ctx {
+    json_parser *parser;
+    json_node *object;
+    event *node_parsed_ev;
+    char *member_name;          // nullable
+    bool has_colon;
+    bool has_member_value;
+};
+
+static void parse_object_entry_ctx_free(struct parse_object_entry_ctx *ctx)
+{
+    free(ctx->member_name);
+    free(ctx);
+}
+
+static void json_parser_parse_object_entry_cb(event *ev, void *user_data);
+
+static void json_parser_parse_object_entry_value_cb(event *ev, void *user_data)
+{
+    int errnum = 0;
+    json_node *member_value = json_parser_parse_node_finish(ev, &errnum);
+    struct parse_object_entry_ctx *ctx = user_data;
+    json_parser *parser = ctx->parser;
+    json_node *object = ctx->object;
+    event *node_parsed_ev = ctx->node_parsed_ev;
+
+    if (!member_value) {
+        event_cancel_with_errno(node_parsed_ev, errnum);
+        json_node_unref(object);
+        parse_object_entry_ctx_free(ctx);
+        return;
+    }
+
+    json_object_set_member(object, ctx->member_name, member_value);
+
+    // save this for the state machine
+    ctx->has_member_value = true;
+
+    // scan the next token
+    json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, ctx);
+}
+
+static void json_parser_parse_object_entry_cb(event *ev, void *user_data)
+{
+    int errnum = 0;
+    json_token token = json_scanner_next_finish(ev, &errnum);
+    struct parse_object_entry_ctx *ctx = user_data;
+    json_parser *parser = ctx->parser;
+    json_node *object = ctx->object;
+    event *node_parsed_ev = ctx->node_parsed_ev;
+
+    if (token == json_token_error) {
+        event_cancel_with_errno(node_parsed_ev, errnum);
+        json_node_unref(object);
+        parse_object_entry_ctx_free(ctx);
+    } else if (token == json_token_string && !ctx->member_name) {
+        ctx->member_name = strdup(parser->scanner->last_token_buffer);
+        json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, ctx);
+    } else if (token == json_token_colon && ctx->member_name && !ctx->has_colon) {
+        ctx->has_colon = true;
+        json_parser_parse_node_async(parser, node_parsed_ev->loop, json_parser_parse_object_entry_value_cb, ctx);
+    } else if (token == json_token_comma && ctx->member_name && ctx->has_colon && ctx->has_member_value) {
+        // we want to parse another object entry
+
+        // reset our context for reuse
+        free(ctx->member_name);
+        ctx->member_name = NULL;
+        ctx->has_colon = false;
+        ctx->has_member_value = false;
+
+        json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, ctx);
+    } else if (token == json_token_closebrace && ctx->member_name && ctx->has_colon && ctx->has_member_value) {
+        // finish parsing the object
+        event_return(node_parsed_ev, object);
+        parse_object_entry_ctx_free(ctx);
+    } else {
+        // unexpected token
+        string *sb = string_new();
+
+        string_appendf(sb, "%s:%u:%u: error: unexpected %s (`%s') while parsing JSON object entry",
+                parser->scanner->filename,
+                parser->scanner->source_location.line, parser->scanner->source_location.column,
+                json_token_to_string(token),
+                parser->scanner->last_token_buffer);
+        ptr_list_append(parser->messages, string_destroy(sb));
+        parser->error = true;
+        event_cancel_with_errno(node_parsed_ev, EPROTO);
+        json_node_unref(object);
+        parse_object_entry_ctx_free(ctx);
+    }
+}
+
+struct next_token_ctx {
+    json_parser *parser;
+    event *node_parsed_ev;
+};
+
+static void json_parser_scanner_next_cb(event *ev, void *user_data)
+{
+    struct next_token_ctx *ctx = user_data;
+    json_parser *parser = ctx->parser;
+    event *node_parsed_ev = ctx->node_parsed_ev;
+    int errnum = 0;
+    json_token token = json_scanner_next_finish(ev, &errnum);
+
+    free(ctx);
+    ctx = NULL;
+    if (errnum != 0) {
+        event_cancel_with_errno(node_parsed_ev, errnum);
+        return;
+    }
+
+    switch (token) {
+    case json_token_error:
+        event_cancel_with_errno(node_parsed_ev, EPROTO);
+        break;
+
+    case json_token_eof:
+    case json_token_colon:
+    case json_token_comma:
+    case json_token_closebrace:
+    case json_token_closebracket:
+    {
+        string *sb = string_new();
+
+        string_appendf(sb, "%s:%u:%u: error: unexpected %s (`%s') at start of parsing JSON node",
+                parser->scanner->filename,
+                parser->scanner->source_location.line, parser->scanner->source_location.column,
+                json_token_to_string(token),
+                parser->scanner->last_token_buffer);
+        ptr_list_append(parser->messages, string_destroy(sb));
+        parser->error = true;
+        event_cancel_with_errno(node_parsed_ev, EPROTO);
+    }   break;
+
+    case json_token_keyword_null:
+        event_return(node_parsed_ev, json_null_new());
+        break;
+
+    case json_token_keyword_true:
+    case json_token_keyword_false:
+        event_return(node_parsed_ev, json_boolean_new(token == json_token_keyword_true));
+        break;
+
+    case json_token_string:
+        event_return(node_parsed_ev, json_string_new(parser->scanner->last_token_buffer));
+        break;
+
+    case json_token_integer:
+    {
+        int64_t value;
+        sscanf(parser->scanner->last_token_buffer, "%"PRId64, &value);
+        event_return(node_parsed_ev, json_integer_new(value));
+    }   break;
+
+    case json_token_double:
+        event_return(node_parsed_ev, json_double_new(atof(parser->scanner->last_token_buffer)));
+        break;
+
+    case json_token_openbracket:
+    {   // parse array
+        json_node *array = json_array_new();
+
+        struct parse_array_ctx *parse_array_ctx = calloc(1, sizeof *parse_array_ctx);
+        *parse_array_ctx = (struct parse_array_ctx) {
+            parser,
+            array,
+            node_parsed_ev
+        };
+        json_parser_parse_node_async(parser, node_parsed_ev->loop, json_parser_parse_array_element_cb, parse_array_ctx);
+    }   break;
+
+    case json_token_openbrace:
+    {   // parse object
+        json_node *object = json_object_new();
+
+        struct parse_object_entry_ctx *parse_ctx = calloc(1, sizeof *parse_ctx);
+        *parse_ctx = (struct parse_object_entry_ctx) {
+            parser,
+            object,
+            node_parsed_ev,
+            NULL,   /* member_name */
+            false,
+            false
+        };
+        json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, parse_ctx);
+    }   break;
+    }
+}
+
+void json_parser_parse_node_async(json_parser   *parser,
+                                  eventloop     *loop,
+                                  async_callback callback,
+                                  void          *user_data)
+{
+    if (parser->error) {
+        ptr_list_clear(parser->messages);
+        parser->error = false;
+    }
+
+    event *ev = event_new(callback, user_data);
+    eventloop_add(loop, ev);
+
+    struct next_token_ctx *ctx = calloc(1, sizeof *ctx);
+    *ctx = (struct next_token_ctx) { parser, ev };
+    json_scanner_next_async(parser->scanner, loop, json_parser_scanner_next_cb, ctx);
+}
+
+json_node *json_parser_parse_node_finish(event *ev, int *error)
+{
+    void *result = NULL;
+
+    if (!event_get_result(ev, &result)) {
+        if (error)
+            *error = event_get_errno(ev);
+        return NULL;
+    }
+
+    return result;
 }
 
 iterator json_parser_get_messages(json_parser *parser)

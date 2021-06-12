@@ -5,3 +5,8 @@
  * on failure.
  */
 char *io_get_filename_from_fd(int fd);
+
+/**
+ * Get the process ID
+ */
+int io_getpid(void);

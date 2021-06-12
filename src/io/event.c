@@ -38,6 +38,7 @@ event *event_new(async_callback callback, void *callback_data)
     event *ev = calloc(1, sizeof *ev);
 
     ev->fd = -1;
+    ev->type = event_type_default;
     ev->callback = callback;
     ev->callback_data = callback_data;
 
@@ -49,34 +50,21 @@ event *event_new_from_fd(int fd, bool is_read_operation, async_callback callback
     event *ev = calloc(1, sizeof *ev);
 
     ev->fd = fd;
-    ev->is_read_operation = is_read_operation;
-    ev->is_io_operation = true;
+    ev->type = is_read_operation ? event_type_io_read : event_type_io_write;
     ev->callback = callback;
     ev->callback_data = callback_data;
-
-    return ev;
-}
-
-event *event_new_for_background(async_callback callback, void *callback_data)
-{
-    event *ev = calloc(1, sizeof *ev);
-
-    ev->fd = -1;
-    ev->callback = callback;
-    ev->callback_data = callback_data;
-    ev->is_bg_operation = true;
 
     return ev;
 }
 
 void event_return(event *ev, void *result)
 {
-    assert(!ev->is_ready && "cannot complete an event twice!");
+    assert(!event_is_ready(ev) && "cannot complete an event twice!");
 
     ev->result = result;
     atomic_store_explicit(&ev->is_ready, true, memory_order_release);
 
-    if (ev->is_bg_operation)
+    if (ev->type == event_type_bg_task)
         /**
          * We only need to signal the event loop if we're completing an event
          * from a background thread. If we're in the foreground, this isn't
@@ -85,28 +73,15 @@ void event_return(event *ev, void *result)
         eventloop_signal(ev->loop);
 }
 
-void event_cancel_with_errno(event *ev, int errnum)
-{
-    atomic_store_explicit(&ev->is_canceled, true, memory_order_release);
-    ev->io_errno = errnum;
-}
-
-bool event_is_canceled(event *ev)
-{
-    return atomic_load_explicit(&ev->is_canceled, memory_order_acquire);
-}
-
-bool event_is_ready(event *ev)
-{
-    return atomic_load_explicit(&ev->is_ready, memory_order_acquire);
-}
-
 bool event_get_result(event *ev, void **pointer_ref)
 {
-    if (event_is_canceled(ev) || ev->io_errno != 0)
+    if (event_is_canceled(ev) || event_get_errno(ev) != 0)
         return false;
 
-    *pointer_ref = ev->result;
+    // at this point we don't have to use atomics since no concurrent procedure
+    // will modify event anymore
+    if (pointer_ref)
+        *pointer_ref = ev->result;
     return true;
 }
 
@@ -165,14 +140,19 @@ void eventloop_signal(eventloop *loop)
 #endif
 }
 
-void eventloop_add(eventloop *loop, event *ev)
+event *eventloop_add(eventloop *loop, event *ev)
 {
+    assert(!ev->loop && "event is already part of an event loop");
+    assert(!ev->is_ready && "cannot add completed event to an event loop");
+    assert(!ev->is_canceled && "cannot add canceled event to an event loop");
+    event *prev = NULL;
     if (!loop->pending_events) {
         assert(!loop->pending_events_tail);
         loop->pending_events = ev;
         loop->pending_events_tail = ev;
     } else {
         assert(loop->pending_events_tail);
+        prev = loop->pending_events_tail;
         if (loop->pending_events == loop->pending_events_tail) {
             loop->pending_events_tail = ev;
             loop->pending_events->next = loop->pending_events_tail;
@@ -183,9 +163,10 @@ void eventloop_add(eventloop *loop, event *ev)
     }
     ev->loop = loop;
     // fprintf(stderr, "[DEBUG] queued a new event\n");
+    return prev;
 }
 
-void eventloop_remove(eventloop *loop, event *ev, event *prev)
+static void eventloop_remove(eventloop *loop, event *ev, event *prev)
 {
     if (!prev) {
         if (loop->pending_events == loop->pending_events_tail)
@@ -197,6 +178,34 @@ void eventloop_remove(eventloop *loop, event *ev, event *prev)
     if (ev == loop->pending_events_tail)
         loop->pending_events_tail = prev;
     ev->next = NULL;
+}
+
+static int eventloop_bgtask_start(void *data)
+{
+    event *ev = data;
+    ev->thread_proc(ev);
+    return 0;
+}
+
+event *eventloop_add_bgtask(eventloop      *loop,
+                            background_proc task,
+                            void           *task_data,
+                            async_callback  callback,
+                            void           *callback_data)
+{
+    event *ev = event_new(callback, callback_data);
+    ev->type = event_type_bg_task;
+    ev->thread_proc = task;
+    ev->thread_data = task_data;
+    event *prev = eventloop_add(loop, ev);
+
+    if (thrd_create(&ev->thread, eventloop_bgtask_start, ev) != thrd_success) {
+        eventloop_remove(loop, ev, prev);
+        free(ev);
+        return NULL;
+    }
+
+    return ev;
 }
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -320,7 +329,7 @@ static void eventloop_poll(eventloop *loop,
     // poll in foreground
     (void) eventloop_poll_thread(&fg_state);
 
-    // join all background threads
+    // join all background poll threads
     for (unsigned i = 0; i < num_bg_threads; i++) {
         if (thrd_join(bg_threads[i], NULL) == thrd_error) {
             fprintf(stderr, "%s: failed to join polling thread #%u: %s\n",
@@ -360,11 +369,12 @@ static void eventloop_poll(eventloop *loop,
 #else
     // POSIX
     struct pollfd *pollfds = calloc(num_io_pending + have_non_io_tasks, sizeof *pollfds);
-    unsigned p = 0;
+    unsigned p = 0,
+             p_bgevent = 0 /* at the very end of `pollfds` */;
     for (event *pending = loop->pending_events; pending; pending = pending->next) {
-        if (pending->is_io_operation) {
+        if (pending->type == event_type_io_read || pending->type == event_type_io_write) {
             pollfds[p].fd = pending->fd;
-            pollfds[p].events = pending->is_read_operation ? POLLIN : POLLOUT;
+            pollfds[p].events = pending->type == event_type_io_read ? POLLIN : POLLOUT;
             ++p;
         }
     }
@@ -372,6 +382,7 @@ static void eventloop_poll(eventloop *loop,
     if (have_non_io_tasks) {
         pollfds[p].fd = loop->bg_eventfd;
         pollfds[p].events = POLLIN;
+        p_bgevent = p;
         ++p;
     }
 
@@ -391,8 +402,8 @@ static void eventloop_poll(eventloop *loop,
                 pending; ) {
         event *next = pending->next;
 
-        if (pending->is_io_operation) {
-            if (pollfds[p].revents & (pending->is_read_operation ? POLLIN : POLLOUT)) {
+        if (pending->type == event_type_io_read || pending->type == event_type_io_write) {
+            if (pollfds[p].revents & (pending->type == event_type_io_read ? POLLIN : POLLOUT)) {
                 // remove [pending] off the list of pending tasks and add
                 // it to the list of ready tasks
                 pending->is_ready = true;
@@ -406,35 +417,24 @@ static void eventloop_poll(eventloop *loop,
                 pending = NULL;
             }
             ++p;
+        } else if (pending->type == event_type_bg_task) {
+            // (have_non_io_tasks == true)
+            if ((pollfds[p_bgevent].revents & POLLIN) && event_is_ready(pending)) {
+                eventloop_remove(loop, pending, prev);
+                event_list_prepend(ready_events, pending);
+                pending = NULL;
+            }
         }
 
         prev = pending;
         pending = next;
     }
 
-    if (have_non_io_tasks) {
-        if (pollfds[p].revents & POLLIN) {
-            // then search for all non-I/O background tasks that may be done
-            for (event *pending = loop->pending_events,
-                       *prev    = NULL;
-                        pending; ) {
-                event *next = pending->next;
-
-                if (pending->is_bg_operation && event_is_ready(pending)) {
-                    eventloop_remove(loop, pending, prev);
-                    event_list_prepend(ready_events, pending);
-                    pending = NULL;
-                }
-
-                prev = pending;
-                pending = next;
-            }
-
-            // clear the buffer
-            char buffer[BUFSIZ];
-            while (read(pollfds[p].fd, &buffer, sizeof buffer) == -1 && errno == EAGAIN)
-                ;
-        }
+    // clear the thread event fd
+    if (have_non_io_tasks && pollfds[p_bgevent].revents & POLLIN) {
+        char buffer[BUFSIZ];
+        while (read(pollfds[p_bgevent].fd, &buffer, sizeof buffer) == -1 && errno == EAGAIN)
+            ;
     }
 
     free(pollfds);
@@ -459,9 +459,9 @@ bool eventloop_process(eventloop *loop, bool force_nonblocking)
             eventloop_remove(loop, pending, prev);
             event_list_prepend(&ready_events, pending);
             pending = NULL;
-        } else if (pending->is_io_operation) {
+        } else if (pending->type == event_type_io_read || pending->type == event_type_io_write) {
             num_io_pending++;
-        } else if (pending->is_bg_operation) {
+        } else if (pending->type == event_type_bg_task) {
             have_non_io_tasks = true;
         }
 
@@ -489,6 +489,11 @@ bool eventloop_process(eventloop *loop, bool force_nonblocking)
     // 1. no more pending events
     // 2. explicit termination was requested
     return loop->is_running && loop->pending_events;
+}
+
+void eventloop_quit(eventloop *loop)
+{
+    loop->is_running = false;
 }
 
 void eventloop_destroy(eventloop *loop)

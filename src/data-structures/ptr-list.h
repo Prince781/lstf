@@ -51,7 +51,7 @@ ptr_list_node *ptr_list_find(ptr_list                     *list,
                              collection_item_equality_func comparator);
 
 ptr_list_node *ptr_list_query(ptr_list *list,
-                              bool    (*tester)(const void *, void *),
+                              bool    (*tester)(void *, void *),
                               void     *user_data);
 
 ptr_list_node *ptr_list_replace(ptr_list                     *list,

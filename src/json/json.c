@@ -638,6 +638,7 @@ json_node *json_boolean_new(bool value)
 
 json_node *json_string_new(const char *value)
 {
+    assert(value && "JSON string requires a non-null value");
     json_string *node = calloc(1, sizeof *node);
 
     ((json_node *)node)->node_type = json_node_type_string;

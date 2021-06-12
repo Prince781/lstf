@@ -1,5 +1,6 @@
 #pragma once
 
+#include "io/event.h"
 #include "io/inputstream.h"
 #include <stdio.h>
 #include <stdbool.h>
@@ -51,6 +52,13 @@ typedef struct _json_scanner json_scanner;
 json_scanner *json_scanner_create_from_stream(inputstream *stream);
 
 json_token json_scanner_next(json_scanner *scanner);
+
+void json_scanner_next_async(json_scanner  *scanner,
+                             eventloop     *loop,
+                             async_callback callback,
+                             void          *user_data);
+
+json_token json_scanner_next_finish(event *ev, int *error);
 
 const char *json_scanner_get_message(json_scanner *scanner);
 

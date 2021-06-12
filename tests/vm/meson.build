@@ -3,6 +3,7 @@ test('hello-world.lstfc', lstf, suite: 'vm',
 
 lstf_vm_factorial_test = executable('vm-factorial-test',
   dependencies: [bytecode, vm, io],
+  include_directories: include_dirs,
   c_args: c_args,
   sources: ['vm-factorial-test.c'],
   install: false

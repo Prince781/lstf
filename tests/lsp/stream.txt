@@ -1,0 +1,12 @@
+{
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "id": 1,
+    "params": {
+        "processId": null,
+        "clientInfo": {
+            "name": "stream.txt"
+        },
+        "rootUri": "test:///file.lstf"
+    }
+}

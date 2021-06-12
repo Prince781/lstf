@@ -60,6 +60,9 @@ inputstream *inputstream_new_from_static_buffer(const void *buffer, size_t buffe
 
 inputstream *inputstream_new_from_static_string(const char *str);
 
+/**
+ * Creates a new input stream from a producer.
+ */
 inputstream *inputstream_new_from_outputstream(outputstream *ostream);
 
 /**
@@ -102,3 +105,8 @@ bool inputstream_skip(inputstream *stream, size_t bytes);
 bool inputstream_has_data(inputstream *stream);
 
 char *inputstream_get_name(inputstream *stream);
+
+/**
+ * Get the file descriptor, or -1 if this stream is not a file.
+ */
+int inputstream_get_fd(inputstream *stream);

@@ -1,5 +1,6 @@
 lstf_scanner_test = executable('lstf-scanner-test',
   dependencies: [compiler],
+  include_directories: include_dirs,
   c_args: c_args,
   sources: ['lstf-scanner-test.c'],
   install: false,

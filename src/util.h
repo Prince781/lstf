@@ -134,3 +134,8 @@ static inline int64_t powint(int64_t base, uint64_t expo)
 
     return result;
 }
+
+/**
+ * Calculates the length of a declared array. `array` should not be an expression
+ */
+#define array_length(array) (sizeof array / sizeof array[0])

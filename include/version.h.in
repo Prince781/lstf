@@ -1,0 +1,3 @@
+#pragma once
+
+#define LSTF_VERSION "@VCS_TAG@"

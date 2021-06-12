@@ -104,7 +104,7 @@ ptr_list_node *ptr_list_find(ptr_list                     *list,
 }
 
 ptr_list_node *ptr_list_query(ptr_list *list,
-                              bool    (*tester)(const void *, void *),
+                              bool    (*tester)(void *, void *),
                               void     *user_data)
 {
     for (iterator it = ptr_list_iterator_create(list);

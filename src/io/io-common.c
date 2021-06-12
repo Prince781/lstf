@@ -2,6 +2,7 @@
 #include "data-structures/string-builder.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
@@ -21,6 +22,10 @@ char *io_get_filename_from_fd(int fd) {
 
     return _strdup(resolved_path);
 }
+
+int io_getpid(void) {
+    return GetCurrentProcessId();
+}
 #else
 #include <unistd.h>
 #include <limits.h>
@@ -37,5 +42,9 @@ char *io_get_filename_from_fd(int fd)
     if (ret != -1)
         return strdup(resolved_path);
     return NULL;
+}
+
+int io_getpid(void) {
+    return getpid();
 }
 #endif
