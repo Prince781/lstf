@@ -22,11 +22,6 @@ struct _inputstream {
         struct {
             FILE *file;
             long last_read_pos;
-
-            /**
-             * Only used if `ostream` is non-NULL.
-             */
-            long last_write_pos;
         };
         struct {
             union {
@@ -37,7 +32,6 @@ struct _inputstream {
             size_t buffer_size;
         };
     };
-    outputstream *ostream;
 };
 typedef struct _inputstream inputstream;
 

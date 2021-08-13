@@ -97,11 +97,11 @@ int main(void)
         if (vm_program) {
             outputstream *vm_ostream = outputstream_new_from_buffer(NULL, 0, true);
             lstf_virtualmachine *vm = lstf_virtualmachine_new(vm_program, vm_ostream, false);
-            inputstream *istream = inputstream_new_from_outputstream(vm_ostream);
 
             if (!lstf_virtualmachine_run(vm)) {
                 if (vm->last_status == lstf_vm_status_exited) {
                     retval = vm->return_code;
+                    inputstream *istream = inputstream_new_from_static_buffer(vm->ostream->buffer, vm->ostream->buffer_offset);
                     // check output
                     const char expected_output[] = "3628800\n";
                     char buffer[128] = { 0 };
@@ -117,6 +117,7 @@ int main(void)
                         retval = 99;
                         fprintf(stderr, "could not check output of VM: %s\n", strerror(errno));
                     }
+                    inputstream_unref(istream);
                 } else {
                     retval = 1;     // VM encountered some fatal error
                     fprintf(stderr, "VM encountered a fatal error: %s.\n",
@@ -128,7 +129,6 @@ int main(void)
             }
 
             lstf_virtualmachine_destroy(vm);
-            inputstream_unref(istream);
         } else {
             retval = 99;
             fprintf(stderr, "failed to load program\n");

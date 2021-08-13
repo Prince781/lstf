@@ -147,7 +147,7 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
         retval = vm->return_code;
         if (options.expected_output) {
             // test the output buffer
-            inputstream *istream = inputstream_new_from_outputstream(vm->ostream);
+            inputstream *istream = inputstream_new_from_static_buffer(vm->ostream->buffer, vm->ostream->buffer_size);
             char *buffer = calloc(1, vm->ostream->buffer_offset + 1);
 
             if (inputstream_read(istream, buffer, vm->ostream->buffer_offset) > 0 &&

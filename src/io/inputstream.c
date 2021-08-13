@@ -38,9 +38,6 @@ static void inputstream_free(inputstream *stream)
         break;
     }
 
-    if (stream->ostream)
-        outputstream_unref(stream->ostream);
-
     free(stream);
 }
 
@@ -134,86 +131,17 @@ inputstream *inputstream_new_from_static_string(const char *str)
     return inputstream_new_from_static_buffer(str, strlen(str));
 }
 
-inputstream *inputstream_new_from_outputstream(outputstream *ostream)
-{
-    switch (ostream->stream_type) {
-    case outputstream_type_file:
-    {
-        inputstream *istream = inputstream_new_from_file(ostream->file, false);
-        istream->ostream = outputstream_ref(ostream);
-        return istream;
-    }
-    case outputstream_type_buffer:
-    {
-        inputstream *istream = inputstream_new_from_buffer(ostream->buffer, ostream->buffer_size, false);
-        istream->ostream = outputstream_ref(ostream);
-        return istream;
-    }
-    }
-
-    fprintf(stderr, "%s: unexpected stream type `%u'\n", __func__, ostream->stream_type);
-    abort();
-}
-
-static inline bool
-inputstream_update_from_outputstream(inputstream *stream)
-{
-    if (stream->ostream) {
-        long last_write_pos = -1;
-        switch (stream->ostream->stream_type) {
-        case outputstream_type_file:
-            if ((last_write_pos = ftell(stream->file)) < 0)
-                return false;
-            stream->last_write_pos = last_write_pos;
-            if (fseek(stream->file, stream->last_read_pos, SEEK_SET) < 0)
-                return false;
-            break;
-        case outputstream_type_buffer:
-            // realloc() can change the address of ostream's buffer
-            stream->buffer = stream->ostream->buffer;
-            stream->buffer_size = stream->ostream->buffer_offset;
-            break;
-        }
-    }
-
-    return true;
-}
-
-static inline bool
-inputstream_restore_underlying_outputstream(inputstream *stream)
-{
-    if (stream->ostream) {
-        switch (stream->ostream->stream_type) {
-        case outputstream_type_file:
-            // restore the write position of the stream when
-            // inputstream_update_from_outputstream() was called
-            if (fseek(stream->file, stream->last_write_pos, SEEK_SET) < 0)
-                return false;
-            break;
-        case outputstream_type_buffer:
-            break;
-        }
-    }
-
-    return true;
-}
-
 char inputstream_read_char(inputstream *stream)
 {
-    if (!inputstream_update_from_outputstream(stream))
-        return EOF;
     char read_char = EOF;
     switch (stream->stream_type) {
     case inputstream_type_file:
         read_char = fgetc(stream->file);
-        inputstream_restore_underlying_outputstream(stream);
         return read_char;
     case inputstream_type_buffer:
         if (stream->buffer_offset >= stream->buffer_size) {
-            inputstream_restore_underlying_outputstream(stream);
             return EOF;
         }
-        inputstream_restore_underlying_outputstream(stream);
         return stream->buffer[stream->buffer_offset++];
     }
 
@@ -223,23 +151,18 @@ char inputstream_read_char(inputstream *stream)
 
 bool inputstream_unread_char(inputstream *stream)
 {
-    if (!inputstream_update_from_outputstream(stream))
-        return false;
     switch (stream->stream_type) {
     case inputstream_type_file:
     {
         bool retval = !fseek(stream->file, -1, SEEK_CUR);
-        inputstream_restore_underlying_outputstream(stream);
         return retval;
     }
     case inputstream_type_buffer:
         if (stream->buffer_offset == 0) {
             errno = EINVAL;
-            inputstream_restore_underlying_outputstream(stream);
             return false;
         }
         stream->buffer_offset--;
-        inputstream_restore_underlying_outputstream(stream);
         return true;
     }
 
@@ -279,13 +202,10 @@ bool inputstream_read_uint64(inputstream *stream, uint64_t *integer)
 
 size_t inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
 {
-    if (!inputstream_update_from_outputstream(stream))
-        return 0;
     switch (stream->stream_type) {
     case inputstream_type_file:
     {
         size_t amt_read = fread(buffer, 1, buffer_size, stream->file);
-        inputstream_restore_underlying_outputstream(stream);
         return amt_read;
     }
     case inputstream_type_buffer:
@@ -294,7 +214,6 @@ size_t inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
         size_t amt_read = buffer_size < remaining_amt ? buffer_size : remaining_amt;
         memcpy(buffer, &stream->static_buffer[stream->buffer_offset], amt_read);
         stream->buffer_offset += amt_read;
-        inputstream_restore_underlying_outputstream(stream);
         return amt_read;
     }
     }
@@ -305,24 +224,19 @@ size_t inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
 
 bool inputstream_skip(inputstream *stream, size_t bytes)
 {
-    if (!inputstream_update_from_outputstream(stream))
-        return false;
     switch (stream->stream_type) {
     case inputstream_type_file:
     {
         bool retval = !fseek(stream->file, bytes, SEEK_CUR);
-        inputstream_restore_underlying_outputstream(stream);
         return retval;
     }
     case inputstream_type_buffer:
         if (stream->buffer_size - stream->buffer_offset < bytes) {
             errno = ESPIPE;
-            inputstream_restore_underlying_outputstream(stream);
             return false;
         } else {
             stream->buffer_offset += bytes;
         }
-        inputstream_restore_underlying_outputstream(stream);
         return true;
     }
 
@@ -332,29 +246,22 @@ bool inputstream_skip(inputstream *stream, size_t bytes)
 
 bool inputstream_has_data(inputstream *stream)
 {
-    if (!inputstream_update_from_outputstream(stream))
-        return false;
     switch (stream->stream_type) {
     case inputstream_type_file:
     {
         if (feof(stream->file)) {
-            inputstream_restore_underlying_outputstream(stream);
             return false;
         }
         
-        if (!stream->ostream) {
-            // it's possible we could have not performed a first read, in which
-            // case we must do that to determine whether there is data available.
-            // NOTE: ungetc() will be undone by fseek(), so we can only perform this
-            // test if there is no underlying outputstream.
-            char byte = 0;
-            if ((byte = fgetc(stream->file)) == EOF)
-                return false;
-            // otherwise, unget character
-            ungetc(byte, stream->file);
-        }
-
-        inputstream_restore_underlying_outputstream(stream);
+        // it's possible we could have not performed a first read, in which
+        // case we must do that to determine whether there is data available.
+        // NOTE: ungetc() will be undone by fseek(), so we can only perform this
+        // test if there is no underlying outputstream.
+        char byte = 0;
+        if ((byte = fgetc(stream->file)) == EOF)
+            return false;
+        // otherwise, unget character
+        ungetc(byte, stream->file);
         return true;
     }
     case inputstream_type_buffer:
@@ -368,7 +275,6 @@ bool inputstream_has_data(inputstream *stream)
 char *inputstream_get_name(inputstream *stream)
 {
     // we don't care about failure to seek the input stream here
-    inputstream_update_from_outputstream(stream);
     switch (stream->stream_type) {
     case inputstream_type_file:
         return io_get_filename_from_fd(fileno(stream->file));
