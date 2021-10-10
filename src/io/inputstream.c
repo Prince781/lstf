@@ -149,13 +149,14 @@ char inputstream_read_char(inputstream *stream)
     abort();
 }
 
-bool inputstream_unread_char(inputstream *stream)
+bool inputstream_unread_char(inputstream *stream, char c)
 {
     switch (stream->stream_type) {
     case inputstream_type_file:
     {
-        bool retval = !fseek(stream->file, -1, SEEK_CUR);
-        return retval;
+        if (ungetc(c, stream->file) != c)
+            return fseek(stream->file, -1, SEEK_CUR) == 0;
+        return true;
     }
     case inputstream_type_buffer:
         if (stream->buffer_offset == 0) {

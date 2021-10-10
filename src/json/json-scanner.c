@@ -141,9 +141,9 @@ static char json_scanner_getc(json_scanner *scanner)
     return read_character;
 }
 
-static void json_scanner_ungetc(json_scanner *scanner)
+static void json_scanner_ungetc(json_scanner *scanner, char read_character)
 {
-    if (inputstream_unread_char(scanner->stream))
+    if (inputstream_unread_char(scanner->stream, read_character))
         scanner->source_location = scanner->prev_char_source_location;
     else
         fprintf(stderr, "%s: failed: %s\n", __func__, strerror(errno));
@@ -329,7 +329,7 @@ json_token json_scanner_next(json_scanner *scanner)
                             scanner->last_token = json_token_double;
                             while (isdigit(current_char = json_scanner_getc(scanner)))
                                 json_scanner_save_char(scanner, current_char);
-                            json_scanner_ungetc(scanner);
+                            json_scanner_ungetc(scanner, current_char);
                         } else {
                             json_scanner_report_message(scanner, scanner->source_location,
                                     "error: expected exponent");
@@ -339,14 +339,14 @@ json_token json_scanner_next(json_scanner *scanner)
                                 "error: expected exponent");
                     }
                 } else {
-                    json_scanner_ungetc(scanner);
+                    json_scanner_ungetc(scanner, current_char);
                 }
             } else {
                 json_scanner_report_message(scanner, scanner->source_location,
                         "error: expected fractional part for number");
             }
         } else {
-            json_scanner_ungetc(scanner);
+            json_scanner_ungetc(scanner, current_char);
         }
         return scanner->last_token;
     case EOF:
@@ -586,7 +586,7 @@ static void json_scanner_stream_ready_cb(event *ev, void *user_data)
                     break;
 
                 default:
-                    json_scanner_ungetc(scanner);
+                    json_scanner_ungetc(scanner, read_character);
                     event_return(token_read_ev, (void *)(scanner->last_token = json_token_integer));
                     free(ctx);
                     return;
@@ -622,7 +622,7 @@ static void json_scanner_stream_ready_cb(event *ev, void *user_data)
                     break;
 
                 default:
-                    json_scanner_ungetc(scanner);
+                    json_scanner_ungetc(scanner, read_character);
                     event_return(token_read_ev, (void *)(scanner->last_token = json_token_double));
                     free(ctx);
                     return;
@@ -662,7 +662,7 @@ static void json_scanner_stream_ready_cb(event *ev, void *user_data)
                     free(ctx);
                     return;
                 } else {
-                    json_scanner_ungetc(scanner);
+                    json_scanner_ungetc(scanner, read_character);
                     event_return(token_read_ev, (void *)(scanner->last_token = json_token_double));
                     free(ctx);
                     return;

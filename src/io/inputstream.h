@@ -67,7 +67,7 @@ char inputstream_read_char(inputstream *stream);
 /**
  * Unreads a character. Returns `true` on success, `false` on error.
  */
-bool inputstream_unread_char(inputstream *stream);
+bool inputstream_unread_char(inputstream *stream, char c);
 
 /**
  * Returns `true` and `integer` is set to the integer that was read. Otherwise

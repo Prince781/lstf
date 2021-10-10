@@ -303,6 +303,7 @@ struct parse_object_entry_ctx {
     char *member_name;          // nullable
     bool has_colon;
     bool has_member_value;
+    bool has_trailing_comma;
 };
 
 static void parse_object_entry_ctx_free(struct parse_object_entry_ctx *ctx)
@@ -348,10 +349,12 @@ static void json_parser_parse_object_entry_cb(event *ev, void *user_data)
     event *node_parsed_ev = ctx->node_parsed_ev;
 
     if (token == json_token_error) {
+        ctx->has_trailing_comma = false;
         event_cancel_with_errno(node_parsed_ev, errnum);
         json_node_unref(object);
         parse_object_entry_ctx_free(ctx);
     } else if (token == json_token_string && !ctx->member_name) {
+        ctx->has_trailing_comma = false;
         ctx->member_name = strdup(parser->scanner->last_token_buffer);
         json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, ctx);
     } else if (token == json_token_colon && ctx->member_name && !ctx->has_colon) {
@@ -365,9 +368,11 @@ static void json_parser_parse_object_entry_cb(event *ev, void *user_data)
         ctx->member_name = NULL;
         ctx->has_colon = false;
         ctx->has_member_value = false;
+        ctx->has_trailing_comma = true;
 
         json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, ctx);
-    } else if (token == json_token_closebrace && ctx->member_name && ctx->has_colon && ctx->has_member_value) {
+    } else if (token == json_token_closebrace && !ctx->has_trailing_comma &&
+        (!!ctx->member_name == ctx->has_colon && ctx->has_colon == ctx->has_member_value)) {
         // finish parsing the object
         event_return(node_parsed_ev, object);
         parse_object_entry_ctx_free(ctx);
@@ -478,6 +483,7 @@ static void json_parser_scanner_next_cb(event *ev, void *user_data)
             object,
             node_parsed_ev,
             NULL,   /* member_name */
+            false,
             false,
             false
         };
