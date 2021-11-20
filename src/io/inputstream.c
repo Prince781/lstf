@@ -131,7 +131,7 @@ inputstream *inputstream_new_from_static_string(const char *str)
     return inputstream_new_from_static_buffer(str, strlen(str));
 }
 
-char inputstream_read_char(inputstream *stream)
+int inputstream_read_char(inputstream *stream)
 {
     char read_char = EOF;
     switch (stream->stream_type) {
@@ -258,7 +258,7 @@ bool inputstream_has_data(inputstream *stream)
         // case we must do that to determine whether there is data available.
         // NOTE: ungetc() will be undone by fseek(), so we can only perform this
         // test if there is no underlying outputstream.
-        char byte = 0;
+        int byte = 0;
         if ((byte = fgetc(stream->file)) == EOF)
             return false;
         // otherwise, unget character

@@ -506,7 +506,7 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
     case lstf_vm_op_load_frameoffset:
         return sizeof(uint8_t) + sizeof(instruction->frame_offset);
     case lstf_vm_op_load_dataoffset:
-        return sizeof(uint8_t) + sizeof(instruction->data_offset);
+        return sizeof(uint8_t) + sizeof(uint64_t);
     case lstf_vm_op_load_codeoffset:
         return sizeof(uint8_t) + sizeof(uint64_t);
     case lstf_vm_op_load_expression:

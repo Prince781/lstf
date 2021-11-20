@@ -207,9 +207,10 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
             }
         }
 
-        uint64_t n_debug_symbols = 0;
-        for (iterator it = ptr_hashmap_iterator_create(program->debug_symbols); it.has_next; it = iterator_next(it))
-            n_debug_symbols += ptr_hashmap_num_elements(((ptr_hashmap_entry *)iterator_get_item(it))->value);
+        // XXX: support debugging
+        // uint64_t n_debug_symbols = 0;
+        // for (iterator it = ptr_hashmap_iterator_create(program->debug_symbols); it.has_next; it = iterator_next(it))
+        //     n_debug_symbols += ptr_hashmap_num_elements(((ptr_hashmap_entry *)iterator_get_item(it))->value);
 
         if (!outputstream_write_uint64(ostream, n_debug_entries))
             return false;

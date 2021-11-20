@@ -62,7 +62,7 @@ inputstream *inputstream_new_from_outputstream(outputstream *ostream);
 /**
  * Reads a character and advances the underlying stream pointer.
  */
-char inputstream_read_char(inputstream *stream);
+int inputstream_read_char(inputstream *stream);
 
 /**
  * Unreads a character. Returns `true` on success, `false` on error.

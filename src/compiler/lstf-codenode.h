@@ -3,6 +3,7 @@
 #include "lstf-common.h"
 #include "lstf-sourceref.h"
 #include <limits.h>
+#include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -49,7 +50,7 @@ void lstf_codenode_accept(void *node, lstf_codevisitor *visitor);
 void lstf_codenode_accept_children(void *node, lstf_codevisitor *visitor);
 
 struct _lstf_codenode {
-    const lstf_codenode_vtable *codenode_vtable;
+    alignas(8) const lstf_codenode_vtable *codenode_vtable;
     lstf_codenode_type codenode_type;
     unsigned refcount : sizeof(unsigned) * CHAR_BIT - 1;
     bool floating : 1;

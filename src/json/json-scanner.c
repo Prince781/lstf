@@ -126,9 +126,9 @@ static int xvalue(int digit_character)
     }
 }
 
-static char json_scanner_getc(json_scanner *scanner)
+static int json_scanner_getc(json_scanner *scanner)
 {
-    char read_character = inputstream_read_char(scanner->stream);
+    int read_character = inputstream_read_char(scanner->stream);
 
     scanner->prev_char_source_location = scanner->source_location;
     if (read_character == '\n' || read_character == '\r') {
@@ -179,7 +179,7 @@ json_token json_scanner_next(json_scanner *scanner)
     if (scanner->last_token_buffer)
         scanner->last_token_buffer[scanner->last_token_length] = '\0';
 
-    char current_char = json_scanner_getc(scanner);
+    int current_char = json_scanner_getc(scanner);
     while (isspace(current_char))
         current_char = json_scanner_getc(scanner);
 
@@ -431,7 +431,7 @@ static void json_scanner_stream_ready_cb(event *ev, void *user_data)
 
     do {
         if (event_get_result(ev, NULL)) {
-            char read_character = json_scanner_getc(scanner);
+            int read_character = json_scanner_getc(scanner);
 
             if (ctx->is_init_state) {
                 // reset the saved token
