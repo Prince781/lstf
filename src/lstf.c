@@ -40,7 +40,7 @@ struct lstf_options {
 
 static inline char *suffix(const char *str)
 {
-    char *ext = strchr(str, '.');
+    char *ext = strrchr(str, '.');
 
     return ext != NULL ? (*(ext + 1) ? ext + 1 : NULL) : NULL;
 }
