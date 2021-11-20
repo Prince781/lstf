@@ -89,7 +89,7 @@ do {\
     array_generic *_a_ = (array_generic *)(container);\
     size_t _i_ = index;\
     assert(_i_ < _a_->length && "array_remove(): index out of bounds");\
-    if (_i_ == _a_->length - 1) {\
+    if (_i_ == _a_->length - 1u) {\
         _a_->length--;\
     } else {\
         memmove((char *)_a_->elements + _i_ * _a_->elemsz,\

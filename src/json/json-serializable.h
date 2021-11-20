@@ -162,7 +162,7 @@ static iterator type_name ## _list_properties_iterate(iterator it)\
     return (iterator) {\
         .collection = type_name ## _properties_list,\
         .iterate = type_name ## _list_properties_iterate,\
-        .has_next = it.counter + 1 < array_length(type_name ## _properties_list)-1,\
+        .has_next = it.counter + 1u < array_length(type_name ## _properties_list)-1,\
         .counter = it.counter + 1,\
         .data = (type_name ## _properties_list)[it.counter + 1]\
     };\

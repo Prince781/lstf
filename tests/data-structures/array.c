@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
     }
     printf("ints = [");
     for (size_t i = 0; i < ints->length; i++)
-        printf("%d%s", ints->elements[i], i < ints->length - 1 ? ", " : "");
+        printf("%d%s", ints->elements[i], i < ints->length - 1u ? ", " : "");
     printf("]\n");
 
     printf("sum = %d\n", sum);
