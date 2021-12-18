@@ -344,7 +344,7 @@ static void eventloop_poll(eventloop *loop,
                 pending; ) {
         event *next = pending->next;
 
-        if (pending->is_io_operation) {
+        if (pending->type == event_type_io_read || pending->type == event_type_io_write) {
             if (WaitForSingleObject((HANDLE) _get_osfhandle(pending->fd), 0) == WAIT_OBJECT_0) {
                 // remove [pending] off the list of pending tasks and add
                 // it to the list of ready tasks
@@ -353,7 +353,7 @@ static void eventloop_poll(eventloop *loop,
                 event_list_prepend(ready_events, pending);
                 pending = NULL;
             }
-        } else if (pending->is_bg_operation && event_is_ready(pending)) {
+        } else if (pending->type == event_type_bg_task && event_is_ready(pending)) {
             eventloop_remove(loop, pending, prev);
             event_list_prepend(ready_events, pending);
             pending = NULL;

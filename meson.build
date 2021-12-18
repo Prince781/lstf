@@ -24,6 +24,7 @@ if cc.get_id() == 'msvc'
       '/wd4996',      # suppress POSIX name deprecation warnings
       '/wd4706',      # suppress assignment within conditional expression
       '/wd5105',      # suppress warning about undefined 'defined' macro usage outside of #if
+      '/wd4116',      # suppress warning about unnamed type in parentheses
       '/std:c17',
     ])
 else
