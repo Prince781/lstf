@@ -4,7 +4,7 @@ project_files = [ 'constructor-example.vala', 'destructor-example.vala' ];
 // The use of await is optional, but forces the method calls
 // to be serialized.
 
-{
+assert {
     diagnostics: [
         ...,
         {
@@ -18,6 +18,6 @@ project_files = [ 'constructor-example.vala', 'destructor-example.vala' ];
     ]
 } <=> await diagnostics("destructor-example.vala");
 
-{
+assert {
     diagnostics: [...]
 } <=> await diagnostics("constructor-example.vala");
