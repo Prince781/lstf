@@ -98,7 +98,16 @@ lstf_vm_status lstf_vm_stack_get_value(lstf_vm_stack *stack,
     return lstf_vm_status_continue;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_value(lstf_vm_stack  *stack,
+lstf_vm_status lstf_vm_stack_get_frame_return_address(lstf_vm_stack *stack,
+                                                      uint8_t      **return_address_ptr)
+{
+    if (stack->n_frames == 0)
+        return lstf_vm_status_invalid_stack_offset;
+    *return_address_ptr = stack->frames[stack->n_frames - 1].return_address;
+    return lstf_vm_status_continue;
+}
+
+lstf_vm_status lstf_vm_stack_frame_get_value(lstf_vm_stack  *stack,
                                              int64_t         fp_offset,
                                              lstf_vm_value  *value)
 {
@@ -124,7 +133,7 @@ static inline lstf_vm_status lstf_vm_stack_get_typed_value(lstf_vm_stack     *st
     lstf_vm_value generic_value;
     lstf_vm_status status = lstf_vm_status_continue;
 
-    if ((status = lstf_vm_stack_get_frame_value(stack, fp_offset, &generic_value)))
+    if ((status = lstf_vm_stack_frame_get_value(stack, fp_offset, &generic_value)))
         return status;
 
     if (generic_value.value_type != value_type)
@@ -136,7 +145,7 @@ static inline lstf_vm_status lstf_vm_stack_get_typed_value(lstf_vm_stack     *st
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_value_address(lstf_vm_stack  *stack,
+lstf_vm_status lstf_vm_stack_frame_get_value_address(lstf_vm_stack  *stack,
                                                      int64_t         fp_offset,
                                                      lstf_vm_value **value_ptr)
 {
@@ -150,7 +159,7 @@ lstf_vm_status lstf_vm_stack_get_frame_value_address(lstf_vm_stack  *stack,
     return lstf_vm_status_continue;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_integer(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_integer(lstf_vm_stack *stack,
                                                int64_t        fp_offset,
                                                int64_t       *value)
 {
@@ -167,7 +176,7 @@ lstf_vm_status lstf_vm_stack_get_frame_integer(lstf_vm_stack *stack,
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_double(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_double(lstf_vm_stack *stack,
                                               int64_t        fp_offset,
                                               double        *value)
 {
@@ -184,7 +193,7 @@ lstf_vm_status lstf_vm_stack_get_frame_double(lstf_vm_stack *stack,
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_boolean(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_boolean(lstf_vm_stack *stack,
                                                int64_t        fp_offset,
                                                bool          *value)
 {
@@ -201,7 +210,7 @@ lstf_vm_status lstf_vm_stack_get_frame_boolean(lstf_vm_stack *stack,
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_string(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_string(lstf_vm_stack *stack,
                                               int64_t        fp_offset,
                                               string       **value)
 {
@@ -218,7 +227,7 @@ lstf_vm_status lstf_vm_stack_get_frame_string(lstf_vm_stack *stack,
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_code_address(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_code_address(lstf_vm_stack *stack,
                                                     int64_t        fp_offset,
                                                     uint8_t      **value)
 {
@@ -235,7 +244,7 @@ lstf_vm_status lstf_vm_stack_get_frame_code_address(lstf_vm_stack *stack,
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_object(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_object(lstf_vm_stack *stack,
                                               int64_t        fp_offset,
                                               json_node    **value)
 {
@@ -252,7 +261,7 @@ lstf_vm_status lstf_vm_stack_get_frame_object(lstf_vm_stack *stack,
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_array(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_array(lstf_vm_stack *stack,
                                              int64_t        fp_offset,
                                              json_node    **value)
 {
@@ -269,7 +278,7 @@ lstf_vm_status lstf_vm_stack_get_frame_array(lstf_vm_stack *stack,
     return status;
 }
 
-lstf_vm_status lstf_vm_stack_get_frame_pattern(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_pattern(lstf_vm_stack *stack,
                                                int64_t        fp_offset,
                                                json_node    **value)
 {
@@ -743,7 +752,7 @@ lstf_vm_status lstf_vm_stack_push_closure(lstf_vm_stack   *stack,
 }
 
 lstf_vm_status lstf_vm_stack_teardown_frame(lstf_vm_stack *stack,
-                                            uint8_t      **return_address)
+                                            uint8_t      **return_address_ptr)
 {
     lstf_vm_status status = lstf_vm_status_continue;
     lstf_vm_value return_value;
@@ -788,25 +797,32 @@ lstf_vm_status lstf_vm_stack_teardown_frame(lstf_vm_stack *stack,
         ptr_hashmap_destroy(current_frame->captured_locals);
     
     // get return address
-    *return_address = current_frame->return_address;
+    uint8_t *return_address = current_frame->return_address;
+    if (return_address_ptr) {
+        *return_address_ptr = return_address;
+    }
 
     // officially tear down frame (affects the next pop() calls)
     stack->n_frames--;
 
-    // callee pops parameters in previous stack frame
-    for (uint8_t i = 0; i < current_frame->parameters; i++) {
-        if ((status = lstf_vm_stack_pop_value(stack, NULL))) {
-            if (has_return_value)
-                lstf_vm_value_clear(&return_value);
-            return status;
+    // If the return address is NULL, this function was invoked as a
+    // new coroutine.
+    if (return_address) {
+        // callee pops parameters in previous stack frame
+        for (uint8_t i = 0; i < current_frame->parameters; i++) {
+            if ((status = lstf_vm_stack_pop_value(stack, NULL))) {
+                if (has_return_value)
+                    lstf_vm_value_clear(&return_value);
+                return status;
+            }
         }
-    }
 
-    // push return value on previous frame
-    if (has_return_value) {
-        if ((status = lstf_vm_stack_push_value(stack, &return_value))) {
-            lstf_vm_value_clear(&return_value);
-            return status;
+        // push return value on previous frame
+        if (has_return_value) {
+            if ((status = lstf_vm_stack_push_value(stack, &return_value))) {
+                lstf_vm_value_clear(&return_value);
+                return status;
+            }
         }
     }
 

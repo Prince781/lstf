@@ -185,7 +185,7 @@ lstf_vm_op_load_frameoffset_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     if ((status = lstf_virtualmachine_read_signed_integer(vm, cr, &fp_offset)))
         return status;
 
-    if ((status = lstf_vm_stack_get_frame_value(cr->stack, fp_offset, &value)))
+    if ((status = lstf_vm_stack_frame_get_value(cr->stack, fp_offset, &value)))
         return status;
 
     if ((status = lstf_vm_stack_push_value(cr->stack, &value)))
@@ -399,19 +399,28 @@ lstf_vm_op_params_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
     lstf_vm_status status = lstf_vm_status_continue;
     uint8_t num_parameters;
+    uint8_t *return_address;
 
     if ((status = lstf_virtualmachine_read_byte(vm, cr, &num_parameters)))
         return status;
 
-    for (uint8_t i = 0; i < num_parameters; i++) {
-        int64_t fp_offset = -(num_parameters - i);
-        lstf_vm_value parameter;
+    if ((status = lstf_vm_stack_get_frame_return_address(cr->stack, &return_address)))
+        return status;
 
-        if ((status = lstf_vm_stack_get_frame_value(cr->stack, fp_offset, &parameter)))
-            return status;
+    // if the return address is NULL, this is a coroutine and the
+    // parameters are already passed in the initial stack frame
+    if (return_address) {
+        // load the parameters from the previous stack frame
+        for (uint8_t i = 0; i < num_parameters; i++) {
+            int64_t fp_offset = -(num_parameters - i);
+            lstf_vm_value parameter;
 
-        if ((status = lstf_vm_stack_push_value(cr->stack, &parameter)))
-            return status;
+            if ((status = lstf_vm_stack_frame_get_value(cr->stack, fp_offset, &parameter)))
+                return status;
+
+            if ((status = lstf_vm_stack_push_value(cr->stack, &parameter)))
+                return status;
+        }
     }
 
     return lstf_vm_stack_frame_set_parameters(cr->stack, num_parameters);
@@ -473,25 +482,52 @@ lstf_vm_op_calli_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 }
 
 static lstf_vm_status
+lstf_vm_schedule_new_coroutine(lstf_virtualmachine *vm,
+                               lstf_vm_coroutine   *cr,
+                               uint8_t              num_params,
+                               uint8_t             *code_address,
+                               lstf_vm_closure     *closure)
+{
+    lstf_vm_status status = lstf_vm_status_continue;
+    // create a new coroutine
+    lstf_vm_coroutine *new_cr = lstf_vm_coroutine_new(code_address);
+    // set up initial stack frame for new coroutine
+    // the saved return address is NULL, because when the coroutine returns it exits
+    if ((status = lstf_vm_stack_setup_frame(new_cr->stack, NULL, closure)))
+        goto cleanup_coroutine;
+    // pass parameters to the new coroutine, loaded from the current stack frame
+    lstf_vm_value parameters[1u << (CHAR_BIT * sizeof num_params)] = { 0 };
+    for (uint8_t i = 0; i < num_params; i++)
+        if ((status = lstf_vm_stack_pop_value(cr->stack, &parameters[num_params - i - 1])))
+            goto cleanup_coroutine;
+    for (uint8_t i = 0; i < num_params; i++)
+        if ((status = lstf_vm_stack_push_value(new_cr->stack, &parameters[i])))
+            goto cleanup_coroutine;
+    // queue the coroutine for execution at a later point
+    new_cr->node = ptr_list_append(vm->run_queue, new_cr);
+    return status;
+
+cleanup_coroutine:
+    lstf_vm_coroutine_unref(new_cr);
+    return status;
+}
+
+static lstf_vm_status
 lstf_vm_op_schedule_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
     lstf_vm_status status = lstf_vm_status_continue;
     uint64_t code_offset;
+    uint8_t num_params;
 
     // read code offset immediate value
     if ((status = lstf_virtualmachine_read_integer(vm, cr, &code_offset)))
         return status;
 
-    // create a new coroutine
-    lstf_vm_coroutine *new_cr = lstf_vm_coroutine_new(vm->program->code + code_offset);
-    // set up initial stack frame for new coroutine
-    // the saved return address is NULL, because when the coroutine returns it exits
-    if ((status = lstf_vm_stack_setup_frame(new_cr->stack, NULL, NULL)))
+    // read param count immediate value
+    if ((status = lstf_virtualmachine_read_byte(vm, cr, &num_params)))
         return status;
-    // queue the coroutine for execution at a later point
-    new_cr->node = ptr_list_append(vm->run_queue, new_cr);
 
-    return status;
+    return lstf_vm_schedule_new_coroutine(vm, cr, num_params, vm->program->code + code_offset, NULL);
 }
 
 static lstf_vm_status
@@ -500,6 +536,7 @@ lstf_vm_op_schedulei_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     lstf_vm_status status = lstf_vm_status_continue;
     uint8_t *code_address = NULL;
     lstf_vm_closure *closure = NULL;
+    uint8_t num_params;
 
     // try to get the code address saved by the last instruction
     if ((status = lstf_vm_stack_pop_code_address(cr->stack, &code_address))) {
@@ -513,16 +550,11 @@ lstf_vm_op_schedulei_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
         code_address = closure->code_address;
     }
 
-    // create a new coroutine
-    lstf_vm_coroutine *new_cr = lstf_vm_coroutine_new(code_address);
-    // set up initial stack frame for new coroutine
-    // the saved return address is NULL, because when the coroutine returns it exits
-    if ((status = lstf_vm_stack_setup_frame(new_cr->stack, NULL, closure)))
+    // read param count immediate value
+    if ((status = lstf_virtualmachine_read_byte(vm, cr, &num_params)))
         return status;
-    // queue the coroutine for execution at a later point
-    new_cr->node = ptr_list_append(vm->run_queue, new_cr);
 
-    return status;
+    return lstf_vm_schedule_new_coroutine(vm, cr, num_params, code_address, closure);
 }
 
 static lstf_vm_status
@@ -573,7 +605,7 @@ lstf_vm_op_closure_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
             if ((status = lstf_virtualmachine_read_signed_integer(vm, cr, &fp_offset)))
                 goto cleanup_upvalues;
 
-            if ((status = lstf_vm_stack_get_frame_value_address(cr->stack, fp_offset, &value_ptr)))
+            if ((status = lstf_vm_stack_frame_get_value_address(cr->stack, fp_offset, &value_ptr)))
                 goto cleanup_upvalues;
 
             // now check whether this stack offset is already captured in the current frame
@@ -1378,7 +1410,7 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // only keep the coroutine if it has not completed (and it hasn't
             // already been added onto another list by an instruction)
  
-            if (cr->outstanding == 0) {
+            if (cr->outstanding_io == 0) {
                 if (vm->instructions_executed >= LSTF_VM_CONTEXT_SWITCH_CYCLES) {
                     // add to the back of the run queue so that we can pick a
                     // different coroutine on the next cycle

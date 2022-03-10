@@ -37,7 +37,9 @@ struct _lstf_bc_instruction {
         char *data_offset;
 
         /**
-         * Used by `params`
+         * Used by:
+         * - `lstf_vm_op_params`
+         * - `lstf_vm_op_schedulei`
          */
         uint8_t num_parameters;
 
@@ -75,6 +77,14 @@ struct _lstf_bc_instruction {
          * The exit code
          */
         uint8_t exit_code;
+
+        /**
+         * Used by: `lstf_vm_op_schedule`
+         */
+        struct {
+            uint8_t num_parameters;
+            lstf_bc_function *function_ref;
+        } coroutine;
 
         struct {
             uint8_t num_upvalues;
@@ -189,19 +199,19 @@ static inline lstf_bc_instruction lstf_bc_instruction_calli_new(void)
     };
 }
 
-static inline lstf_bc_instruction lstf_bc_instruction_schedule_new(lstf_bc_function *function_ref)
+static inline lstf_bc_instruction lstf_bc_instruction_schedule_new(lstf_bc_function *function_ref, uint8_t num_parameters)
 {
     return (lstf_bc_instruction) {
         .opcode = lstf_vm_op_schedule,
-        .function_ref = function_ref
+        .coroutine = { num_parameters, function_ref }
     };
 }
 
-static inline lstf_bc_instruction lstf_bc_instruction_schedulei_new(void)
+static inline lstf_bc_instruction lstf_bc_instruction_schedulei_new(uint8_t num_parameters)
 {
     return (lstf_bc_instruction) {
         .opcode = lstf_vm_op_schedulei,
-        { 0 }
+        .num_parameters = num_parameters
     };
 }
 
@@ -528,9 +538,9 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
     case lstf_vm_op_calli:
         return sizeof(uint8_t);
     case lstf_vm_op_schedule:
-        return sizeof(uint8_t) + sizeof(uint64_t);
+        return sizeof(uint8_t) + sizeof(uint64_t) + sizeof(uint8_t);
     case lstf_vm_op_schedulei:
-        return sizeof(uint8_t);
+        return sizeof(uint8_t) + sizeof(uint8_t);
     case lstf_vm_op_return:
         return sizeof(uint8_t);
     case lstf_vm_op_closure:

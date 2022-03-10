@@ -708,7 +708,7 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
                 inst->frame_offset = frame_offset++;
 
             lstf_bc_function *scheduled_bc_fn = ptr_hashmap_get(fns_ir_to_bc, sched_inst->function)->value;
-            bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_schedule_new(scheduled_bc_fn));
+            bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_schedule_new(scheduled_bc_fn, sched_inst->arguments->length));
         }   break;
 
         case lstf_ir_instruction_type_indirectschedule:
@@ -719,7 +719,7 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             if (isched_inst->has_return)
                 inst->frame_offset = frame_offset++;
 
-            bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_schedulei_new());
+            bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_schedulei_new(isched_inst->arguments->length));
         }   break;
 
         case lstf_ir_instruction_type_branch:
@@ -1129,9 +1129,10 @@ bool lstf_ir_program_visualize(const lstf_ir_program *program, const char *path)
                             lstf_ir_indirectscheduleinstruction *isched_inst =
                                 (lstf_ir_indirectscheduleinstruction *)bb->instructions[i];
 
-                            string_appendf(bb_insns_buffer, "%%%lu = schedulei %%%lu",
+                            string_appendf(bb_insns_buffer, "%%%lu = schedulei %%%lu, %lu",
                                     num_instructions,
-                                    (unsigned long)(uintptr_t)ptr_hashmap_get(insn_result_ids, isched_inst->expression)->value);
+                                    (unsigned long)(uintptr_t)ptr_hashmap_get(insn_result_ids, isched_inst->expression)->value,
+                                    isched_inst->arguments->length);
                             for (iterator arg_it = ptr_list_iterator_create(isched_inst->arguments);
                                     arg_it.has_next; arg_it = iterator_next(arg_it)) {
                                 string_appendf(bb_insns_buffer, ", %%%lu",

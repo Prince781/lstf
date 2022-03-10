@@ -72,7 +72,16 @@ lstf_vm_status lstf_vm_stack_get_value(lstf_vm_stack *stack,
                                        uint64_t       stack_offset,
                                        lstf_vm_value *value);
 
-lstf_vm_status lstf_vm_stack_get_frame_value(lstf_vm_stack  *stack,
+/**
+ * Gets the return address saved for the current stack frame.
+ */
+lstf_vm_status lstf_vm_stack_get_frame_return_address(lstf_vm_stack *stack,
+                                                      uint8_t      **return_address_ptr);
+
+/**
+ * Gets a value from a position relative to the current stack frame.
+ */
+lstf_vm_status lstf_vm_stack_frame_get_value(lstf_vm_stack  *stack,
                                              int64_t         fp_offset,
                                              lstf_vm_value  *value);
 
@@ -80,39 +89,39 @@ lstf_vm_status lstf_vm_stack_get_frame_value(lstf_vm_stack  *stack,
  * Gets the address of a valid value on the stack, relative to the current
  * stack frame.
  */
-lstf_vm_status lstf_vm_stack_get_frame_value_address(lstf_vm_stack  *stack,
+lstf_vm_status lstf_vm_stack_frame_get_value_address(lstf_vm_stack  *stack,
                                                      int64_t         fp_offset,
                                                      lstf_vm_value **value_ptr);
 
-lstf_vm_status lstf_vm_stack_get_frame_integer(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_integer(lstf_vm_stack *stack,
                                                int64_t        fp_offset,
                                                int64_t       *value);
 
-lstf_vm_status lstf_vm_stack_get_frame_double(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_double(lstf_vm_stack *stack,
                                               int64_t        fp_offset,
                                               double        *value);
 
-lstf_vm_status lstf_vm_stack_get_frame_boolean(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_boolean(lstf_vm_stack *stack,
                                                int64_t        fp_offset,
                                                bool          *value);
 
-lstf_vm_status lstf_vm_stack_get_frame_string(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_string(lstf_vm_stack *stack,
                                               int64_t        fp_offset,
                                               string       **value);
 
-lstf_vm_status lstf_vm_stack_get_frame_code_address(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_code_address(lstf_vm_stack *stack,
                                                     int64_t        fp_offset,
                                                     uint8_t      **value);
 
-lstf_vm_status lstf_vm_stack_get_frame_object(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_object(lstf_vm_stack *stack,
                                               int64_t        fp_offset,
                                               json_node    **value);
 
-lstf_vm_status lstf_vm_stack_get_frame_array(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_array(lstf_vm_stack *stack,
                                              int64_t        fp_offset,
                                              json_node    **value);
 
-lstf_vm_status lstf_vm_stack_get_frame_pattern(lstf_vm_stack *stack,
+lstf_vm_status lstf_vm_stack_frame_get_pattern(lstf_vm_stack *stack,
                                                int64_t        fp_offset,
                                                json_node    **value);
 

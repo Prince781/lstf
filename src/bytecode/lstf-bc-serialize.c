@@ -320,15 +320,26 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
                     return false;
                 break;
             case lstf_vm_op_call:
-            case lstf_vm_op_schedule:
                 if (!outputstream_write_uint64(ostream,
                             lstf_bc_program_get_instruction_offset(program,
                                                                    instruction->function_ref,
                                                                    &instruction->function_ref->instructions[0])))
                     return false;
                 break;
-            case lstf_vm_op_calli:
+            case lstf_vm_op_schedule:
+                if (!outputstream_write_uint64(ostream,
+                            lstf_bc_program_get_instruction_offset(program,
+                                                                   instruction->coroutine.function_ref,
+                                                                   &instruction->coroutine.function_ref->instructions[0])))
+                    return false;
+                if (!outputstream_write_byte(ostream, instruction->coroutine.num_parameters))
+                    return false;
+                break;
             case lstf_vm_op_schedulei:
+                if (!outputstream_write_byte(ostream, instruction->num_parameters))
+                    return false;
+                break;
+            case lstf_vm_op_calli:
             case lstf_vm_op_return:
                 break;
             case lstf_vm_op_closure:
