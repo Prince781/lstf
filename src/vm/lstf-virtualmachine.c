@@ -1393,9 +1393,11 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
 
         // fetch the instruction
         uint8_t opcode;
-        if ((vm->last_status = lstf_virtualmachine_read_byte(vm, cr, &opcode)))
+        if ((vm->last_status = lstf_virtualmachine_read_byte(vm, cr, &opcode))) {
             // a bad fetch from any coroutine should halt the virtual machine
+            lstf_vm_coroutine_unref(cr);
             return false;
+        }
 
         // execute the instruction
         if (instruction_table[opcode]) {
