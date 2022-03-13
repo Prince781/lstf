@@ -171,7 +171,7 @@ static inline uint8_t log16i(uint64_t v) {
     return l + rem;
 }
 
-bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream)
+bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, uint8_t *pc)
 {
     uint8_t opcode = 0;
     uint64_t offset = 0;
@@ -188,7 +188,9 @@ bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream)
             if (!outputstream_printf(ostream, "\n"))
                 goto err_write;
         }
-        if (!outputstream_printf(ostream, "    <%#0*"PRIx64"> ", field_width, offset - 1))
+        if (!outputstream_printf(ostream, (pc && offset - 1 == (uint64_t)(pc - prog->code)) ? " => " : "    "))
+            goto err_write;
+        if (!outputstream_printf(ostream, "<%#0*"PRIx64"> ", field_width, offset - 1))
             goto err_write;
 
         switch (opcode) {

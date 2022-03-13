@@ -19,6 +19,7 @@ struct _lstf_virtualmachine {
     int return_code;                    // the return code (if the virtual machine has exited)
     outputstream *ostream;              // the output stream for the virtual machine
     lstf_vm_coroutine *main_coroutine;  // the main coroutine
+    uint8_t *last_pc;                   // PC of the last executing coroutine (for debugging)
     ptr_list *run_queue;                // queue of ready coroutines
     ptr_list *suspended_list;           // list of suspended coroutines
     ptr_hashmap *up_values;             // maps `lstf_vm_upvalue *` -> `lstf_vm_upvalue *`

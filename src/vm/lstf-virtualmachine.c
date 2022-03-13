@@ -1391,6 +1391,8 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
         ptr_list_remove_first_link(vm->run_queue);
         cr->node = NULL;
 
+        vm->last_pc = cr->pc;
+
         // fetch the instruction
         uint8_t opcode;
         if ((vm->last_status = lstf_virtualmachine_read_byte(vm, cr, &opcode))) {

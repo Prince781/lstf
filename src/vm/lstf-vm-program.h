@@ -49,6 +49,8 @@ void lstf_vm_program_unref(lstf_vm_program *prog);
 /**
  * Disassemble the program to plain text.
  *
+ * @param pc (optional) a program counter that is an offset into the code, or NULL
+ *
  * @return whether we were able to write the output
  */
-bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream);
+bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, uint8_t *pc);

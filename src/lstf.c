@@ -169,7 +169,10 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
         getchar();
     }
     if (vm->last_status != lstf_vm_status_exited) {
+        outputstream *os = outputstream_new_from_file(stderr, false);
         lstf_report_error(NULL, "VM: %s", lstf_vm_status_to_string(vm->last_status));
+        lstf_vm_program_disassemble(vm->program, os, vm->last_pc);
+        outputstream_unref(os);
         retval = 1;
     } else {
         retval = vm->return_code;
@@ -211,7 +214,7 @@ static int disassemble_program(lstf_vm_program *program, struct lstf_options opt
     if (!os) {
         lstf_report_error(NULL, "failed to open %s: %s", disas_filename, strerror(errno));
         retval = 99;
-    } else if (!lstf_vm_program_disassemble(program, os)) {
+    } else if (!lstf_vm_program_disassemble(program, os, NULL)) {
         lstf_report_error(NULL, "failed to write disassembly to %s: %s", disas_filename, strerror(errno));
         retval = 99;
     }
