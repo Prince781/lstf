@@ -34,9 +34,10 @@ struct lstf_options {
     bool disable_interpreter;
     bool no_lsp;
     bool emit_ir;
-    char *input_filename;
-    char *output_filename;
-    char *expected_output;
+    bool output_codegen;
+    const char *input_filename;
+    const char *output_filename;
+    const char *expected_output;
 };
 
 static inline char *suffix(const char *str)
@@ -46,14 +47,31 @@ static inline char *suffix(const char *str)
     return ext != NULL ? (*(ext + 1) ? ext + 1 : NULL) : NULL;
 }
 
+static char *substitute_file_extension(const char *filename, const char *new_ext)
+{
+    static char bn_buffer[FILENAME_MAX];
+    const char *suffix_ptr = suffix(filename);
+    if (!suffix_ptr) {
+        snprintf(bn_buffer, sizeof bn_buffer - 1, "%s.%s", filename, new_ext);
+    } else {
+        size_t basename_len = (size_t)(suffix_ptr - filename);
+        size_t ext_len = strlen(new_ext);
+        if (basename_len > sizeof bn_buffer - ext_len - 1)
+            basename_len = sizeof bn_buffer - ext_len - 1;
+        snprintf(bn_buffer, basename_len, "%s", filename);
+        snprintf(&bn_buffer[basename_len - 1], sizeof bn_buffer - basename_len, ".%s", new_ext);
+    }
+    return bn_buffer;
+}
+
 static const char usage_message[] =
 "usage: %s [options] file...\n"
 "\n"
 "usage: %s script.lstf\n"
 "        runs a LSTF script\n"
 "\n"
-"usage: %s -C script.lstf [-o script.lstfa]\n"
-"        compiles a LSTF script to assembly code\n"
+"usage: %s -c script.lstf [-o script.lstfc]\n"
+"        compiles a LSTF script to bytecode\n"
 "\n"
 "usage: %s -a script.lstfa [-o script.lstfc]\n"
 "        assembles LSTF assembly code to bytecode\n"
@@ -222,27 +240,31 @@ compile_lstf_script(const char *progname, const char *filename, struct lstf_opti
         goto cleanup;
 
     if (options.emit_ir) {
-        char bn_buffer[FILENAME_MAX - 4];
-        strncpy(bn_buffer, options.input_filename, sizeof bn_buffer - 1);
-        char *bname = basename(bn_buffer);
-        char *suffix_ptr = suffix(bname);
-        assert(suffix_ptr && "basename must have file extension");
-        *(suffix_ptr - 1) = '\0';
-
-        char ir_filename[FILENAME_MAX];
-        snprintf(ir_filename, sizeof ir_filename, "%s.dot", bname);
+        const char *ir_filename = substitute_file_extension(options.input_filename, "dot");
         if (!lstf_ir_program_visualize(generator->ir, ir_filename))
             lstf_report_error(NULL, "failed to emit IR to %s: %s", ir_filename, strerror(errno));
     }
     if (!(bytecode = lstf_codegenerator_get_compiled_bytecode(generator, &bytecode_length)))
         goto cleanup;
 
-    if (options.disable_interpreter)
-        goto cleanup;
-    if (!(program = lstf_vm_loader_load_from_buffer(bytecode, bytecode_length, &loader_error))) {
-        report_load_error(progname, filename, loader_error);
-        retval = 99;
-        goto cleanup;
+    if (options.output_codegen) {
+        const char *bc_filename = options.output_filename;
+        outputstream *os;
+        if (!bc_filename)
+            bc_filename = substitute_file_extension(options.input_filename, "lstfc");
+        if (!(os = outputstream_new_from_path(bc_filename, "ab")))
+            lstf_report_error(NULL, "failed to write to %s: %s", bc_filename, strerror(errno));
+        else if (!outputstream_write(os, bytecode, bytecode_length))
+            lstf_report_error(NULL, "failed to write bytecode to %s: %s", bc_filename, strerror(errno));
+        outputstream_unref(os);
+    } else {
+        if (options.disable_interpreter)
+            goto cleanup;
+        if (!(program = lstf_vm_loader_load_from_buffer(bytecode, bytecode_length, &loader_error))) {
+            report_load_error(progname, filename, loader_error);
+            retval = 99;
+            goto cleanup;
+        }
     }
 
 cleanup:
@@ -282,10 +304,9 @@ int main(int argc, char *argv[])
     bool is_assembling = false;     // flag: -a
     bool is_compiling = false;
     bool is_disassembling = false;  // flag: -d
-    bool is_exporting = false;      // flag: -C
     bool is_interpreting = false;
-    bool input_required = false;
-    bool output_required = false;
+    bool is_input_arg = false;
+    bool is_output_arg = false;
     int retval = 0;
 
     for (char **argp = &argv[1]; *argp; argp++) {
@@ -327,16 +348,8 @@ int main(int argc, char *argv[])
             is_assembling = true;
             lstf_report_error(NULL, "assembler not implemented");
             return 1;
-        } else if (strncmp(option, "-C", sizeof "-C" - 1) == 0) {
-            is_compiling = true;
-            is_exporting = true;
-            if (option[2] || *(argp + 1)) {
-                option[2] = '\0';
-                input_required = true;
-            } else {
-                lstf_report_error(NULL, "missing argument to `%s`", option);
-                return 1;
-            }
+        } else if (strcmp(option, "-c") == 0) {
+            options.output_codegen = true;
         } else if (strncmp(option, "-d", sizeof "-d" - 1) == 0) {
             // TODO: disassembly
             is_disassembling = true;
@@ -344,8 +357,7 @@ int main(int argc, char *argv[])
             return 1;
         } else if (strncmp(option, "-o", sizeof "-o" - 1) == 0) {
             if (option[2] || *(argp + 1)) {
-                option[2] = '\0';
-                output_required = true;
+                is_output_arg = true;
             } else {
                 lstf_report_error(NULL, "missing argument to `%s`", option);
                 return 1;
@@ -381,19 +393,24 @@ int main(int argc, char *argv[])
             lstf_report_error(NULL, "unrecognized command line option `%s`", option);
             break;
         } else if (*argp) {
-            input_required = true;
+            is_input_arg = true;
         }
 
-        if (is_assembling + is_exporting + is_disassembling > 1) {
-            lstf_report_error(NULL, "only one of -a, -C, -d may be used");
+        if (is_assembling + options.output_codegen + is_disassembling > 1) {
+            lstf_report_error(NULL, "only one of -a, -c, -d may be used");
             return 1;
         }
 
-        if (input_required || output_required) {
-            char *filename = NULL;
+        if (is_input_arg || is_output_arg) {
+            char *filename = *argp;
 
-            if (is_assembling || is_exporting || is_disassembling) {
-                filename = &option[2];
+            if (is_assembling || is_disassembling) {
+                if (option[2] == '=') {
+                    filename = &option[2];
+                } else if (*(argp + 1)) {
+                    filename = *(argp + 1);
+                    argp++;
+                }
             } else {
                 filename = *argp;
             }
@@ -403,15 +420,15 @@ int main(int argc, char *argv[])
                 return 1;
             } else {
                 // check inputs
-                char *suffix_ptr = suffix(filename);
+                const char *suffix_ptr = suffix(filename);
 
                 if (!suffix_ptr) {
-                    lstf_report_error(NULL, "filename must have a suffix");
+                    lstf_report_error(NULL, "%s: filename must have a suffix", filename);
                     return 1;
                 } else if (is_assembling && strcmp(suffix_ptr, "lstfa") != 0) {
                     lstf_report_error(NULL, "%s: filename must be LSTF assembly (.lstfa)", filename);
                     return 1;
-                } else if (is_exporting && strcmp(suffix_ptr, "lstf") != 0) {
+                } else if (options.output_codegen && strcmp(suffix_ptr, "lstf") != 0) {
                     lstf_report_error(NULL, "%s: filename must be LSTF (.lstf)", filename);
                     return 1;
                 } else if (is_disassembling && strcmp(suffix_ptr, "lstfc") != 0) {
@@ -425,12 +442,12 @@ int main(int argc, char *argv[])
                     is_compiling = true;
             }
 
-            if (input_required) {
+            if (is_input_arg) {
                 options.input_filename = filename;
-                input_required = false;
-            } else if (output_required) {
+                is_input_arg = false;
+            } else if (is_output_arg) {
                 options.output_filename = filename;
-                output_required = false;
+                is_output_arg = false;
             }
         }
     }

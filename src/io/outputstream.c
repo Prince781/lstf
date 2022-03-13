@@ -198,7 +198,7 @@ size_t outputstream_write_string(outputstream *stream, const char *str)
     abort();
 }
 
-size_t outputstream_write(outputstream *stream, void *buffer, size_t buffer_size)
+size_t outputstream_write(outputstream *stream, const void *buffer, size_t buffer_size)
 {
     switch (stream->stream_type) {
     case outputstream_type_file:
