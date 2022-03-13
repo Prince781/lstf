@@ -78,12 +78,12 @@ enum _lstf_vm_opcode {
     lstf_vm_op_calli,
 
     /**
-     * `schedule <address>` - schedule execution of a function/closure (AKA begin coroutine)
+     * `schedule <address> <params>` - schedule execution of a function/closure (AKA begin coroutine)
      */
     lstf_vm_op_schedule,
 
     /**
-     * `schedulei` - indirectly begin a coroutine
+     * `schedulei <params>` - indirectly begin a coroutine
      */
     lstf_vm_op_schedulei,
 

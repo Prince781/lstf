@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "lstf-report.h"
+#include "io/io-common.h"
 
 static const char *lstf_report_domain_to_string(lstf_report_domain domain)
 {
@@ -20,23 +21,6 @@ static const char *lstf_report_domain_to_string(lstf_report_domain domain)
     fprintf(stderr, "%s: invalid domain `%u'\n", __func__, domain);
     abort();
 }
-
-#if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
-#include <consoleapi.h>
-#include <io.h>
-static bool is_ascii_terminal(FILE *file) {
-    HANDLE file_handle = (HANDLE) _get_osfhandle(fileno(file));
-    if (file_handle)
-        return !!SetConsoleMode(file_handle, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    return false;
-}
-#else
-#include <unistd.h>
-static bool is_ascii_terminal(FILE *file) {
-    return isatty(fileno(file));
-}
-#endif
 
 #ifdef max
 #undef max

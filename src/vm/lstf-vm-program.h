@@ -6,6 +6,7 @@
 #include <limits.h>
 #include "data-structures/ptr-hashmap.h"
 #include "lstf-vm-debug.h"
+#include "io/outputstream.h"
 
 static_assert(CHAR_BIT == 8, "8 bits per char required for program deserialization");
 struct _lstf_vm_program {
@@ -44,3 +45,10 @@ lstf_vm_program *lstf_vm_program_ref(lstf_vm_program *prog);
  * count hits 0.
  */
 void lstf_vm_program_unref(lstf_vm_program *prog);
+
+/**
+ * Disassemble the program to plain text.
+ *
+ * @return whether we were able to write the output
+ */
+bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream);

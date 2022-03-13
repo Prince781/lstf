@@ -48,3 +48,20 @@ int io_getpid(void) {
     return getpid();
 }
 #endif
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+#include <consoleapi.h>
+#include <io.h>
+bool is_ascii_terminal(FILE *file) {
+    HANDLE file_handle = (HANDLE) _get_osfhandle(fileno(file));
+    if (file_handle)
+        return !!SetConsoleMode(file_handle, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    return false;
+}
+#else
+#include <unistd.h>
+bool is_ascii_terminal(FILE *file) {
+    return isatty(fileno(file));
+}
+#endif

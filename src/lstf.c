@@ -9,6 +9,7 @@
 #include "data-structures/string-builder.h"
 #include "io/inputstream.h"
 #include "io/outputstream.h"
+#include "io/io-common.h"
 #include "vm/lstf-virtualmachine.h"
 #include "vm/lstf-vm-loader.h"
 #include "vm/lstf-vm-program.h"
@@ -34,7 +35,8 @@ struct lstf_options {
     bool disable_interpreter;
     bool no_lsp;
     bool emit_ir;
-    bool output_codegen;
+    bool output_codegen;                // flag: -c
+    bool disassemble;                   // flag: -d
     const char *input_filename;
     const char *output_filename;
     const char *expected_output;
@@ -70,6 +72,9 @@ static const char usage_message[] =
 "usage: %s script.lstf\n"
 "        runs a LSTF script\n"
 "\n"
+"usage: %s script.lstfc\n"
+"        runs a compiled LSTF script\n"
+"\n"
 "usage: %s -c script.lstf [-o script.lstfc]\n"
 "        compiles a LSTF script to bytecode\n"
 "\n"
@@ -78,6 +83,11 @@ static const char usage_message[] =
 "\n"
 "usage: %s -d script.lstfc [-o script.lstfa]\n"
 "        disassembles LSTF bytecode to assembly code\n"
+"\n"
+"usage: %s -d script.lstf [-o script.lstfa]\n"
+"        compiles a LSTF script to assembly code\n"
+"\n"
+"note: you can use \"-\" with -o to output to stdout.\n"
 "\n"
 "Other Options:\n"
 "  --disable=<stage>        Disable a stage. Also disables dependent stages.\n"
@@ -96,7 +106,7 @@ static const char usage_message[] =
 static void
 print_usage(const char *progname)
 {
-    fprintf(stderr, usage_message, progname, progname, progname, progname, progname);
+    fprintf(stderr, usage_message, progname, progname, progname, progname, progname, progname, progname);
     fprintf(stderr, "\n");
 }
 
@@ -187,13 +197,35 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
     return retval;
 }
 
+static int disassemble_program(lstf_vm_program *program, struct lstf_options options)
+{
+    int retval = 0;
+    const char *disas_filename = options.output_filename;
+    outputstream *os;
+    if (!disas_filename)
+        disas_filename = substitute_file_extension(options.input_filename, "lstfa");
+    if (strcmp(disas_filename, "-") == 0)
+        os = outputstream_new_from_file(stdout, false);
+    else
+        os = outputstream_new_from_path(disas_filename, "w");
+    if (!os) {
+        lstf_report_error(NULL, "failed to open %s: %s", disas_filename, strerror(errno));
+        retval = 99;
+    } else if (!lstf_vm_program_disassemble(program, os)) {
+        lstf_report_error(NULL, "failed to write disassembly to %s: %s", disas_filename, strerror(errno));
+        retval = 99;
+    }
+    outputstream_unref(os);
+    return retval;
+}
+
 static int
-compile_lstf_script(const char *progname, const char *filename, struct lstf_options options)
+compile_lstf_script(const char *progname, struct lstf_options options)
 {
     (void) progname;
-    lstf_file *script = lstf_file_load(filename);
+    lstf_file *script = lstf_file_load(options.input_filename);
     if (!script) {
-        lstf_report_error(NULL, "%s: %s", filename, strerror(errno));
+        lstf_report_error(NULL, "%s: %s", options.input_filename, strerror(errno));
         fprintf(stderr, "compilation terminated.\n");
         return 1;
     }
@@ -252,16 +284,21 @@ compile_lstf_script(const char *progname, const char *filename, struct lstf_opti
         outputstream *os;
         if (!bc_filename)
             bc_filename = substitute_file_extension(options.input_filename, "lstfc");
-        if (!(os = outputstream_new_from_path(bc_filename, "ab")))
+        if (strcmp(bc_filename, "-") == 0)
+            os = outputstream_new_from_file(stdout, false);
+        else
+            os = outputstream_new_from_path(bc_filename, "wb");
+        if (!os) {
             lstf_report_error(NULL, "failed to write to %s: %s", bc_filename, strerror(errno));
-        else if (!outputstream_write(os, bytecode, bytecode_length))
+            retval = 99;
+        } else if (!outputstream_write(os, bytecode, bytecode_length)) {
             lstf_report_error(NULL, "failed to write bytecode to %s: %s", bc_filename, strerror(errno));
+            retval = 99;
+        }
         outputstream_unref(os);
     } else {
-        if (options.disable_interpreter)
-            goto cleanup;
         if (!(program = lstf_vm_loader_load_from_buffer(bytecode, bytecode_length, &loader_error))) {
-            report_load_error(progname, filename, loader_error);
+            report_load_error(progname, options.input_filename, loader_error);
             retval = 99;
             goto cleanup;
         }
@@ -277,23 +314,50 @@ cleanup:
         fprintf(stderr, "%u error(s) generated.\n", num_errors);
         retval = 1;
     } else if (program) {
-        // all clear. run interpreter
-        retval = run_program(program, options);
+        // all clear. we can use the program
+        if (options.disassemble) {
+            retval = disassemble_program(program, options);
+            lstf_vm_program_unref(program);
+        } else if (!options.disable_interpreter) {
+            retval = run_program(program, options);
+        }
     }
     return retval;
 }
 
-static int load_and_run_file(const char *progname, const char *filename, struct lstf_options options)
+static lstf_vm_program *load_file(const char *progname, const char *filename)
 {
     lstf_vm_loader_error error = lstf_vm_loader_error_none;
     lstf_vm_program *program = lstf_vm_loader_load_from_path(filename, &error);
 
     if (!program) {
         report_load_error(progname, filename, error);
-        return 99;
+        return NULL;
     }
 
+    return program;
+}
+
+static int load_and_run_file(const char *progname, struct lstf_options options)
+{
+    lstf_vm_program *program;
+
+    if (!(program = load_file(progname, options.input_filename)))
+        return 99;
     return run_program(program, options);
+}
+
+static int load_and_disassemble_file(const char *progname, struct lstf_options options)
+{
+    lstf_vm_program *program;
+    int retval = 0;
+
+    if (!(program = load_file(progname, options.input_filename)))
+        return 99;
+
+    retval = disassemble_program(program, options);
+    lstf_vm_program_unref(program);
+    return retval;
 }
 
 int main(int argc, char *argv[])
@@ -303,7 +367,6 @@ int main(int argc, char *argv[])
     struct lstf_options options = { 0 };
     bool is_assembling = false;     // flag: -a
     bool is_compiling = false;
-    bool is_disassembling = false;  // flag: -d
     bool is_interpreting = false;
     bool is_input_arg = false;
     bool is_output_arg = false;
@@ -350,11 +413,9 @@ int main(int argc, char *argv[])
             return 1;
         } else if (strcmp(option, "-c") == 0) {
             options.output_codegen = true;
-        } else if (strncmp(option, "-d", sizeof "-d" - 1) == 0) {
-            // TODO: disassembly
-            is_disassembling = true;
-            lstf_report_error(NULL, "disassembler not implemented");
-            return 1;
+            is_compiling = true;
+        } else if (strcmp(option, "-d") == 0) {
+            options.disassemble = true;
         } else if (strncmp(option, "-o", sizeof "-o" - 1) == 0) {
             if (option[2] || *(argp + 1)) {
                 is_output_arg = true;
@@ -396,21 +457,21 @@ int main(int argc, char *argv[])
             is_input_arg = true;
         }
 
-        if (is_assembling + options.output_codegen + is_disassembling > 1) {
+        if (is_assembling + options.output_codegen + options.disassemble > 1) {
             lstf_report_error(NULL, "only one of -a, -c, -d may be used");
             return 1;
         }
 
         if (is_input_arg || is_output_arg) {
-            char *filename = *argp;
+            char *filename = NULL;
 
-            if (is_assembling || is_disassembling) {
-                if (option[2] == '=') {
+            if (is_output_arg) {
+                if (option[2] == '=')
+                    filename = &option[3];
+                else if (option[2])
                     filename = &option[2];
-                } else if (*(argp + 1)) {
-                    filename = *(argp + 1);
-                    argp++;
-                }
+                else if (*(argp + 1))
+                    filename = *++argp;
             } else {
                 filename = *argp;
             }
@@ -418,28 +479,51 @@ int main(int argc, char *argv[])
             if (!filename) {
                 lstf_report_error(NULL, "filename required");
                 return 1;
-            } else {
+            } else if (is_input_arg) {
                 // check inputs
                 const char *suffix_ptr = suffix(filename);
 
                 if (!suffix_ptr) {
                     lstf_report_error(NULL, "%s: filename must have a suffix", filename);
                     return 1;
-                } else if (is_assembling && strcmp(suffix_ptr, "lstfa") != 0) {
-                    lstf_report_error(NULL, "%s: filename must be LSTF assembly (.lstfa)", filename);
+                } else if (is_assembling) {
+                    if (strcmp(suffix_ptr, "lstfa") != 0) {
+                        lstf_report_error(NULL, "%s: filename must be LSTF assembly (.lstfa)", filename);
+                        return 1;
+                    }
+                } else if (options.output_codegen) {
+                    if (strcmp(suffix_ptr, "lstf") != 0) {
+                        lstf_report_error(NULL, "%s: filename must be LSTF (.lstf)", filename);
+                        return 1;
+                    }
+                } else if (options.disassemble) {
+                    if (strcmp(suffix_ptr, "lstf") == 0) {
+                        is_compiling = true;
+                    } else if (strcmp(suffix_ptr, "lstfc") != 0) {
+                        lstf_report_error(NULL, "%s: filename must be LSTF or LSTF bytecode (.lstf/.lstfc)", filename);
+                        return 1;
+                    }
+                } else if (strcmp(suffix_ptr, "lstfc") == 0) {
+                    is_interpreting = true;
+                } else if (strcmp(suffix_ptr, "lstf") == 0) {
+                    is_compiling = true;
+                }
+            } else if (is_output_arg && options.output_codegen) {
+                // check inputs
+                const char *suffix_ptr = suffix(filename);
+
+                if (strcmp(filename, "-") == 0) {
+                    if (is_ascii_terminal(stdout)) {
+                        lstf_report_error(NULL, "refusing to write bytecode to terminal");
+                        return 1;
+                    }
+                } else if (!suffix_ptr) {
+                    lstf_report_error(NULL, "%s: filename must have a suffix", filename);
                     return 1;
-                } else if (options.output_codegen && strcmp(suffix_ptr, "lstf") != 0) {
-                    lstf_report_error(NULL, "%s: filename must be LSTF (.lstf)", filename);
-                    return 1;
-                } else if (is_disassembling && strcmp(suffix_ptr, "lstfc") != 0) {
+                } else if (strcmp(suffix_ptr, "lstfc") != 0) {
                     lstf_report_error(NULL, "%s: filename must be LSTF bytecode (.lstfc)", filename);
                     return 1;
                 }
-
-                if (strcmp(suffix_ptr, "lstfc") == 0)
-                    is_interpreting = true;
-                else if (strcmp(suffix_ptr, "lstf") == 0)
-                    is_compiling = true;
             }
 
             if (is_input_arg) {
@@ -452,11 +536,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (is_compiling)
-        retval = compile_lstf_script(argv[0], options.input_filename, options);
-    else if (is_interpreting)
-        retval = load_and_run_file(argv[0], options.input_filename, options);
-    else {
+    if (is_compiling) {
+        retval = compile_lstf_script(argv[0], options);
+    } else if (is_interpreting) {
+        retval = load_and_run_file(argv[0], options);
+    } else if (options.disassemble) {
+        retval = load_and_disassemble_file(argv[0], options);
+    } else {
         print_usage(argv[0]);
         retval = 1;
     }
