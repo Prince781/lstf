@@ -131,7 +131,7 @@ void lstf_bc_program_add_comment(lstf_bc_program     *program,
     ptr_hashmap_insert(function_comments, instruction, strdup(comment));
 }
 
-char *lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string)
+uint64_t lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string)
 {
     assert(data_string && "cannot add NULL data string to program data!");
 
@@ -139,11 +139,11 @@ char *lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string
 
     // this is an entry within the data section
     if (entry && entry->key == data_string)
-        return entry->key;
+        return (char *)entry->key - program->data;
 
     // there is already a duplicate entry in the data section
     if (entry) {
-        return entry->key;
+        return (char *)entry->key - program->data;
     }
 
     // we have to create an entry
@@ -167,7 +167,7 @@ char *lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string
     char *interned_string = memcpy(program->data + program->data_length, data_string, string_size);
     program->data_length += string_size;
 
-    return interned_string;
+    return interned_string - program->data;
 }
 
 void lstf_bc_program_add_function(lstf_bc_program  *program,

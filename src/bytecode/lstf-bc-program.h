@@ -112,12 +112,11 @@ void lstf_bc_program_add_comment(lstf_bc_program     *program,
  *
  * @param data_string the buffer to add to the program's data section
  *
- * @return a pointer to the string relative to the start of the program's data
- *   section
+ * @return relative distance to the start of the program's data section
  *
  * @see lstf_bc_instruction_load_dataoffset_new
  */
-char *lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string);
+uint64_t lstf_bc_program_add_data(lstf_bc_program *program, const char *data_string);
 
 // --- code
 

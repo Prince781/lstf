@@ -32,9 +32,9 @@ struct _lstf_bc_instruction {
         int64_t frame_offset;
 
         /**
-         * Used for data loads. Do not free.
+         * Used for data loads.
          */
-        char *data_offset;
+        uint64_t data_offset;
 
         /**
          * Used by:
@@ -109,7 +109,7 @@ static inline lstf_bc_instruction lstf_bc_instruction_load_frameoffset_new(int64
     };
 }
 
-static inline lstf_bc_instruction lstf_bc_instruction_load_dataoffset_new(char *data_offset)
+static inline lstf_bc_instruction lstf_bc_instruction_load_dataoffset_new(uint64_t data_offset)
 {
     return (lstf_bc_instruction) {
         .opcode = lstf_vm_op_load_dataoffset,

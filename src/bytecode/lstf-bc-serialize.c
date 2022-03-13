@@ -287,7 +287,7 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
                     return false;
                 break;
             case lstf_vm_op_load_dataoffset:
-                if (!outputstream_write_uint64(ostream, instruction->data_offset - program->data))
+                if (!outputstream_write_uint64(ostream, instruction->data_offset))
                     return false;
                 break;
             case lstf_vm_op_load_codeoffset:
