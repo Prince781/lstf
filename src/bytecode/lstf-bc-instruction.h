@@ -166,6 +166,14 @@ static inline lstf_bc_instruction lstf_bc_instruction_set_new(void)
     };
 }
 
+static inline lstf_bc_instruction lstf_bc_instruction_append_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_append,
+        { 0 }
+    };
+}
+
 static inline lstf_bc_instruction lstf_bc_instruction_in_new(void)
 {
     return (lstf_bc_instruction) {
@@ -529,6 +537,8 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t);
     case lstf_vm_op_set:
         return sizeof(uint8_t);
+    case lstf_vm_op_append:
+        return sizeof(uint8_t);
     case lstf_vm_op_in:
         return sizeof(uint8_t);
     case lstf_vm_op_params:
@@ -627,6 +637,7 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_pop:
     case lstf_vm_op_get:
     case lstf_vm_op_set:
+    case lstf_vm_op_append:
     case lstf_vm_op_in:
     case lstf_vm_op_params:
     case lstf_vm_op_call:

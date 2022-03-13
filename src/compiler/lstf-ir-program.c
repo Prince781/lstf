@@ -570,6 +570,7 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             case lstf_vm_op_store:
             case lstf_vm_op_get:
             case lstf_vm_op_set:
+            case lstf_vm_op_append:
             case lstf_vm_op_pop:
             case lstf_vm_op_params:
             case lstf_vm_op_call:
@@ -616,6 +617,7 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
                     bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_bool_new());
                     break;
                 case lstf_vm_op_add:
+                case lstf_vm_op_append:
                 case lstf_vm_op_and:
                 case lstf_vm_op_call:
                 case lstf_vm_op_calli:
@@ -834,8 +836,8 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             break;
 
         case lstf_ir_instruction_type_append:
-            fprintf(stderr, "%s: unsupported IR instruction `%u`\n", __func__, inst->insn_type);
-            abort();
+            bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_append_new());
+            break;
         }
 
         // map this basic block to the first bytecode instruction that was

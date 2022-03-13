@@ -313,6 +313,7 @@ bool lstf_bc_program_serialize_to_binary(lstf_bc_program *program, outputstream 
             case lstf_vm_op_pop:
             case lstf_vm_op_get:
             case lstf_vm_op_set:
+            case lstf_vm_op_append:
             case lstf_vm_op_in:
                 break;
             case lstf_vm_op_params:

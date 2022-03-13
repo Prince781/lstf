@@ -54,6 +54,11 @@ enum _lstf_vm_opcode {
     lstf_vm_op_set,
 
     /**
+     * `append` - append an element to an array
+     */
+    lstf_vm_op_append,
+
+    /**
      * `in` - test whether an object has a member, or whether an array contains
      *   a value/object
      */
@@ -229,6 +234,8 @@ static inline const char *lstf_vm_opcode_to_string(lstf_vm_opcode opcode)
             return "get";
         case lstf_vm_op_set:
             return "set";
+        case lstf_vm_op_append:
+            return "append";
         case lstf_vm_op_in:
             return "in";
         case lstf_vm_op_params:

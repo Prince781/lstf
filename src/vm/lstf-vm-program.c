@@ -243,6 +243,7 @@ bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, u
         case lstf_vm_op_pop:
         case lstf_vm_op_set:
         case lstf_vm_op_get:
+        case lstf_vm_op_append:
         case lstf_vm_op_in:
         case lstf_vm_op_calli:
         case lstf_vm_op_return:

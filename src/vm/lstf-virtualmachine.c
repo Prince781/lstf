@@ -395,6 +395,29 @@ lstf_vm_op_set_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 }
 
 static lstf_vm_status
+lstf_vm_op_append_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
+{
+    (void) vm;
+    lstf_vm_status status = lstf_vm_status_continue;
+    json_node *array;
+    lstf_vm_value value;
+
+    if ((status = lstf_vm_stack_pop_value(cr->stack, &value)))
+        return status;
+
+    if ((status = lstf_vm_stack_pop_array(cr->stack, &array))) {
+        lstf_vm_value_clear(&value);
+        return status;
+    }
+
+    json_array_add_element(array, lstf_vm_value_to_json_node(value));
+
+    lstf_vm_value_clear(&value);
+    json_node_unref(array);
+    return status;
+}
+
+static lstf_vm_status
 lstf_vm_op_params_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
     lstf_vm_status status = lstf_vm_status_continue;
@@ -1273,6 +1296,7 @@ static lstf_vm_status (*const instruction_table[256])(lstf_virtualmachine *, lst
     // --- accessing members of a structured type
     [lstf_vm_op_get]                = lstf_vm_op_get_exec,
     [lstf_vm_op_set]                = lstf_vm_op_set_exec,
+    [lstf_vm_op_append]             = lstf_vm_op_append_exec,
 
     // --- functions
     [lstf_vm_op_params]             = lstf_vm_op_params_exec,
