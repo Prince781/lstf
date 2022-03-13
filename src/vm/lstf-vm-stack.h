@@ -35,7 +35,12 @@ struct _lstf_vm_stackframe {
     /**
      * The base of the current stack frame, as an offset within the stack.
      */
-    uint64_t offset;
+    uint64_t offset : 48;
+
+    /**
+     * The number of parameters to pop on return.
+     */
+    uint8_t parameters;
 
     /**
      * The location to jump back to when this function returns.
@@ -52,11 +57,6 @@ struct _lstf_vm_stackframe {
      * Maps `(offset: uintptr_t coerced to (void *)) -> (lstf_vm_upvalue *)`
      */
     ptr_hashmap *captured_locals;
-
-    /**
-     * The number of parameters to pop on return.
-     */
-    uint8_t parameters;
 };
 
 lstf_vm_stack *lstf_vm_stack_new(void);

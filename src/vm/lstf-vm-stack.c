@@ -7,15 +7,37 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+// A stack has a minimum size of 1 KB and a maximum size of 1 MB.
+// We specify a maximum size that's reasonable and allows us to quickly catch
+// stack overflow errors.
+
+#define MIN_VALUES (512 / sizeof(lstf_vm_value))
+#define MIN_FRAMES (512 / sizeof(lstf_vm_stackframe))
+#define MAX_VALUES (512 * 1024 / sizeof(lstf_vm_value))
+#define MAX_FRAMES (512 * 1024 / sizeof(lstf_vm_stackframe))
+
 static bool
 lstf_vm_stack_resize_frame_pointers(lstf_vm_stack *stack,
-                     unsigned       min_frames_buffer_size)
+                                    unsigned       min_frames_buffer_size)
 {
+    if (min_frames_buffer_size >= MAX_FRAMES)
+        return false;
 
     if (stack->frames_buffer_size < min_frames_buffer_size) {
         lstf_vm_stackframe *new_frames = realloc(
-                stack->frames,
-                sizeof(*stack->frames) * min_frames_buffer_size 
+            stack->frames,
+            sizeof(*stack->frames) * min_frames_buffer_size * 2
+        );
+
+        if (!new_frames)
+            return false;
+
+        stack->frames = new_frames;
+        stack->frames_buffer_size = min_frames_buffer_size * 2;
+    } else if (min_frames_buffer_size >= MIN_FRAMES && stack->frames_buffer_size > min_frames_buffer_size * 2) {
+        lstf_vm_stackframe *new_frames = realloc(
+            stack->frames,
+            sizeof(*stack->frames) * min_frames_buffer_size
         );
 
         if (!new_frames)
@@ -30,11 +52,27 @@ lstf_vm_stack_resize_frame_pointers(lstf_vm_stack *stack,
 
 static bool
 lstf_vm_stack_resize_values(lstf_vm_stack *stack,
-                            unsigned min_values_buffer_size)
+                            unsigned       min_values_buffer_size)
 {
+    if (min_values_buffer_size >= MAX_VALUES)
+        return false;
+
     if (stack->values_buffer_size < min_values_buffer_size) {
-        lstf_vm_value *new_values = 
-            realloc(stack->values, sizeof(*stack->values) * min_values_buffer_size);
+        lstf_vm_value *new_values = realloc(
+            stack->values,
+            sizeof(*stack->values) * min_values_buffer_size * 2
+        );
+
+        if (!new_values)
+            return false;
+
+        stack->values = new_values;
+        stack->values_buffer_size = min_values_buffer_size * 2;
+    } else if (min_values_buffer_size >= MIN_VALUES && stack->values_buffer_size > min_values_buffer_size * 2) {
+        lstf_vm_value *new_values = realloc(
+            stack->values,
+            sizeof(*stack->values) * min_values_buffer_size
+        );
 
         if (!new_values)
             return false;
@@ -55,12 +93,10 @@ lstf_vm_stack *lstf_vm_stack_new(void)
         abort();
     }
 
-    // use 1 MB for each
-    if (!lstf_vm_stack_resize_values(stack, 1024 * 1024 / sizeof(*stack->values)) ||
-            !lstf_vm_stack_resize_frame_pointers(stack, 1024 * 1024 / sizeof(*stack->frames))) {
+    if (!lstf_vm_stack_resize_values(stack, MIN_VALUES) || !lstf_vm_stack_resize_frame_pointers(stack, MIN_FRAMES)) {
+        free(stack);
         free(stack->values);
         free(stack->frames);
-        free(stack);
         stack = NULL;
     }
 
@@ -386,6 +422,8 @@ lstf_vm_status lstf_vm_stack_pop_value(lstf_vm_stack *stack,
         lstf_vm_value_clear(stack_pointer);
     stack->n_values--;
 
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return lstf_vm_status_continue;
 }
 
@@ -411,6 +449,8 @@ lstf_vm_stack_pop_typed_value(lstf_vm_stack     *stack,
     *value = lstf_vm_value_take_ownership(stack_pointer);
     stack->n_values--;
 
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return lstf_vm_status_continue;
 }
 
@@ -427,6 +467,9 @@ lstf_vm_status lstf_vm_stack_pop_integer(lstf_vm_stack *stack,
     
     *value = generic_value.data.integer;
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -443,6 +486,9 @@ lstf_vm_status lstf_vm_stack_pop_double(lstf_vm_stack *stack,
     
     *value = generic_value.data.double_value;
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -459,6 +505,9 @@ lstf_vm_status lstf_vm_stack_pop_boolean(lstf_vm_stack *stack,
     
     *value = generic_value.data.boolean;
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -475,6 +524,9 @@ lstf_vm_status lstf_vm_stack_pop_string(lstf_vm_stack *stack,
     
     *value = string_ref(generic_value.data.string);
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -491,6 +543,9 @@ lstf_vm_status lstf_vm_stack_pop_code_address(lstf_vm_stack *stack,
     
     *value = generic_value.data.address;
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -507,6 +562,9 @@ lstf_vm_status lstf_vm_stack_pop_closure(lstf_vm_stack    *stack,
     
     *value = lstf_vm_closure_ref(generic_value.data.closure);
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -523,6 +581,9 @@ lstf_vm_status lstf_vm_stack_pop_object(lstf_vm_stack *stack,
     
     *value = json_node_ref(generic_value.data.json_node_ref);
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -539,6 +600,9 @@ lstf_vm_status lstf_vm_stack_pop_array(lstf_vm_stack *stack,
     
     *value = json_node_ref(generic_value.data.json_node_ref);
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -555,6 +619,9 @@ lstf_vm_status lstf_vm_stack_pop_pattern(lstf_vm_stack *stack,
     
     *value = json_node_ref(generic_value.data.json_node_ref);
     lstf_vm_value_clear(&generic_value);
+
+    // ignore if we fail to shrink the stack
+    (void) lstf_vm_stack_resize_values(stack, stack->n_values);
     return status;
 }
 
@@ -564,7 +631,7 @@ lstf_vm_status lstf_vm_stack_push_value(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
     
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
     
     stack->values[stack->n_values++] = lstf_vm_value_take_ownership(value);
@@ -577,7 +644,7 @@ lstf_vm_status lstf_vm_stack_push_integer(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -595,7 +662,7 @@ lstf_vm_status lstf_vm_stack_push_double(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -613,7 +680,7 @@ lstf_vm_status lstf_vm_stack_push_boolean(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -631,7 +698,7 @@ lstf_vm_status lstf_vm_stack_push_string(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -649,7 +716,7 @@ lstf_vm_status lstf_vm_stack_push_code_address(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -666,7 +733,7 @@ lstf_vm_status lstf_vm_stack_push_null(lstf_vm_stack *stack)
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -684,7 +751,7 @@ lstf_vm_status lstf_vm_stack_push_object(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -702,7 +769,7 @@ lstf_vm_status lstf_vm_stack_push_array(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -720,7 +787,7 @@ lstf_vm_status lstf_vm_stack_push_pattern(lstf_vm_stack *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -738,7 +805,7 @@ lstf_vm_status lstf_vm_stack_push_closure(lstf_vm_stack   *stack,
     if (stack->n_frames == 0)
         return lstf_vm_status_invalid_push;
 
-    if (stack->n_values >= stack->values_buffer_size)
+    if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
     stack->values[stack->n_values++] = (lstf_vm_value) {
@@ -826,6 +893,9 @@ lstf_vm_status lstf_vm_stack_teardown_frame(lstf_vm_stack *stack,
         }
     }
 
+    // ignore if we fail to shrink the stack space
+    (void) lstf_vm_stack_resize_frame_pointers(stack, stack->n_frames);
+
     return status;
 }
 
@@ -843,7 +913,7 @@ lstf_vm_status lstf_vm_stack_setup_frame(lstf_vm_stack   *stack,
                                          uint8_t         *return_address,
                                          lstf_vm_closure *closure)
 {
-    if (stack->n_frames >= stack->frames_buffer_size)
+    if (!lstf_vm_stack_resize_frame_pointers(stack, stack->n_frames + 1))
         return lstf_vm_status_stack_overflow;
     
     stack->frames[stack->n_frames++] = (lstf_vm_stackframe) {
