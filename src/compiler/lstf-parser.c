@@ -578,7 +578,7 @@ lstf_parser_parse_await_expression(lstf_parser *parser, lstf_parsererror **error
     if (!lstf_parser_expect_token(parser, lstf_token_keyword_await, error))
         return NULL;
 
-    lstf_expression *expr = lstf_parser_parse_expression(parser, error);
+    lstf_expression *expr = lstf_parser_parse_primary_expression(parser, error);
     if (!expr)
         return NULL;
 
