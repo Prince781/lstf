@@ -658,6 +658,64 @@ lstf_token lstf_scanner_current(const lstf_scanner *scanner)
 char *lstf_scanner_get_current_string(const lstf_scanner *scanner) {
     assert(scanner->current_token_idx < scanner->num_tokens);
 
+    // special handling of string tokens
+    if (scanner->tokens[scanner->current_token_idx] == lstf_token_string) {
+        lstf_sourceloc begin = scanner->token_beginnings[scanner->current_token_idx];
+        lstf_sourceloc end = scanner->token_endings[scanner->current_token_idx];
+
+        // skip quotes
+        begin.pos += 1;
+        begin.column += 1;
+        end.pos -= 1;
+        end.column -= 1;
+
+        char *token_string = lstf_sourceref_get_string(begin, end);
+        char *i = token_string;
+        char *buffer = NULL;
+        size_t buflen = 0;
+        for (char *j = NULL; (j = strchr(i, '\\')); i = j + 2) {
+            if (!buffer && !(buffer = calloc(1, end.pos - begin.pos + 1))) {
+                perror("failed to create buffer for token string");
+                abort();
+            }
+            // copy everything before '\'
+            strncpy(&buffer[buflen], i, j - i);
+            buflen += j - i;
+            // copy escaped character
+            switch (*(j + 1)) {
+            case 'a':
+                buffer[buflen] = '\a';
+                break;
+            case 'b':
+                buffer[buflen] = '\b';
+                break;
+            case 'f':
+                buffer[buflen] = '\f';
+                break;
+            case 'n':
+                buffer[buflen] = '\n';
+                break;
+            case 'r':
+                buffer[buflen] = '\r';
+                break;
+            case 'v':
+                buffer[buflen] = '\v';
+                break;
+            default:
+                buffer[buflen] = *(j + 1);
+                break;
+            }
+            buflen += 1;
+        }
+        if (buffer) {
+            strcpy(&buffer[buflen], i);
+            free(token_string);
+            token_string = buffer;
+            buffer = NULL;
+        }
+        return token_string;
+    }
+
     return lstf_sourceref_get_string(scanner->token_beginnings[scanner->current_token_idx], 
             scanner->token_endings[scanner->current_token_idx]);
 }

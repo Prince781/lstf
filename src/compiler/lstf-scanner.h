@@ -104,6 +104,10 @@ lstf_token lstf_scanner_peek_next(const lstf_scanner *scanner);
 
 lstf_token lstf_scanner_current(const lstf_scanner *scanner);
 
+/**
+ * Gets the string for the current token. If the current token is a string
+ * token, the string will be parsed.
+ */
 char *lstf_scanner_get_current_string(const lstf_scanner *scanner);
 
 lstf_token lstf_scanner_rewind(lstf_scanner *scanner, unsigned position);

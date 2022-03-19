@@ -402,10 +402,6 @@ lstf_parser_parse_object_expression(lstf_parser *parser, lstf_parsererror **erro
         case lstf_token_string:
             member_name = lstf_scanner_get_current_string(parser->scanner);
             lstf_scanner_next(parser->scanner);
-            member_name[strlen(member_name) - 1] = '\0';
-            char *temp = strdup(member_name + 1);
-            free(member_name);
-            member_name = temp;
             break;
         default:
             break;
@@ -542,18 +538,7 @@ lstf_parser_parse_literal_expression(lstf_parser *parser, lstf_parsererror **err
     }   break;
     case lstf_token_string:
     {
-        lstf_sourceloc end = lstf_scanner_get_end_location(parser->scanner);
-        char *token_string = lstf_sourceref_get_string(
-                (lstf_sourceloc) {
-                    begin.line,
-                    begin.column + 1,
-                    begin.pos + 1
-                },
-                (lstf_sourceloc) {
-                    end.line,
-                    end.column - 1,
-                    end.pos - 1
-                });
+        char *token_string = lstf_scanner_get_current_string(parser->scanner);
         lstf_scanner_next(parser->scanner);
         expression = lstf_literal_new(&(lstf_sourceref) {
                     parser->file,
