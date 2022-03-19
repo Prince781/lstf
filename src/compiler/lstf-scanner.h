@@ -69,7 +69,8 @@ enum _lstf_token {
     lstf_token_keyword_type,
     lstf_token_keyword_if,
     lstf_token_keyword_else,
-    lstf_token_string
+    lstf_token_string,
+    lstf_token_verbatim_string
 };
 typedef enum _lstf_token lstf_token;
 

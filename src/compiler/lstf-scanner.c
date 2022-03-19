@@ -148,6 +148,8 @@ const char *lstf_token_to_string(lstf_token token)
             return "`;'";
         case lstf_token_string:
             return "string";
+        case lstf_token_verbatim_string:
+            return "verbatim string";
         case lstf_token_error:
             break;
     }
@@ -400,6 +402,32 @@ lstf_scanner *lstf_scanner_new(lstf_file *script)
                 scanner->num_errors++;
             } else {
                 current_token = lstf_token_string;
+                current.pos++;
+                current.column++;
+            }
+            break;
+        case '`':
+            current.pos++;
+            current.column++;
+            while (*current.pos && *current.pos != *begin.pos) {
+                if (*current.pos == '\\') {
+                    if (*(current.pos + 1)) {
+                        // escape '`' anyway
+                        current.pos++;
+                        current.column++;
+                    } else
+                        break;
+                }
+                current.pos++;
+                current.column++;
+            }
+            if (*current.pos != *begin.pos) {
+                lstf_report_error((&(lstf_sourceref){script, begin, current}), "unterminated verbatim string");
+                lstf_report_note(&lstf_sourceref_at_location(script, begin), "unterminated verbatim string begins here");
+                current_token = lstf_token_error;
+                scanner->num_errors++;
+            } else {
+                current_token = lstf_token_verbatim_string;
                 current.pos++;
                 current.column++;
             }
@@ -659,7 +687,8 @@ char *lstf_scanner_get_current_string(const lstf_scanner *scanner) {
     assert(scanner->current_token_idx < scanner->num_tokens);
 
     // special handling of string tokens
-    if (scanner->tokens[scanner->current_token_idx] == lstf_token_string) {
+    lstf_token current_token = scanner->tokens[scanner->current_token_idx];
+    if (current_token == lstf_token_string || current_token == lstf_token_verbatim_string) {
         lstf_sourceloc begin = scanner->token_beginnings[scanner->current_token_idx];
         lstf_sourceloc end = scanner->token_endings[scanner->current_token_idx];
 
@@ -681,31 +710,40 @@ char *lstf_scanner_get_current_string(const lstf_scanner *scanner) {
             // copy everything before '\'
             strncpy(&buffer[buflen], i, j - i);
             buflen += j - i;
-            // copy escaped character
-            switch (*(j + 1)) {
-            case 'a':
-                buffer[buflen] = '\a';
-                break;
-            case 'b':
-                buffer[buflen] = '\b';
-                break;
-            case 'f':
-                buffer[buflen] = '\f';
-                break;
-            case 'n':
-                buffer[buflen] = '\n';
-                break;
-            case 'r':
-                buffer[buflen] = '\r';
-                break;
-            case 'v':
-                buffer[buflen] = '\v';
-                break;
-            default:
-                buffer[buflen] = *(j + 1);
-                break;
+            if (current_token == lstf_token_string) {
+                // copy escaped character
+                switch (*(j + 1)) {
+                case 'a':
+                    buffer[buflen++] = '\a';
+                    break;
+                case 'b':
+                    buffer[buflen++] = '\b';
+                    break;
+                case 'f':
+                    buffer[buflen++] = '\f';
+                    break;
+                case 'n':
+                    buffer[buflen++] = '\n';
+                    break;
+                case 'r':
+                    buffer[buflen++] = '\r';
+                    break;
+                case 'v':
+                    buffer[buflen++] = '\v';
+                    break;
+                default:
+                    buffer[buflen++] = *(j + 1);
+                    break;
+                }
+            } else {
+                // only escaped character in a verbatim string is '`'
+                if (*(j + 1) == '`') {
+                    buffer[buflen++] = *(j + 1);
+                } else {
+                    buffer[buflen++] = '\\';
+                    buffer[buflen++] = *(j + 1);
+                }
             }
-            buflen += 1;
         }
         if (buffer) {
             strcpy(&buffer[buflen], i);

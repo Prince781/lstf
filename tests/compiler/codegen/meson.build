@@ -41,3 +41,6 @@ test('codegen-object-nonconst', lstf, suite: 'compiler',
 test('codegen-object', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/object.lstf',
     '-expect', '{\n    "prop1": false,\n    "prop2": "hello",\n    "prop3": {\n        "prop1": false,\n        "prop2": 3.141590\n    },\n    "prop4": 3.141590,\n    "prop5": []\n}\n'])
+
+test('codegen-verbatim-string', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/verbatim-string.lstf', '-expect', 'a\nb\na\\nb\n'])

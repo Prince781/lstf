@@ -304,6 +304,7 @@ lstf_parser_at_expression(const lstf_parser *parser)
     case lstf_token_openparen:
     case lstf_token_ellipsis:
     case lstf_token_string:
+    case lstf_token_verbatim_string:
     case lstf_token_keyword_true:
     case lstf_token_keyword_false:
     case lstf_token_keyword_null:
@@ -400,6 +401,7 @@ lstf_parser_parse_object_expression(lstf_parser *parser, lstf_parsererror **erro
             lstf_scanner_next(parser->scanner);
             break;
         case lstf_token_string:
+        case lstf_token_verbatim_string:
             member_name = lstf_scanner_get_current_string(parser->scanner);
             lstf_scanner_next(parser->scanner);
             break;
@@ -537,6 +539,7 @@ lstf_parser_parse_literal_expression(lstf_parser *parser, lstf_parsererror **err
                 (lstf_literal_value) {.boolean_value = token == lstf_token_keyword_true});
     }   break;
     case lstf_token_string:
+    case lstf_token_verbatim_string:
     {
         char *token_string = lstf_scanner_get_current_string(parser->scanner);
         lstf_scanner_next(parser->scanner);
@@ -620,6 +623,7 @@ lstf_parser_parse_primary_expression(lstf_parser *parser, lstf_parsererror **err
     case lstf_token_ellipsis:
         return lstf_parser_parse_ellipsis_expression(parser, error);
     case lstf_token_string:
+    case lstf_token_verbatim_string:
     case lstf_token_keyword_true:
     case lstf_token_keyword_false:
     case lstf_token_keyword_null:
@@ -2253,6 +2257,7 @@ lstf_parser_parse_statement_expression(lstf_parser *parser, lstf_parsererror **e
         expression = lstf_parser_parse_simple_name(parser, error);
         break;
     case lstf_token_string:
+    case lstf_token_verbatim_string:
     case lstf_token_keyword_true:
     case lstf_token_keyword_false:
     case lstf_token_keyword_null:
