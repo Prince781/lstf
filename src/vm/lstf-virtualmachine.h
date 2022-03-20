@@ -22,7 +22,6 @@ struct _lstf_virtualmachine {
     uint8_t *last_pc;                   // PC of the last executing coroutine (for debugging)
     ptr_list *run_queue;                // queue of ready coroutines
     ptr_list *suspended_list;           // list of suspended coroutines
-    ptr_hashmap *up_values;             // maps `lstf_vm_upvalue *` -> `lstf_vm_upvalue *`
     eventloop *event_loop;              // I/O event loop for all asynchronous operations
     unsigned instructions_executed;     // number of instructions executed since last context switch
     bool debug;                         // whether the virtual machine is in debug mode

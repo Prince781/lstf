@@ -44,9 +44,6 @@ lstf_virtualmachine_new(lstf_vm_program *program,
     }
 
     vm->program = lstf_vm_program_ref(program);
-    vm->up_values = ptr_hashmap_new(ptrhash,
-            NULL, NULL, NULL,
-            (collection_item_ref_func) lstf_vm_upvalue_ref, (collection_item_unref_func) lstf_vm_upvalue_unref);
     if (!ostream)
         ostream = outputstream_new_from_file(stdout, false);
     vm->ostream = outputstream_ref(ostream);
@@ -63,7 +60,6 @@ lstf_virtualmachine_new(lstf_vm_program *program,
 void lstf_virtualmachine_destroy(lstf_virtualmachine *vm)
 {
     lstf_vm_program_unref(vm->program);
-    ptr_hashmap_destroy(vm->up_values);
     outputstream_unref(vm->ostream);
     ptr_list_destroy(vm->run_queue);
     ptr_list_destroy(vm->suspended_list);
