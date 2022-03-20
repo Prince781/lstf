@@ -213,4 +213,4 @@ lstf = executable('lstf',
   c_args: c_args,
   sources: ['lstf.c', version_h],
   include_directories: include_dirs,
-  install: true)
+  install: not meson.is_subproject())
