@@ -7,6 +7,7 @@
 #include "compiler/lstf-symbolresolver.h"
 #include "compiler/lstf-semanticanalyzer.h"
 #include "data-structures/string-builder.h"
+#include "data-structures/array.h"
 #include "io/inputstream.h"
 #include "io/outputstream.h"
 #include "io/io-common.h"
@@ -37,6 +38,7 @@ struct lstf_options {
     bool emit_ir;
     bool output_codegen;                // flag: -c
     bool disassemble;                   // flag: -d
+    array(ptrdiff_t) *breakpoints;
     const char *input_filename;
     const char *output_filename;
     const char *expected_output;
@@ -98,6 +100,7 @@ static const char usage_message[] =
 "                           to test the VM without any LSP features.)\n"
 "  -emit-ir                 Output IR to a Graphviz file in the current directory.\n"
 "  -expect <string>         Test the program output against <string>.\n"
+"  -break <offset>          Enable debug mode and break at the offset (in hexadecimal).\n"
 "\n"
 "Flags:\n"
 "  -h                       Show this help message.\n"
@@ -164,7 +167,22 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
         lstf_virtualmachine_new(program,
             options.expected_output ? outputstream_new_from_buffer(NULL, 0, false) : NULL,
             false);
+    if (options.breakpoints) {
+        for (size_t i = 0; i < options.breakpoints->length; i++) {
+            if (!lstf_virtualmachine_add_breakpoint(vm, options.breakpoints->elements[i])) {
+                lstf_report_error(NULL, "failed to add breakpoint %td - out of range", options.breakpoints->elements[i]);
+                lstf_virtualmachine_destroy(vm);
+                return 1;
+            }
+        }
+        vm->debug = true;
+    }
     while (lstf_virtualmachine_run(vm)) {
+        if (vm->last_status == lstf_vm_status_hit_breakpoint) {
+            outputstream *os = outputstream_new_from_file(stdout, false);
+            lstf_vm_program_disassemble(vm->program, os, vm->last_pc);
+            outputstream_unref(os);
+        }
         fprintf(stderr, "VM paused. press any key to continue...\n");
         getchar();
     }
@@ -419,6 +437,16 @@ int main(int argc, char *argv[])
             is_compiling = true;
         } else if (strcmp(option, "-d") == 0) {
             options.disassemble = true;
+        } else if (strcmp(option, "-break") == 0) {
+            if (!*(argp + 1)) {
+                lstf_report_error(NULL, "argument required for `%s'", option);
+                break;
+            }
+            if (!options.breakpoints) {
+                options.breakpoints = array_new();
+            }
+            array_add(options.breakpoints, (ptrdiff_t) strtoll(*(argp + 1), NULL, 16));
+            argp++;
         } else if (strncmp(option, "-o", sizeof "-o" - 1) == 0) {
             if (option[2] || *(argp + 1)) {
                 is_output_arg = true;
@@ -549,6 +577,9 @@ int main(int argc, char *argv[])
         print_usage(argv[0]);
         retval = 1;
     }
+
+    if (options.breakpoints)
+        array_destroy(options.breakpoints);
 
     return retval;
 }

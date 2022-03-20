@@ -11,6 +11,11 @@ enum _lstf_vm_status {
      * VM should stop.
      */
     lstf_vm_status_exited,
+
+    /**
+     * The VM is in debug mode and we hit a breakpoint.
+     */
+    lstf_vm_status_hit_breakpoint,
     
     /**
      * A translated frame offset was invalid, past the end or before the start
@@ -124,7 +129,11 @@ lstf_vm_status_to_string(lstf_vm_status status)
         case lstf_vm_status_frame_underflow:
             exception_message = "stack pop past the beginning of stack frame";
             break;
+        case lstf_vm_status_hit_breakpoint:
+            exception_message = "hit a breakpoint";
+            break;
         case lstf_vm_status_exited:
+            exception_message = "exited";
             break;
         case lstf_vm_status_index_out_of_bounds:
             exception_message = "index out of bounds on array access";

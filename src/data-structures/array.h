@@ -77,7 +77,7 @@ do {\
 
 #define array_add(container, element) \
 do {\
-    /* XXX: (container) evaluated three times */\
+    /* XXX: (container) evaluated two times */\
     array_generic *_a_ = (array_generic *)(container);\
     if (_a_->length >= _a_->bufsiz)\
         array_resize__internal(_a_, sizeof (container)->elements[0]);\

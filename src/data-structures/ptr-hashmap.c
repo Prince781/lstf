@@ -33,6 +33,7 @@ void ptr_hashmap_construct(ptr_hashmap                     *map,
                            collection_item_ref_func         value_ref_func,
                            collection_item_unref_func       value_unref_func)
 {
+    assert(key_hash_func && "key hash func required");
     map->buckets_list = ptr_list_new(NULL, (collection_item_unref_func) ptr_hashmap_bucket_destroy);
     map->num_bucket_places = 8;
     map->buckets = calloc(map->num_bucket_places, sizeof *map->buckets);

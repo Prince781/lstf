@@ -2,6 +2,7 @@
 
 #include "data-structures/ptr-hashmap.h"
 #include "data-structures/ptr-list.h"
+#include "data-structures/ptr-hashset.h"
 #include "io/event.h"
 #include "io/outputstream.h"
 #include "lstf-vm-status.h"
@@ -23,6 +24,7 @@ struct _lstf_virtualmachine {
     ptr_list *run_queue;                // queue of ready coroutines
     ptr_list *suspended_list;           // list of suspended coroutines
     eventloop *event_loop;              // I/O event loop for all asynchronous operations
+    ptr_hashset *breakpoints;           // list of offset (uintptr_t)
     unsigned instructions_executed;     // number of instructions executed since last context switch
     bool debug;                         // whether the virtual machine is in debug mode
     bool should_stop;                   // whether the virtual machine should stop on the next iteration
@@ -52,9 +54,8 @@ bool lstf_virtualmachine_run(lstf_virtualmachine *vm);
 /**
  * Sets a new breakpoint as an offset from the start of the code section.
  *
- * Returns a value `> 0` if successful (the breakpoint ID), `0` if the
- * breakpoint was not in range.
+ * Returns `true` if successful `false` if the breakpoint was not in range.
  */
-unsigned lstf_virtualmachine_add_breakpoint(lstf_virtualmachine *vm, ptrdiff_t breakpoint);
+bool lstf_virtualmachine_add_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_offset);
 
-bool lstf_virtualmachine_delete_breakpoint(lstf_virtualmachine *vm, unsigned id);
+void lstf_virtualmachine_delete_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_offset);

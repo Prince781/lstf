@@ -1,4 +1,5 @@
 #include "lstf-virtualmachine.h"
+#include "data-structures/ptr-hashset.h"
 #include "data-structures/ptr-list.h"
 #include "data-structures/string-builder.h"
 #include "io/event.h"
@@ -52,6 +53,7 @@ lstf_virtualmachine_new(lstf_vm_program *program,
     vm->suspended_list = ptr_list_new((collection_item_ref_func) lstf_vm_coroutine_ref,
             (collection_item_unref_func) lstf_vm_coroutine_unref);
     vm->event_loop = eventloop_new();
+    vm->breakpoints = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
     vm->debug = debug;
 
     return vm;
@@ -65,6 +67,7 @@ void lstf_virtualmachine_destroy(lstf_virtualmachine *vm)
     ptr_list_destroy(vm->suspended_list);
     lstf_vm_coroutine_unref(vm->main_coroutine);
     eventloop_destroy(vm->event_loop);
+    ptr_hashset_destroy(vm->breakpoints);
     free(vm);
 }
 
@@ -1353,12 +1356,8 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
         if (vm->should_stop)
             return true;
 
-        if (vm->last_status != lstf_vm_status_continue)
+        if (!(vm->last_status == lstf_vm_status_continue || vm->last_status == lstf_vm_status_hit_breakpoint))
             return false;
-
-        if (vm->debug) {
-            // TODO: breakpoints, watchpoints
-        }
 
         // initialize the main coroutine if it was never created
         if (!vm->main_coroutine) {
@@ -1408,10 +1407,20 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
         // now pick a runnable coroutine from the head of the queue
         lstf_vm_coroutine *cr = 
             lstf_vm_coroutine_ref(ptr_list_node_get_data(vm->run_queue->head, lstf_vm_coroutine *));
-        ptr_list_remove_first_link(vm->run_queue);
-        cr->node = NULL;
 
         vm->last_pc = cr->pc;
+
+        // check if we just arrived at a breakpoint for the first time
+        if (vm->last_status != lstf_vm_status_hit_breakpoint &&
+            vm->debug && ptr_hashset_contains(vm->breakpoints, (void *)(cr->pc - vm->program->entry_point))) {
+            vm->last_status = lstf_vm_status_hit_breakpoint;
+            lstf_vm_coroutine_unref(cr);
+            return true;
+        }
+
+        // remove the coroutine from the head of the run queue and decrement its refcount
+        ptr_list_remove_first_link(vm->run_queue);
+        cr->node = NULL;
 
         // fetch the instruction
         uint8_t opcode;
@@ -1448,4 +1457,19 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
         }
         lstf_vm_coroutine_unref(cr);
     }
+}
+
+// --- debugging
+
+bool lstf_virtualmachine_add_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_offset)
+{
+    if (code_offset < 0 || (uint64_t)code_offset >= vm->program->code_size)
+        return false;
+    ptr_hashset_insert(vm->breakpoints, (void *)code_offset);
+    return true;
+}
+
+void lstf_virtualmachine_delete_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_offset)
+{
+    ptr_hashset_delete(vm->breakpoints, (void *)code_offset);
 }
