@@ -94,9 +94,9 @@ lstf_vm_stack *lstf_vm_stack_new(void)
     }
 
     if (!lstf_vm_stack_resize_values(stack, MIN_VALUES) || !lstf_vm_stack_resize_frame_pointers(stack, MIN_FRAMES)) {
-        free(stack);
         free(stack->values);
         free(stack->frames);
+        free(stack);
         stack = NULL;
     }
 
