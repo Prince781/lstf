@@ -1,5 +1,6 @@
 #include "lstf-vm-program.h"
 #include "data-structures/ptr-hashmap.h"
+#include "io/outputstream.h"
 #include "lstf-vm-opcodes.h"
 #include <assert.h>
 #include <errno.h>
@@ -193,205 +194,211 @@ bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, u
         if (!outputstream_printf(ostream, "<%#0*"PRIx64"> ", field_width, offset - 1))
             goto err_write;
 
-        switch (opcode) {
-        case lstf_vm_op_load_frameoffset:
-        {
-            int64_t fp_offset;
-            if (!lstf_vm_program_read_imm_i64(prog, &offset, &fp_offset))
-                goto err_read;
-            if (!outputstream_printf(ostream, "load [fp + %s]\n", format_i64_hex(fp_offset)))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_load_dataoffset:
-        {
-            uint64_t data_offset;
-            if (!lstf_vm_program_read_imm_u64(prog, &offset, &data_offset))
-                goto err_read;
-            if (!outputstream_printf(ostream, "load string [data + %#0"PRIx64"]\n", data_offset))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_load_codeoffset:
-        {
-            uint64_t code_offset;
-            if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
-                goto err_read;
-            if (!outputstream_printf(ostream, "load funptr <%#0*"PRIx64">\n", field_width, code_offset))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_load_expression:
-        {
-            char *json_string = NULL;
-            if (!lstf_vm_program_read_imm_string(prog, &offset, &json_string))
-                goto err_read;
-            if (!outputstream_printf(ostream, "load json %s\n", json_string))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_store:
-        {
-            int64_t fp_offset;
-            if (!lstf_vm_program_read_imm_i64(prog, &offset, &fp_offset))
-                goto err_read;
-            if (!outputstream_printf(ostream, "store [fp + %s]\n", format_i64_hex(fp_offset)))
-                goto err_write;
-        }   break;
-
-        // these are opcodes without any immediate arguments
-        case lstf_vm_op_pop:
-        case lstf_vm_op_set:
-        case lstf_vm_op_get:
-        case lstf_vm_op_append:
-        case lstf_vm_op_in:
-        case lstf_vm_op_calli:
-        case lstf_vm_op_return:
-        case lstf_vm_op_bool:
-        case lstf_vm_op_land:
-        case lstf_vm_op_lor:
-        case lstf_vm_op_lnot:
-        case lstf_vm_op_lessthan:
-        case lstf_vm_op_lessthan_equal:
-        case lstf_vm_op_equal:
-        case lstf_vm_op_greaterthan:
-        case lstf_vm_op_greaterthan_equal:
-        case lstf_vm_op_add:
-        case lstf_vm_op_sub:
-        case lstf_vm_op_mul:
-        case lstf_vm_op_div:
-        case lstf_vm_op_pow:
-        case lstf_vm_op_mod:
-        case lstf_vm_op_neg:
-        case lstf_vm_op_and:
-        case lstf_vm_op_or:
-        case lstf_vm_op_xor:
-        case lstf_vm_op_lshift:
-        case lstf_vm_op_rshift:
-        case lstf_vm_op_not:
-        case lstf_vm_op_print:
-        case lstf_vm_op_assert:
-            if (!outputstream_printf(ostream, "%s\n", lstf_vm_opcode_to_string(opcode)))
-                goto err_write;
-            break;
-
-        case lstf_vm_op_params:
-        {
-            uint8_t num_params;
-            if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_params))
-                goto err_read;
-            if (!outputstream_printf(ostream, "params %hhd\n", num_params))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_call:
-        {
-            uint64_t code_offset;
-            if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
-                goto err_read;
-            if (!outputstream_printf(ostream, "call <%#0*"PRIx64">\n", field_width, code_offset))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_schedule:
-        {
-            uint64_t code_offset;
-            uint8_t num_params;
-            if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
-                goto err_read;
-            if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_params))
-                goto err_read;
-            if (!outputstream_printf(ostream, "schedule <%#"PRIx64"> (%hhu params)\n", code_offset, num_params))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_schedulei:
-        {
-            uint8_t num_params;
-            if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_params))
-                goto err_read;
-            if (!outputstream_printf(ostream, "schedulei (%hhu params)\n", num_params))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_closure:
-        {
-            uint8_t num_values;
-            uint64_t code_offset;
-            if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_values))
-                goto err_read;
-            if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
-                goto err_read;
-            if (!outputstream_printf(ostream, "closure <%#"PRIx64">", code_offset))
-                goto err_write;
-            for (uint8_t i = 0; i < num_values; i++) {
-                bool is_local;
-
-                if (!lstf_vm_program_read_imm_bool(prog, &offset, &is_local))
-                    goto err_read;
-
-                if (is_local) {
-                    int64_t fp_offset;
-                    if (!lstf_vm_program_read_imm_i64(prog, &offset, &fp_offset))
-                        goto err_read;
-                    if (!outputstream_printf(ostream, ", [fp + %s]", format_i64_hex(fp_offset)))
-                        goto err_write;
-                } else {
-                    uint64_t upvalue_id;
-                    if (!lstf_vm_program_read_imm_u64(prog, &offset, &upvalue_id))
-                        goto err_read;
-                    if (!outputstream_printf(ostream, ", up#%"PRIu64, upvalue_id))
-                        goto err_write;
-                }
-            }
-            if (!outputstream_printf(ostream, "\n"))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_upget:
-        case lstf_vm_op_upset:
-        {
-            uint8_t upvalue_id;
-            if (!lstf_vm_program_read_imm_u8(prog, &offset, &upvalue_id))
-                goto err_read;
-            if (!outputstream_printf(ostream, "%s #%hhu\n", lstf_vm_opcode_to_string(opcode), upvalue_id))
-                goto err_write;
-        }    break;
-
-        case lstf_vm_op_vmcall:
-        {
-            uint8_t vmcode;
-            if (!lstf_vm_program_read_imm_u8(prog, &offset, &vmcode))
-                goto err_read;
-            if (!outputstream_printf(ostream, "vmcall %#hhx\n", vmcode))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_jump:
-        case lstf_vm_op_else:
-        {
-            uint64_t code_offset;
-
-            if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
-                goto err_read;
-            if (!outputstream_printf(ostream, "%s <%#"PRIx64">\n", lstf_vm_opcode_to_string(opcode), code_offset))
-                goto err_write;
-        }   break;
-
-        case lstf_vm_op_exit:
-        {
-            int8_t retcode;
-
-            if (!lstf_vm_program_read_imm_i8(prog, &offset, &retcode))
-                goto err_read;
-            if (!outputstream_printf(ostream, "exit %hhu\n", retcode))
-                goto err_write;
-        }   break;
-
-        default:
+        if (!lstf_vm_opcode_can_cast(opcode)) {
             if (!outputstream_printf(ostream, "<invalid opcode %#hhx>\n", opcode))
                 goto err_write;
-            break;
+        } else {
+            switch (opcode) {
+            case lstf_vm_op_load_frameoffset:
+            {
+                int64_t fp_offset;
+                if (!lstf_vm_program_read_imm_i64(prog, &offset, &fp_offset))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "load [fp + %s]\n", format_i64_hex(fp_offset)))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_load_dataoffset:
+            {
+                uint64_t data_offset;
+                if (!lstf_vm_program_read_imm_u64(prog, &offset, &data_offset))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "load string [data + %#0"PRIx64"]\n", data_offset))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_load_codeoffset:
+            {
+                uint64_t code_offset;
+                if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "load funptr <%#0*"PRIx64">\n", field_width, code_offset))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_load_expression:
+            {
+                char *json_string = NULL;
+                if (!lstf_vm_program_read_imm_string(prog, &offset, &json_string))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "load json %s\n", json_string))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_store:
+            {
+                int64_t fp_offset;
+                if (!lstf_vm_program_read_imm_i64(prog, &offset, &fp_offset))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "store [fp + %s]\n", format_i64_hex(fp_offset)))
+                    goto err_write;
+            }   break;
+
+            // these are opcodes without any immediate arguments
+            case lstf_vm_op_pop:
+            case lstf_vm_op_set:
+            case lstf_vm_op_get:
+            case lstf_vm_op_append:
+            case lstf_vm_op_in:
+            case lstf_vm_op_calli:
+            case lstf_vm_op_return:
+            case lstf_vm_op_bool:
+            case lstf_vm_op_land:
+            case lstf_vm_op_lor:
+            case lstf_vm_op_lnot:
+            case lstf_vm_op_lessthan:
+            case lstf_vm_op_lessthan_equal:
+            case lstf_vm_op_equal:
+            case lstf_vm_op_greaterthan:
+            case lstf_vm_op_greaterthan_equal:
+            case lstf_vm_op_add:
+            case lstf_vm_op_sub:
+            case lstf_vm_op_mul:
+            case lstf_vm_op_div:
+            case lstf_vm_op_pow:
+            case lstf_vm_op_mod:
+            case lstf_vm_op_neg:
+            case lstf_vm_op_and:
+            case lstf_vm_op_or:
+            case lstf_vm_op_xor:
+            case lstf_vm_op_lshift:
+            case lstf_vm_op_rshift:
+            case lstf_vm_op_not:
+            case lstf_vm_op_print:
+            case lstf_vm_op_getopt:
+            case lstf_vm_op_assert:
+                if (!outputstream_printf(ostream, "%s\n", lstf_vm_opcode_to_string(opcode)))
+                    goto err_write;
+                break;
+
+            case lstf_vm_op_params:
+            {
+                uint8_t num_params;
+                if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_params))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "params %hhd\n", num_params))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_call:
+            {
+                uint64_t code_offset;
+                if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "call <%#0*"PRIx64">\n", field_width, code_offset))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_schedule:
+            {
+                uint64_t code_offset;
+                uint8_t num_params;
+                if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
+                    goto err_read;
+                if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_params))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "schedule <%#"PRIx64"> (%hhu params)\n", code_offset, num_params))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_schedulei:
+            {
+                uint8_t num_params;
+                if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_params))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "schedulei (%hhu params)\n", num_params))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_closure:
+            {
+                uint8_t num_values;
+                uint64_t code_offset;
+                if (!lstf_vm_program_read_imm_u8(prog, &offset, &num_values))
+                    goto err_read;
+                if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "closure <%#"PRIx64">", code_offset))
+                    goto err_write;
+                for (uint8_t i = 0; i < num_values; i++) {
+                    bool is_local;
+
+                    if (!lstf_vm_program_read_imm_bool(prog, &offset, &is_local))
+                        goto err_read;
+
+                    if (is_local) {
+                        int64_t fp_offset;
+                        if (!lstf_vm_program_read_imm_i64(prog, &offset, &fp_offset))
+                            goto err_read;
+                        if (!outputstream_printf(ostream, ", [fp + %s]", format_i64_hex(fp_offset)))
+                            goto err_write;
+                    } else {
+                        uint64_t upvalue_id;
+                        if (!lstf_vm_program_read_imm_u64(prog, &offset, &upvalue_id))
+                            goto err_read;
+                        if (!outputstream_printf(ostream, ", up#%"PRIu64, upvalue_id))
+                            goto err_write;
+                    }
+                }
+                if (!outputstream_printf(ostream, "\n"))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_upget:
+            case lstf_vm_op_upset:
+            {
+                uint8_t upvalue_id;
+                if (!lstf_vm_program_read_imm_u8(prog, &offset, &upvalue_id))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "%s #%hhu\n", lstf_vm_opcode_to_string(opcode), upvalue_id))
+                    goto err_write;
+            }    break;
+
+            case lstf_vm_op_vmcall:
+            {
+                uint8_t vmcode;
+                if (!lstf_vm_program_read_imm_u8(prog, &offset, &vmcode))
+                    goto err_read;
+                if (!lstf_vm_vmcallcode_can_cast(vmcode)) {
+                    if (!outputstream_printf(ostream, "<invalid VM call code %#hhx>\n", vmcode))
+                        goto err_write;
+                } else {
+                    if (!outputstream_printf(ostream, "vmcall %s\n", lstf_vm_vmcallcode_to_string(vmcode)))
+                        goto err_write;
+                }
+            }   break;
+
+            case lstf_vm_op_jump:
+            case lstf_vm_op_else:
+            {
+                uint64_t code_offset;
+
+                if (!lstf_vm_program_read_imm_u64(prog, &offset, &code_offset))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "%s <%#"PRIx64">\n", lstf_vm_opcode_to_string(opcode), code_offset))
+                    goto err_write;
+            }   break;
+
+            case lstf_vm_op_exit:
+            {
+                int8_t retcode;
+
+                if (!lstf_vm_program_read_imm_i8(prog, &offset, &retcode))
+                    goto err_read;
+                if (!outputstream_printf(ostream, "exit %hhu\n", retcode))
+                    goto err_write;
+            }   break;
+            }
         }
     }
     return true;

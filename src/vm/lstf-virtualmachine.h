@@ -5,6 +5,7 @@
 #include "data-structures/ptr-hashset.h"
 #include "io/event.h"
 #include "io/outputstream.h"
+#include "lsp/lsp-client.h"
 #include "lstf-vm-status.h"
 #include "lstf-vm-stack.h"
 #include "lstf-vm-program.h"
@@ -24,10 +25,12 @@ struct _lstf_virtualmachine {
     ptr_list *run_queue;                // queue of ready coroutines
     ptr_list *suspended_list;           // list of suspended coroutines
     eventloop *event_loop;              // I/O event loop for all asynchronous operations
+    ptr_hashmap *command_line_options;  // from [-e VAR=VALUE], maps (char *) -> (char *)
     ptr_hashset *breakpoints;           // list of offset (uintptr_t)
     unsigned instructions_executed;     // number of instructions executed since last context switch
     bool debug;                         // whether the virtual machine is in debug mode
     bool should_stop;                   // whether the virtual machine should stop on the next iteration
+    lsp_client *client;                 // a handle to the LSP client communicating with the remote server
 };
 typedef struct _lstf_virtualmachine lstf_virtualmachine;
 
@@ -49,6 +52,11 @@ void lstf_virtualmachine_destroy(lstf_virtualmachine *vm);
  */
 bool lstf_virtualmachine_run(lstf_virtualmachine *vm);
 
+/**
+ * Queues an exceptional state for virtual machine.
+ */
+void lstf_virtualmachine_raise(lstf_virtualmachine *vm, lstf_vm_status status);
+
 // --- debugging
 
 /**
@@ -59,3 +67,8 @@ bool lstf_virtualmachine_run(lstf_virtualmachine *vm);
 bool lstf_virtualmachine_add_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_offset);
 
 void lstf_virtualmachine_delete_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_offset);
+
+/**
+ * Sets a variable available to the program using `getopt`.
+ */
+void lstf_virtualmachine_set_variable(lstf_virtualmachine *vm, const char *name, const char *value);

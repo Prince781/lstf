@@ -39,6 +39,7 @@ struct lstf_options {
     bool output_codegen;                // flag: -c
     bool disassemble;                   // flag: -d
     array(ptrdiff_t) *breakpoints;
+    ptr_hashmap *variables;             // flag: -e
     const char *input_filename;
     const char *output_filename;
     const char *expected_output;
@@ -71,7 +72,7 @@ static char *substitute_file_extension(const char *filename, const char *new_ext
 static const char usage_message[] =
 "usage: %s [options] file...\n"
 "\n"
-"usage: %s script.lstf\n"
+"usage: %s [-e NAME=VALUE[, ...]] script.lstf\n"
 "        runs a LSTF script\n"
 "\n"
 "usage: %s script.lstfc\n"
@@ -103,6 +104,7 @@ static const char usage_message[] =
 "  -break <offset>          Enable debug mode and break at the offset (in hexadecimal).\n"
 "\n"
 "Flags:\n"
+"  -e NAME=VALUE            Set variable NAME to VALUE.\n"
 "  -h                       Show this help message.\n"
 "  -v                       Print version.\n";
 
@@ -176,6 +178,12 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
             }
         }
         vm->debug = true;
+    }
+    if (options.variables) {
+        for (iterator it = ptr_hashmap_iterator_create(options.variables); it.has_next; it = iterator_next(it)) {
+            ptr_hashmap_entry *entry = iterator_get_item(it);
+            lstf_virtualmachine_set_variable(vm, entry->key, entry->value);
+        }
     }
     while (lstf_virtualmachine_run(vm)) {
         if (vm->last_status == lstf_vm_status_hit_breakpoint) {
@@ -476,6 +484,36 @@ int main(int argc, char *argv[])
             }
 
             options.expected_output = expected_output;
+        } else if (strcmp(option, "-e") == 0) {
+            if (!*(argp + 1)) {
+                lstf_report_error(NULL, "argument required for `%s'", option);
+                return 1;
+            }
+            char *varname = *++argp;
+            char *eqc = strchr(varname, '=');
+            char *value = NULL;
+
+            if (eqc) {
+                *eqc = '\0';
+                value = eqc + 1;
+            } else if (*++argp) {
+                value = *argp;
+            }
+
+            if (!value) {
+                lstf_report_error(NULL, "%s: a value is required for `%s'", option, varname);
+                return 1;
+            }
+
+            if (!options.variables) {
+                // NOTE: this means we have to be careful about modifying the
+                // strings in argv[]
+                options.variables = ptr_hashmap_new(
+                        (collection_item_hash_func)strhash, NULL, NULL,
+                        (collection_item_equality_func)strequal, NULL, NULL);
+            }
+
+            ptr_hashmap_insert(options.variables, varname, value);
         } else if (strcmp(option, "-h") == 0 || strcmp(option, "--help") == 0) {
             break;
         } else if (strcmp(option, "-v") == 0 || strcmp(option, "--version") == 0) {
@@ -580,6 +618,8 @@ int main(int argc, char *argv[])
 
     if (options.breakpoints)
         array_destroy(options.breakpoints);
+    if (options.variables)
+        ptr_hashmap_destroy(options.variables);
 
     return retval;
 }

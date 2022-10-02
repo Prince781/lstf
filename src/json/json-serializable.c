@@ -40,7 +40,7 @@ json_serialization_status json_deserialize_from_node(const json_serializable_vta
         if (node->node_type != json_node_type_array)
             return json_serialization_status_invalid_type;
         for (unsigned i = 0; i < ((json_array *)node)->num_elements; i++)
-            if ((status = vtable->deserialize_element(instance, ((json_array *)node)->elements[i])))
+            if ((status = vtable->deserialize_element(instance, (void *)(intptr_t)i, ((json_array *)node)->elements[i])))
                 return status;
     }
 
@@ -48,7 +48,7 @@ json_serialization_status json_deserialize_from_node(const json_serializable_vta
 }
 
 json_serialization_status json_serialize_to_node(const json_serializable_vtable *vtable,
-                                                 void                           *instance,
+                                                 const void                     *instance,
                                                  json_node                     **node)
 {
     assert((vtable->list_properties && vtable->serialize_property) || !vtable->list_properties);
@@ -82,10 +82,11 @@ json_serialization_status json_serialize_to_node(const json_serializable_vtable 
         // serialize array
         json_node *array = json_array_new();
 
-        for (iterator it = vtable->list_properties(); it.has_next; it = iterator_next(it)) {
+        for (iterator it = vtable->list_elements(instance); it.has_next; it = iterator_next(it)) {
+            void *element = iterator_get_item(it);
             json_node *element_node = NULL;
 
-            if ((status = vtable->serialize_element(instance, &element_node))) {
+            if ((status = vtable->serialize_element(instance, element, &element_node))) {
                 json_node_unref(array);
                 return status;
             }

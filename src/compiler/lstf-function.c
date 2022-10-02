@@ -105,9 +105,10 @@ lstf_symbol *lstf_function_new(const lstf_sourceref *source_reference,
                                const char           *name,
                                lstf_datatype        *return_type,
                                bool                  is_instance,
-                               bool                  is_async)
+                               bool                  is_async,
+                               bool                  is_builtin)
 {
-    return (lstf_symbol *)lstf_function_create(source_reference, name, return_type, is_instance, is_async, false);
+    return (lstf_symbol *)lstf_function_create(source_reference, name, return_type, is_instance, is_async, is_builtin);
 }
 
 lstf_symbol *lstf_function_new_for_opcode(const lstf_sourceref *source_reference,

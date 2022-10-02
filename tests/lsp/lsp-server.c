@@ -20,9 +20,9 @@ json_serializable_decl_as_object(lsp_servercapabilities, {
 
 json_serializable_impl_as_object(lsp_servercapabilities, "?textDocumentSync");
 
-static json_serialization_status lsp_servercapabilities_serialize_property(lsp_servercapabilities *self,
-                                                                           const char             *property_name,
-                                                                           json_node             **property_node)
+static json_serialization_status lsp_servercapabilities_serialize_property(const lsp_servercapabilities *self,
+                                                                           const char                   *property_name,
+                                                                           json_node                   **property_node)
 {
     if (strcmp(property_name, "textDocumentSync") == 0) {
         *property_node = json_integer_new(self->text_document_sync);
@@ -61,9 +61,9 @@ json_serializable_decl_as_object(lsp_serverinfo, {
 
 json_serializable_impl_as_object(lsp_serverinfo, "name", "?version");
 
-static json_serialization_status lsp_serverinfo_serialize_property(lsp_serverinfo *self,
-                                                                   const char     *property_name,
-                                                                   json_node     **property_node)
+static json_serialization_status lsp_serverinfo_serialize_property(const lsp_serverinfo *self,
+                                                                   const char           *property_name,
+                                                                   json_node           **property_node)
 {
     if (strcmp(property_name, "name") == 0) {
         *property_node = json_string_new(self->name);
@@ -105,9 +105,9 @@ json_serializable_decl_as_object(lsp_initializeresult, {
 
 json_serializable_impl_as_object(lsp_initializeresult, "capabilities", "?serverInfo");
 
-static json_serialization_status lsp_initializeresult_serialize_property(lsp_initializeresult *self,
-                                                                         const char           *property_name,
-                                                                         json_node           **property_node)
+static json_serialization_status lsp_initializeresult_serialize_property(const lsp_initializeresult *self,
+                                                                         const char                 *property_name,
+                                                                         json_node                 **property_node)
 {
     if(strcmp(property_name, "capabilities") == 0) {
         return json_serialize(lsp_servercapabilities, &self->capabilities, property_node);
@@ -134,7 +134,7 @@ static json_serialization_status lsp_initializeresult_deserialize_property(lsp_i
 // --- the server itself
 
 typedef struct {
-    jsonrpc_server parent;
+    jsonrpc_server parent_struct;
     lsp_initializeresult init_info;
 } lsp_server;
 
@@ -142,7 +142,7 @@ static lsp_server *lsp_server_new(inputstream *istream, outputstream *ostream)
 {
     lsp_server *server = calloc(1, sizeof *server);
 
-    jsonrpc_server_init(&server->parent, istream, ostream);
+    jsonrpc_server_init(super(server), istream, ostream);
     server->init_info.server_info.name = strdup("LSTF test server");
     return server;
 }
@@ -155,7 +155,7 @@ static void lsp_server_destroy(lsp_server *server)
 
 static int return_code = 1;
 
-static void lsp_server_initialize_cb(event *reply_ev, void *user_data)
+static void lsp_server_initialize_cb(const event *reply_ev, void *user_data)
 {
     eventloop *loop = user_data;
     if (event_get_result(reply_ev, NULL)) {
@@ -207,20 +207,20 @@ int main(int argc, char *argv[])
     eventloop *loop = eventloop_new();
 
     printf("server started. waiting for messages...\n");
-    jsonrpc_server_handle_call(&server->parent, "initialize", lsp_server_on_initialize, loop, NULL);
+    jsonrpc_server_handle_call(super(server), "initialize", lsp_server_on_initialize, loop, NULL);
 
     // begin asynchronous listening of incoming messages
-    jsonrpc_server_listen(&server->parent, loop);
+    jsonrpc_server_listen(super(server), loop);
 
     // loop until we get an 'initialize' request
     while (eventloop_process(loop, false))
-        jsonrpc_server_process_received_requests(&server->parent);
+        jsonrpc_server_process_received_requests(super(server));
 
     // print scanner errors
-    if (server->parent.parser->scanner->message)
-        fprintf(stderr, "%s\n", server->parent.parser->scanner->message);
+    if (super(server)->parser->scanner->message)
+        fprintf(stderr, "%s\n", super(server)->parser->scanner->message);
     // print parser errors
-    for (iterator it = ptr_list_iterator_create(server->parent.parser->messages); it.has_next; it = iterator_next(it))
+    for (iterator it = ptr_list_iterator_create(super(server)->parser->messages); it.has_next; it = iterator_next(it))
         fprintf(stderr, "%s\n", (char *)iterator_get_item(it));
 
     lsp_server_destroy(server);

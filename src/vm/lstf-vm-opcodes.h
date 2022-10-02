@@ -2,6 +2,8 @@
 #include "lstf-common.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <inttypes.h>
 
 /**
  * This has the `packed` attribute just to make it easier to debug an
@@ -180,6 +182,11 @@ enum _lstf_vm_opcode {
     lstf_vm_op_print,
 
     /**
+     * `getopt` - get a command line option string
+     */
+    lstf_vm_op_getopt,
+
+    /**
      * `exit <integer: 0-255>` exits with the exit code
      */
     lstf_vm_op_exit,
@@ -188,20 +195,29 @@ enum _lstf_vm_opcode {
     /**
      * Raise an exception if the previous result was not true.
      */
-    lstf_vm_op_assert
+    lstf_vm_op_assert,
+
+    lstf_vm_op_N
 } __attribute__((packed));
 typedef enum _lstf_vm_opcode lstf_vm_opcode;
 
 enum _lstf_vm_vmcallcode {
     /**
-     * `function connect(path_to_server: string): void`
+     * `fun memory(contents: string): DocumentUri`
+     *
+     * Register a buffer in memory and associate a URI with it.
+     */
+    lstf_vm_vmcall_memory = 0x01,
+
+    /**
+     * `fun connect(path_to_server: string): void`
      *
      * Connect to LSP server. On failure throws a fatal exception.
      */
     lstf_vm_vmcall_connect,
 
     /**
-     * `function td_open(filename: string): void`
+     * `fun td_open(filename: string): void`
      *
      * Call `textDocument/open` with a fail. Will fail if a connection has not
      * yet been established.
@@ -209,9 +225,21 @@ enum _lstf_vm_vmcallcode {
     lstf_vm_vmcall_td_open,
 
     /**
-     * `async function diagnostics(filename: string): PublishDiagnosticsParams`
+     * `async fun diagnostics(file: DocumentUri): future<PublishDiagnosticsParams>`
      */
-    lstf_vm_vmcall_diagnostics
+    lstf_vm_vmcall_diagnostics,
+
+    /**
+     * `async fun change(file: DocumentUri, change: TextDocumentContentChangeEvent[]): future<void>`
+     */
+    lstf_vm_vmcall_change,
+
+    /**
+     * `async fun completion(file: DocumentUri, line: int, char: int)`
+     */
+    lstf_vm_vmcall_completion,
+
+    lstf_vm_vmcall_N
 };
 typedef enum _lstf_vm_vmcallcode lstf_vm_vmcallcode;
 
@@ -308,13 +336,53 @@ static inline const char *lstf_vm_opcode_to_string(lstf_vm_opcode opcode)
             return "not";
         case lstf_vm_op_print:
             return "print";
+        case lstf_vm_op_getopt:
+            return "getopt";
         case lstf_vm_op_exit:
             return "exit";
         case lstf_vm_op_assert:
             return "assert";
+        case lstf_vm_op_N:
+            break;
     }
 
     fprintf(stderr, "%s: unreachable code (unexpected opcode %u)\n",
             __func__, opcode);
     abort();
+}
+
+/**
+ * Determines whether `value` is an opcode.
+ */
+static inline bool lstf_vm_opcode_can_cast(uint8_t value) {
+    return !(value == 0 || value >= lstf_vm_op_N);
+}
+
+static inline const char *lstf_vm_vmcallcode_to_string(lstf_vm_vmcallcode callcode) {
+    switch (callcode) {
+        case lstf_vm_vmcall_memory:
+            return "memory";
+        case lstf_vm_vmcall_connect:
+            return "lsp.connect";
+        case lstf_vm_vmcall_td_open:
+            return "lsp.textDocument.didOpen";
+        case lstf_vm_vmcall_diagnostics:
+            return "lsp.diagnostics";
+        case lstf_vm_vmcall_change:
+            return "lsp.textDocument.didChange";
+        case lstf_vm_vmcall_completion:
+            return "lsp.textDocument.completion";
+        case lstf_vm_vmcall_N:
+            break;
+    }
+    fprintf(stderr, "%s: unreachable code (unexpected VM call code %u)\n",
+            __func__, callcode);
+    abort();
+}
+
+/**
+ * Determines whether `value` is a VM callcode.
+ */
+static inline bool lstf_vm_vmcallcode_can_cast(uint8_t value) {
+    return !(value == 0 || value >= lstf_vm_vmcall_N);
 }

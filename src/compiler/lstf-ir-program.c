@@ -588,8 +588,10 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             case lstf_vm_op_not:
             case lstf_vm_op_bool:
             case lstf_vm_op_print:
+            case lstf_vm_op_getopt:
             case lstf_vm_op_exit:
             case lstf_vm_op_assert:
+            case lstf_vm_op_N:
                 fprintf(stderr, "%s: unreachable code: unexpected op `%u' for binary IR instruction\n",
                         __func__, binst->opcode);
                 abort();
@@ -659,6 +661,8 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
                 case lstf_vm_op_vmcall:
                 case lstf_vm_op_xor:
                 case lstf_vm_op_assert:
+                case lstf_vm_op_getopt:
+                case lstf_vm_op_N:
                     fprintf(stderr, "%s: unreachable code: unexpected op `%u' for unary IR instruction\n",
                             __func__, uinst->opcode);
                     abort();
@@ -678,6 +682,12 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
                 switch (call->function->vm_opcode) {
                     case lstf_vm_op_print:
                         bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_print_new());
+                        break;
+                    case lstf_vm_op_getopt:
+                        bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_getopt_new());
+                        break;
+                    case lstf_vm_op_vmcall:
+                        bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_vmcall_new(call->function->vm_callcode));
                         break;
                     default:
                         fprintf(stderr, "%s: cannot serialize `%s' with VM opcode %u to bytecode\n",

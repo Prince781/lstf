@@ -91,7 +91,8 @@ lstf_symbol *lstf_function_new(const lstf_sourceref *source_reference,
                                const char           *name,
                                lstf_datatype        *return_type,
                                bool                  is_instance,
-                               bool                  is_async)
+                               bool                  is_async,
+                               bool                  is_builtin)
     __attribute__((nonnull (2, 3)));
 
 /**

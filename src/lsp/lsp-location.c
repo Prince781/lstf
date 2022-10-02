@@ -24,9 +24,9 @@ static json_serialization_status lsp_location_deserialize_property(lsp_location 
     return json_serialization_status_continue;
 }
 
-static json_serialization_status lsp_location_serialize_property(lsp_location *self,
-                                                                 const char   *property_name,
-                                                                 json_node   **property_node)
+static json_serialization_status lsp_location_serialize_property(const lsp_location *self,
+                                                                 const char         *property_name,
+                                                                 json_node         **property_node)
 {
     if (strcmp(property_name, "uri") == 0) {
         *property_node = json_string_new(self->uri);

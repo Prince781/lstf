@@ -12,7 +12,7 @@ enum _json_serialization_status {
 };
 typedef enum _json_serialization_status json_serialization_status;
 
-struct _json_serializable_vtable {
+typedef struct _json_serializable_vtable {
     /**
      * Returns an iterator over all the property names of `self`. Each call to
      * `iterator_get_item()` must return a string for a property name that will
@@ -23,6 +23,12 @@ struct _json_serializable_vtable {
      * array.
      */
     iterator (*list_properties)(void);
+
+    /**
+     * Returns an iterator over all the elements of `self`, if we are an array.
+     * This must be NULL if we are an object.
+     */
+    iterator (*list_elements)(const void *self);
 
     // --- deserialization
     union {
@@ -39,6 +45,7 @@ struct _json_serializable_vtable {
          * only be set if we are an array.
          */
         json_serialization_status (*deserialize_element)(void      *self,
+                                                         void      *element,
                                                          json_node *element_node);
     };
 
@@ -51,7 +58,7 @@ struct _json_serializable_vtable {
          * @param property_node     a reference to a pointer to a JSON node, which
          *                          this function should only set if successful
          */
-        json_serialization_status (*serialize_property)(void       *self,
+        json_serialization_status (*serialize_property)(const void *self,
                                                         const char *property_name,
                                                         json_node **property_node);
 
@@ -59,11 +66,11 @@ struct _json_serializable_vtable {
          * This handles serialization of each element of the container. Should only
          * be set if we are an array.
          */
-        json_serialization_status (*serialize_element)(void       *self,
+        json_serialization_status (*serialize_element)(const void *self,
+                                                       void       *element,
                                                        json_node **element_node);
     };
-};
-typedef struct _json_serializable_vtable json_serializable_vtable;
+} json_serializable_vtable;
 
 /**
  * Fully initializes data from a JSON node.
@@ -90,7 +97,7 @@ json_serialization_status json_deserialize_from_node(const json_serializable_vta
  *          set, otherwise the specific error
  */
 json_serialization_status json_serialize_to_node(const json_serializable_vtable *vtable,
-                                                 void                           *instance,
+                                                 const void                     *instance,
                                                  json_node                     **node)
     __attribute__((nonnull (1, 2, 3)));
 
@@ -109,7 +116,7 @@ json_serialization_status json_serialize_to_node(const json_serializable_vtable 
  * @see json_serialize_to_node
  */
 #define json_serialize(type, instance, node)\
-        json_serialize_to_node(&type ## _json_serializable_vtable, _Generic((instance), type *: (instance), void *: (instance)), node)
+        json_serialize_to_node(&type ## _json_serializable_vtable, _Generic((instance), const type *: (instance), type *: (instance), void *: (instance)), node)
 
 /**
  * Declares the type as a JSON object. Put this in the C header.
@@ -128,30 +135,6 @@ typedef struct struct_members type_name
  * defined.
  */
 #define json_serializable_impl_as_object(type_name, ...) \
-json_serializable_list_properties(type_name, __VA_ARGS__)\
-\
-static json_serialization_status type_name ## _deserialize_property(type_name  *self,\
-                                                                    const char *property_name,\
-                                                                    json_node  *property_node);\
-\
-static json_serialization_status type_name ## _serialize_property(type_name  *self,\
-                                                                  const char *property_name,\
-                                                                  json_node **property_node);\
-\
-const json_serializable_vtable type_name ## _json_serializable_vtable = {\
-    .list_properties        = type_name ## _list_properties,\
-    .deserialize_property   = (json_serialization_status (*)(void *, const char *, json_node *)) type_name ## _deserialize_property,\
-    .serialize_property     = (json_serialization_status (*)(void *, const char *, json_node **)) type_name ## _serialize_property\
-}
-
-/**
- * Implements all the logic for listing the properties of a JSON-serializable
- * struct.
- *
- * Internal. Called by `json_serializable_impl_as_object()` and should not be
- * used directly.
- */
-#define json_serializable_list_properties(type_name, ...) \
 static char * type_name ## _properties_list[] = {\
     __VA_ARGS__,\
     NULL\
@@ -177,10 +160,26 @@ static iterator type_name ## _list_properties(void)\
         .has_next = array_length(type_name ## _properties_list)-1 > 0,\
         .data = (type_name ## _properties_list)[0]\
     };\
+}\
+\
+/* serialization functions to implement */ \
+static json_serialization_status type_name ## _deserialize_property(type_name  *self,\
+                                                                    const char *property_name,\
+                                                                    json_node  *property_node);\
+\
+static json_serialization_status type_name ## _serialize_property(const type_name  *self,\
+                                                                  const char       *property_name,\
+                                                                  json_node        **property_node);\
+\
+/* the virtual table */ \
+const json_serializable_vtable type_name ## _json_serializable_vtable = {\
+    .list_properties        = type_name ## _list_properties,\
+    .deserialize_property   = (json_serialization_status (*)(void *, const char *, json_node *)) type_name ## _deserialize_property,\
+    .serialize_property     = (json_serialization_status (*)(const void *, const char *, json_node **)) type_name ## _serialize_property\
 }
 
 #define json_serializable_fail_with_unhandled_property(property_name) \
 do {\
-fprintf(stderr, "%s: error: property `%s' unhandled!\n", __func__, property_name);\
-abort();\
+    fprintf(stderr, "%s: error: property `%s' unhandled!\n", __func__, property_name);\
+    abort();\
 } while (0)

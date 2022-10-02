@@ -63,9 +63,9 @@ static json_serialization_status lsp_diagnostic_deserialize_property(lsp_diagnos
     return json_serialization_status_continue;
 }
 
-static json_serialization_status lsp_diagnostic_serialize_property(lsp_diagnostic *self,
-                                                                   const char     *property_name,
-                                                                   json_node     **property_node)
+static json_serialization_status lsp_diagnostic_serialize_property(const lsp_diagnostic *self,
+                                                                   const char           *property_name,
+                                                                   json_node           **property_node)
 {
     if (strcmp(property_name, "") == 0) {
         return json_serialize(lsp_range, &self->range, property_node);

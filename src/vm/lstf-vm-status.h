@@ -105,7 +105,37 @@ enum _lstf_vm_status {
     /**
      * An assertion failed
      */
-    lstf_vm_status_assertion_failed
+    lstf_vm_status_assertion_failed,
+
+    /**
+     * A requested command line option was not found
+     */
+    lstf_vm_status_option_not_found,
+
+    /**
+     * Already connected to a language server
+     */
+    lstf_vm_status_already_connected,
+
+    /**
+     * Could not connect to a language server
+     */
+    lstf_vm_status_could_not_connect,
+
+    /**
+     * Not connected to the language server
+     */
+    lstf_vm_status_not_connected,
+
+    /**
+     * Failed to initialize the language server
+     */
+    lstf_vm_status_initialize_failed,
+
+    /**
+     * Could not communicate with the language server
+     */
+    lstf_vm_status_could_not_communicate
 };
 typedef enum _lstf_vm_status lstf_vm_status;
 
@@ -170,6 +200,24 @@ lstf_vm_status_to_string(lstf_vm_status status)
             break;
         case lstf_vm_status_assertion_failed:
             exception_message = "assertion failed";
+            break;
+        case lstf_vm_status_option_not_found:
+            exception_message = "option not found";
+            break;
+        case lstf_vm_status_already_connected:
+            exception_message = "already connected to language server";
+            break;
+        case lstf_vm_status_could_not_connect:
+            exception_message = "could not connect to language server";
+            break;
+        case lstf_vm_status_not_connected:
+            exception_message = "not connected to language server";
+            break;
+        case lstf_vm_status_initialize_failed:
+            exception_message = "failed to initialize language server";
+            break;
+        case lstf_vm_status_could_not_communicate:
+            exception_message = "could not communicate with language server";
             break;
     }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lstf-common.h"
+#include "util.h"
 #include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -57,10 +58,18 @@ static inline bool string_is_empty(const string *sb) {
     return sb->length;
 }
 
+static inline bool string_hash(const string *sb) {
+    return strhash(sb->const_buffer);
+}
+
 static inline bool string_is_equal_to(const string *sb1, const string *sb2) {
     return strcmp(sb1->const_buffer, sb2->const_buffer) == 0;
 }
 
 string *string_clear(string *sb);
 
+/**
+ * Destroys the string's metadata and returns the contents. You must `free()`
+ * this when done.
+ */
 char *string_destroy(string *sb);

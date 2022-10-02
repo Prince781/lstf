@@ -65,7 +65,7 @@ void json_parser_parse_node_async(json_parser   *parser,
  *
  * @see json_parser_parse_node_async
  */
-json_node *json_parser_parse_node_finish(event *ev, int *error);
+json_node *json_parser_parse_node_finish(const event *ev, int *error);
 
 /**
  * Returns an iterator on of (char *) messages either from the parser

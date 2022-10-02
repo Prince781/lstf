@@ -1,9 +1,11 @@
 #include "lstf-virtualmachine.h"
+#include "data-structures/ptr-hashmap.h"
 #include "data-structures/ptr-hashset.h"
 #include "data-structures/ptr-list.h"
 #include "data-structures/string-builder.h"
 #include "io/event.h"
 #include "io/outputstream.h"
+#include "lsp/lsp-client.h"
 #include "lstf-common.h"
 #include "lstf-vm-opcodes.h"
 #include "lstf-vm-program.h"
@@ -11,6 +13,7 @@
 #include "lstf-vm-status.h"
 #include "lstf-vm-value.h"
 #include "lstf-vm-coroutine.h"
+#include "lstf-vm-lsp.h"
 #include "util.h"
 #include "json/json.h"
 #include "json/json-parser.h"
@@ -53,6 +56,10 @@ lstf_virtualmachine_new(lstf_vm_program *program,
     vm->suspended_list = ptr_list_new((collection_item_ref_func) lstf_vm_coroutine_ref,
             (collection_item_unref_func) lstf_vm_coroutine_unref);
     vm->event_loop = eventloop_new();
+    vm->command_line_options = ptr_hashmap_new((collection_item_hash_func)strhash,
+            NULL, free,
+            (collection_item_equality_func)strequal,
+            NULL, free);
     vm->breakpoints = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
     vm->debug = debug;
 
@@ -67,7 +74,10 @@ void lstf_virtualmachine_destroy(lstf_virtualmachine *vm)
     ptr_list_destroy(vm->suspended_list);
     lstf_vm_coroutine_unref(vm->main_coroutine);
     eventloop_destroy(vm->event_loop);
+    ptr_hashmap_destroy(vm->command_line_options);
     ptr_hashset_destroy(vm->breakpoints);
+    if (vm->client)
+        lsp_client_destroy(vm->client);
     free(vm);
 }
 
@@ -736,12 +746,6 @@ lstf_vm_op_upset_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     return status;
 }
 
-static lstf_vm_status (*const virtualmachine_calls[256])(lstf_virtualmachine *, lstf_vm_coroutine *) = {
-    [lstf_vm_vmcall_connect]        = NULL /* TODO */,
-    [lstf_vm_vmcall_td_open]        = NULL /* TODO */,
-    [lstf_vm_vmcall_diagnostics]    = NULL /* TODO */,
-};
-
 static lstf_vm_status
 lstf_vm_op_vmcall_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
@@ -751,10 +755,10 @@ lstf_vm_op_vmcall_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     if ((status = lstf_virtualmachine_read_byte(vm, cr, &vmcall_code)))
         return status;
 
-    if (!virtualmachine_calls[vmcall_code])
+    if (!vmcall_table[vmcall_code])
         status = lstf_vm_status_invalid_vmcall;
     else
-        status = virtualmachine_calls[vmcall_code](vm, cr);
+        status = vmcall_table[vmcall_code](vm, cr);
 
     return status;
 }
@@ -1253,6 +1257,29 @@ lstf_vm_op_print_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 }
 
 static lstf_vm_status
+lstf_vm_op_getopt_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
+{
+    lstf_vm_status status = lstf_vm_status_continue;
+    string *option_name = NULL;
+
+    if ((status = lstf_vm_stack_pop_string(cr->stack, &option_name)))
+        return status;
+
+    const ptr_hashmap_entry *entry = ptr_hashmap_get(vm->command_line_options, option_name->buffer);
+    if (!entry) {
+        string_unref(option_name);
+        return lstf_vm_status_option_not_found;
+    }
+
+    string *option_value = string_new_with_static_data(entry->value);
+    if ((status = lstf_vm_stack_push_string(cr->stack, option_value)))
+        string_unref(option_value);
+
+    string_unref(option_name);
+    return status;
+}
+
+static lstf_vm_status
 lstf_vm_op_exit_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
     lstf_vm_status status = lstf_vm_status_continue;
@@ -1343,6 +1370,7 @@ static lstf_vm_status (*const instruction_table[256])(lstf_virtualmachine *, lst
 
     // --- input/output
     [lstf_vm_op_print]              = lstf_vm_op_print_exec,
+    [lstf_vm_op_getopt]             = lstf_vm_op_getopt_exec,
     [lstf_vm_op_exit]               = lstf_vm_op_exit_exec,
     
     // --- miscellaneous
@@ -1356,7 +1384,8 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
         if (vm->should_stop)
             return true;
 
-        if (!(vm->last_status == lstf_vm_status_continue || vm->last_status == lstf_vm_status_hit_breakpoint))
+        if (!(vm->last_status == lstf_vm_status_continue ||
+                    vm->last_status == lstf_vm_status_hit_breakpoint))
             return false;
 
         // initialize the main coroutine if it was never created
@@ -1385,7 +1414,13 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // run one iteration of the event loop on every context switch, and
             // allow blocking if the run queue is empty
             vm->instructions_executed = 0;      // reset instruction counter
-            eventloop_process(vm->event_loop, !ptr_list_is_empty(vm->run_queue));
+            do {
+                eventloop_process(vm->event_loop,
+                        !ptr_list_is_empty(vm->run_queue));
+                // errors can be raised inside event handlers
+                if (vm->last_status != lstf_vm_status_continue)
+                    return vm->last_status == lstf_vm_status_hit_breakpoint;
+            } while (ptr_list_is_empty(vm->run_queue));
         } else {
             // we don't want to run the event loop every cycle, since that will
             // involve a number of system calls (poll() on POSIX and
@@ -1393,16 +1428,50 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // Windows). When it's not time to context switch, we only want to
             // run the event loop if we have no choice because there is nothing
             // in the run queue.
-            if (ptr_list_is_empty(vm->run_queue)) {
+            while (ptr_list_is_empty(vm->run_queue)) {
                 // we have no runnable coroutines, so we must wait.
                 // vm->suspended_list must be non-empty here (because of the
                 // earlier check), so after this event loop iteration finishes
                 // we should have at least one runnable coroutine
                 eventloop_process(vm->event_loop, false);
-                assert(!ptr_list_is_empty(vm->run_queue) && "there must be at least one runnable"
-                        " coroutine after a blocking iteration of an event loop!");
+                // errors can be raised inside event handlers
+                if (vm->last_status != lstf_vm_status_continue)
+                    return vm->last_status == lstf_vm_status_hit_breakpoint;
             }
         }
+
+        // after running eventloop_process(), we need to resynchronize the
+        // coroutines' "outstanding I/O" state with their presence in the run
+        // queue or suspend list
+        for (iterator run_it = ptr_list_iterator_create(vm->run_queue),
+                      sus_it = ptr_list_iterator_create(vm->suspended_list);
+                run_it.has_next || sus_it.has_next;) {
+            if (run_it.has_next) {
+                lstf_vm_coroutine *run_cr = iterator_get_item(run_it);
+                run_it = iterator_next(run_it);
+
+                // add to suspend list and remove from run queue
+                if (run_cr->outstanding_io) {
+                    ptr_list_node *node = ptr_list_append(vm->suspended_list, run_cr);
+                    ptr_list_remove_link(vm->run_queue, run_cr->node);
+                    run_cr->node = node;
+                }
+            } 
+            if (sus_it.has_next) {
+                lstf_vm_coroutine *sus_cr = iterator_get_item(sus_it);
+                sus_it = iterator_next(sus_it);
+
+                // add to run queue and remove from suspend list
+                if (sus_cr->outstanding_io == 0) {
+                    ptr_list_node *node = ptr_list_append(vm->run_queue, sus_cr);
+                    ptr_list_remove_link(vm->suspended_list, node);
+                    sus_cr->node = node;
+                }
+            }
+        }
+
+        assert(!ptr_list_is_empty(vm->run_queue) &&
+               "there must be at least one runnable coroutine");
 
         // now pick a runnable coroutine from the head of the queue
         lstf_vm_coroutine *cr = 
@@ -1452,11 +1521,19 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
                     cr->node = ptr_list_prepend(vm->run_queue, cr);
                 }
             } else {
+                // suspend the coroutine if it has outstanding I/O
                 cr->node = ptr_list_append(vm->suspended_list, cr);
             }
         }
         lstf_vm_coroutine_unref(cr);
     }
+}
+
+void lstf_virtualmachine_raise(lstf_virtualmachine *vm, lstf_vm_status status)
+{
+    // don't change the status unless 
+    if (vm->last_status == lstf_vm_status_continue)
+        vm->last_status = status;
 }
 
 // --- debugging
@@ -1472,4 +1549,9 @@ bool lstf_virtualmachine_add_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_
 void lstf_virtualmachine_delete_breakpoint(lstf_virtualmachine *vm, ptrdiff_t code_offset)
 {
     ptr_hashset_delete(vm->breakpoints, (void *)code_offset);
+}
+
+void lstf_virtualmachine_set_variable(lstf_virtualmachine *vm, const char *name, const char *value)
+{
+    ptr_hashmap_insert(vm->command_line_options, strdup(name), strdup(value));
 }

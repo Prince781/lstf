@@ -8,7 +8,8 @@
 
 enum _outputstream_type {
     outputstream_type_file,
-    outputstream_type_buffer
+    outputstream_type_buffer,
+    outputstream_type_fd
 };
 typedef enum _outputstream_type outputstream_type;
 
@@ -18,12 +19,13 @@ struct _outputstream {
     bool floating : 1;
     bool close_or_free_on_destruction : 1;
     union {
-        FILE *file;
-        struct {
+        FILE *file;                     // outputstream_type_file
+        struct {                        // outputstream_type_buffer
             uint8_t *buffer;
             size_t buffer_offset;
             size_t buffer_size;
         };
+        int fd;                         // outputstream_type_fd
     };
 };
 typedef struct _outputstream outputstream;
@@ -37,6 +39,8 @@ outputstream *outputstream_new_from_file(FILE *file, bool fclose_on_destroy);
 outputstream *outputstream_new_from_path(const char *path, const char *mode);
 
 outputstream *outputstream_new_from_buffer(void *buffer, size_t initial_size, bool free_on_destroy);
+
+outputstream *outputstream_new_from_fd(int fd, bool close_on_destroy);
 
 size_t outputstream_write_byte(outputstream *stream, uint8_t byte);
 

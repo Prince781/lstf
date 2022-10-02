@@ -11,6 +11,7 @@
 #include "util.h"
 #include "json/json-scanner.h"
 #include "json/json.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -93,15 +94,15 @@ static bool jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
         string_destroy(string_appendf(string_new(), "Content-Length: %zu\r\n", strlen(serialized_message)));
 
     // header field
-    if (outputstream_write_string(server->output_stream, content_length_header) < strlen(content_length_header))
+    if (outputstream_write_string(server->output_stream, content_length_header) != strlen(content_length_header))
         goto cleanup;
 
     // transition between header fields and actual content
-    if (outputstream_write_string(server->output_stream, "\r\n") < 2)
+    if (outputstream_write_string(server->output_stream, "\r\n") != 2)
         goto cleanup;
 
     // content
-    if (outputstream_printf(server->output_stream, "%s\r\n", serialized_message) < strlen(serialized_message) + 2)
+    if (outputstream_printf(server->output_stream, "%s\r\n", serialized_message) != strlen(serialized_message) + 2)
         goto cleanup;
 
     success = true;
@@ -118,8 +119,8 @@ struct ostream_ready_ctx {
     event *send_message_ev;
 };
 
-static void jsonrpc_server_outputstream_ready_cb(event *ready_ev,
-                                                 void  *user_data)
+static void jsonrpc_server_outputstream_ready_cb(const event *ready_ev,
+                                                 void        *user_data)
 {
     struct ostream_ready_ctx *ctx = user_data;
 
@@ -150,20 +151,21 @@ static void jsonrpc_server_send_message_async(jsonrpc_server *server,
     event *send_message_ev = event_new(callback, user_data);
     eventloop_add(loop, send_message_ev);
 
-    struct ostream_ready_ctx *ctx = calloc(1, sizeof *ctx);
-    *ctx = (struct ostream_ready_ctx) {
+    struct ostream_ready_ctx *ctx = NULL;
+    box(struct ostream_ready_ctx, ctx) {
         server,
         json_node_ref(message),
         send_message_ev
     };
 
+    // TODO: handle outputstream backed by a buffer
     event *ostream_ready_ev =
         event_new_from_fd(outputstream_get_fd(server->output_stream), false,
                 jsonrpc_server_outputstream_ready_cb, ctx);
     eventloop_add(loop, ostream_ready_ev);
 }
 
-static bool jsonrpc_server_send_message_finish(event *ev, int *error)
+static bool jsonrpc_server_send_message_finish(const event *ev, int *error)
 {
     if (event_get_result(ev, NULL))
         return true;
@@ -195,7 +197,7 @@ void jsonrpc_server_reply_to_remote(jsonrpc_server *server,
 }
 
 static void
-jsonrpc_server_reply_sent_cb(event *reply_sent_ev, void *user_data)
+jsonrpc_server_reply_sent_cb(const event *reply_sent_ev, void *user_data)
 {
     event *replied_ev = user_data;
     int error = 0;
@@ -435,13 +437,163 @@ json_node *jsonrpc_server_call_remote(jsonrpc_server *server,
     return response_node;
 }
 
+static void jsonrpc_server_wait_stream_async(jsonrpc_server *server,
+                                             eventloop      *loop,
+                                             async_callback  callback,
+                                             void           *user_data)
+{
+    int fd = inputstream_get_fd(server->parser->scanner->stream);
+    if (fd == -1 || inputstream_ready(server->parser->scanner->stream)) {
+        event tmp = { .loop = loop };
+        event_return(&tmp, NULL);
+        callback(&tmp, user_data);
+    } else {
+        // wait for the file to become readable
+        event *ready_ev = event_new_from_fd(fd, true, callback, user_data);
+        eventloop_add(loop, ready_ev);
+    }
+}
+
+struct parse_content_length_ctx {
+    jsonrpc_server *server;
+    event *header_parsed_ev;
+    enum {
+        parse_content_length_state_skipping_first,
+        parse_content_length_state_reading_length,
+        parse_content_length_state_parse_newlines
+    } state;
+    unsigned i;
+    char numbuf[20];
+};
+
+static void jsonrpc_server_parse_content_length_cb(const event *ev,
+                                                   void        *user_data)
+{
+    struct parse_content_length_ctx *ctx = user_data;
+    const char header_begin[] = "Content-Length: ";
+
+    if (!event_get_result(ev, NULL)) {
+        // error - cleanup
+        goto cancel;
+    }
+
+    char read_character;
+    if (!inputstream_read_char(ctx->server->parser->scanner->stream,
+                               &read_character)) {
+        // failed to read
+        goto cancel;
+    } else {
+        switch (ctx->state) {
+        case parse_content_length_state_skipping_first:
+            if (ctx->i < sizeof(header_begin) - 1) {
+                if (read_character == header_begin[ctx->i])
+                    // read another char
+                    ++ctx->i;
+                else
+                    goto cancel;
+            } else if (isdigit(read_character)) {
+                // start of content length number
+                ctx->state = parse_content_length_state_reading_length;
+                ctx->i = 0;
+                ctx->numbuf[ctx->i] = read_character;
+                ++ctx->i;
+            } else {
+                // error
+                goto cancel;
+            }
+            break;
+
+        case parse_content_length_state_reading_length:
+            if (isdigit(read_character)) {
+                if (ctx->i == sizeof(ctx->numbuf) - 1) {
+                    fprintf(stderr, "%s: too-long content length of %s%c!\n",
+                            __func__, ctx->numbuf, read_character);
+                    goto cancel;
+                } else {
+                    // save char, read next
+                    ctx->numbuf[ctx->i] = read_character;
+                    ++ctx->i;
+                }
+            } else if (read_character == '\r') {
+                // start of header end
+                ctx->state = parse_content_length_state_parse_newlines;
+            } else {
+                // error
+                goto cancel;
+            }
+            break;
+
+        case parse_content_length_state_parse_newlines:
+            if (read_character == '\n') {
+                // success
+                size_t content_length = 0;
+                sscanf(ctx->numbuf, "%zu", &content_length);
+                event_return(ctx->header_parsed_ev, (void *)content_length);
+                free(ctx);
+                return;
+            } else {
+                // error
+                goto cancel;
+            }
+            break;
+        }
+
+        jsonrpc_server_wait_stream_async(ctx->server, ev->loop,
+                                         jsonrpc_server_parse_content_length_cb,
+                                         user_data);
+    }
+
+    return;
+
+cancel:
+    event_cancel_with_errno(ctx->header_parsed_ev, EPROTO);
+    free(ctx);
+}
+
+static size_t jsonrpc_server_parse_response_header_finish(const event *ev,
+                                                          int         *error)
+{
+    void *result = NULL;
+
+    if (!event_get_result(ev, &result)) {
+        if (error)
+            *error = event_get_errno(ev);
+        return 0;
+    }
+
+    return (uintptr_t)result;
+}
+
+static void jsonrpc_server_parse_response_header_async(jsonrpc_server *server,
+                                                       eventloop      *loop,
+                                                       async_callback  callback,
+                                                       void           *user_data)
+{
+    event *header_parsed_ev = event_new(callback, user_data);
+    eventloop_add(loop, header_parsed_ev);
+
+    struct parse_content_length_ctx *ctx;
+    box(struct parse_content_length_ctx, ctx) {
+        server,
+        header_parsed_ev,
+        .state = parse_content_length_state_skipping_first
+    };
+    json_scanner_reset(server->parser->scanner);
+
+    // 1. skip the response header beginning
+    // 2. parse the content length number
+    // 3. read that many bytes
+    jsonrpc_server_wait_stream_async(server, loop, jsonrpc_server_parse_content_length_cb, ctx);
+}
+
 struct parse_node_ctx {
     jsonrpc_server *server;
     json_node *response_id;
     event *response_handled_ev;
+    eventloop *loop;
 };
 
-static void jsonrpc_server_parse_response_node_cb(event *ev, void *user_data)
+static void jsonrpc_server_parse_response_node_cb(const event *ev, void *user_data)
 {
     struct parse_node_ctx *ctx = user_data;
     jsonrpc_server *server = ctx->server;
@@ -459,7 +611,10 @@ static void jsonrpc_server_parse_response_node_cb(event *ev, void *user_data)
                 return;
             }
 
-            // otherwise save the received node
+            // otherwise save the received node and listen for another response
+            ptr_list_append(server->received_responses, received_node);
+            json_parser_parse_node_async(server->parser, 
+                    ctx->loop, jsonrpc_server_parse_response_node_cb, ctx);
         } else if (jsonrpc_verify_is_request_object(received_node, NULL)) {
             ptr_list_append(server->received_requests, received_node);
         } else {
@@ -481,6 +636,48 @@ static bool jsonrpc_server_response_node_filter(void *item, void *user_data)
         && json_node_equal_to(json_object_get_member(node, "id"), response_id);
 }
 
+struct parse_response_header_ctx {
+    async_callback callback;
+    void *callback_data;
+    eventloop *loop;
+    jsonrpc_server *server;
+    json_node *response_id;
+};
+
+static void jsonrpc_server_parse_response_header_cb(const event *ev,
+                                                    void        *user_data)
+{
+    struct parse_response_header_ctx *ctx = user_data;
+    async_callback callback = ctx->callback;
+    void *callback_data = ctx->callback_data;
+    eventloop *loop = ctx->loop;
+    jsonrpc_server *server = ctx->server;
+    json_node *response_id = ctx->response_id;
+
+    event *response_handled_ev = event_new(callback, callback_data);
+    eventloop_add(loop, response_handled_ev);
+
+    size_t content_length = 0;
+    int error = 0;
+
+    if ((content_length = jsonrpc_server_parse_response_header_finish(ev, &error))) {
+        // schedule parsing the response node after success
+        struct parse_node_ctx *ctx;
+        box(struct parse_node_ctx, ctx) {
+            server,
+            response_id,
+            response_handled_ev,
+            loop
+        };
+        json_parser_parse_node_async(server->parser, loop, jsonrpc_server_parse_response_node_cb, ctx);
+    } else {
+        // failure
+        event_cancel_with_errno(response_handled_ev, error);
+    }
+
+    free(ctx);
+}
+
 static void jsonrpc_server_handle_response_async(jsonrpc_server *server,
                                                  json_node      *response_id,
                                                  eventloop      *loop,
@@ -497,21 +694,21 @@ static void jsonrpc_server_handle_response_async(jsonrpc_server *server,
         return;
     }
 
-    event *response_handled_ev = event_new(callback, user_data);
-    eventloop_add(loop, response_handled_ev);
-
-    struct parse_node_ctx *ctx = calloc(1, sizeof *ctx);
-    *ctx = (struct parse_node_ctx) {
+    struct parse_response_header_ctx *ctx;
+    box(struct parse_response_header_ctx, ctx) {
+        callback,
+        user_data,
+        loop,
         server,
-        response_id,
-        response_handled_ev
+        response_id
     };
 
-    json_parser_parse_node_async(server->parser, loop, jsonrpc_server_parse_response_node_cb, ctx);
+    // parse the header asynchronously, then parse the node
+    jsonrpc_server_parse_response_header_async(server, loop, jsonrpc_server_parse_response_header_cb, ctx);
 }
 
-static void jsonrpc_server_handle_response_cb(event *receive_ev,
-                                              void  *user_data)
+static void jsonrpc_server_handle_response_cb(const event *receive_ev,
+                                              void        *user_data)
 {
     event *handle_ev = user_data;
     void *response = NULL;
@@ -531,8 +728,8 @@ struct send_request_ctx {
     event *response_ev;
 };
 
-static void jsonrpc_server_send_request_cb(event *send_request_ev,
-                                           void  *user_data)
+static void jsonrpc_server_send_request_cb(const event *send_request_ev,
+                                           void        *user_data)
 {
     struct send_request_ctx *ctx = user_data;
     jsonrpc_server *server = ctx->server;
@@ -544,7 +741,8 @@ static void jsonrpc_server_send_request_cb(event *send_request_ev,
         event_cancel_with_errno(response_ev, event_get_errno(send_request_ev));
     } else {
         // success - now wait for a response
-        jsonrpc_server_handle_response_async(server, request_id, response_ev->loop, jsonrpc_server_handle_response_cb, response_ev);
+        jsonrpc_server_handle_response_async(server, request_id, response_ev->loop,
+                                             jsonrpc_server_handle_response_cb, response_ev);
     }
 
     json_node_unref(ctx->request_id);
@@ -564,16 +762,17 @@ void jsonrpc_server_call_remote_async(jsonrpc_server *server,
     event *response_ev = event_new(callback, user_data);
     eventloop_add(loop, response_ev);
 
-    struct send_request_ctx *ctx = calloc(1, sizeof *ctx);
-    *ctx = (struct send_request_ctx) {
+    struct send_request_ctx *ctx;
+    box(struct send_request_ctx, ctx) {
         server,
         json_node_ref(request_id),
         response_ev
     };
-    jsonrpc_server_send_message_async(server, request_object, loop, jsonrpc_server_send_request_cb, ctx);
+    jsonrpc_server_send_message_async(server, request_object, loop,
+                                      jsonrpc_server_send_request_cb, ctx);
 }
 
-json_node *jsonrpc_server_call_remote_finish(event *ev, int *error)
+json_node *jsonrpc_server_call_remote_finish(const event *ev, int *error)
 {
     void *result = NULL;
 
@@ -684,7 +883,7 @@ int jsonrpc_server_wait_for_incoming_messages(jsonrpc_server *server)
     return server->received_requests->length - num_received_requests;
 }
 
-static void jsonrpc_server_listen_parse_node_cb(event *parse_node_ev, void *user_data)
+static void jsonrpc_server_listen_parse_node_cb(const event *parse_node_ev, void *user_data)
 {
     jsonrpc_server *server = user_data;
     int error = 0;
