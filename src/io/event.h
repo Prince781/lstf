@@ -7,7 +7,7 @@
 #include <threads.h>
 
 typedef struct _event event;
-typedef void (*async_callback)(event *ev, void *data);
+typedef void (*async_callback)(const event *ev, void *data);
 typedef void (*background_proc)(event *ev);
 
 typedef struct _eventloop eventloop;
@@ -71,7 +71,7 @@ void event_return(event *ev, void *result);
  * Will return the error code, or 0 if this event did not fail with an error
  * code.
  */
-static inline int event_get_errno(event *ev)
+static inline int event_get_errno(const event *ev)
 {
     return atomic_load_explicit(&ev->io_errno, memory_order_acquire);
 }
@@ -90,12 +90,12 @@ static inline void event_cancel(event *ev)
 /**
  * Will return `false` if the event is canceled.
  */
-static inline bool event_is_canceled(event *ev)
+static inline bool event_is_canceled(const event *ev)
 {
     return atomic_load_explicit(&ev->is_canceled, memory_order_acquire);
 }
 
-static inline bool event_is_ready(event *ev)
+static inline bool event_is_ready(const event *ev)
 {
     return atomic_load_explicit(&ev->is_ready, memory_order_acquire);
 }
@@ -107,7 +107,7 @@ static inline bool event_is_ready(event *ev)
  * If `pointer_ref` is NULL, the meaning of `true` and `false` is whether the
  * event completed successfully without cancelation or error.
  */
-bool event_get_result(event *ev, void **pointer_ref);
+bool event_get_result(const event *ev, void **pointer_ref);
 
 struct _eventloop {
     event *pending_events;

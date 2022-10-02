@@ -501,6 +501,14 @@ static inline lstf_bc_instruction lstf_bc_instruction_print_new(void)
     };
 }
 
+static inline lstf_bc_instruction lstf_bc_instruction_getopt_new(void)
+{
+    return (lstf_bc_instruction) {
+        .opcode = lstf_vm_op_getopt,
+        { 0 }
+    };
+}
+
 static inline lstf_bc_instruction lstf_bc_instruction_exit_new(uint8_t exit_code)
 {
     return (lstf_bc_instruction) {
@@ -612,10 +620,14 @@ static inline size_t lstf_bc_instruction_compute_size(lstf_bc_instruction *instr
         return sizeof(uint8_t);
     case lstf_vm_op_print:
         return sizeof(uint8_t);
+    case lstf_vm_op_getopt:
+        return sizeof(uint8_t);
     case lstf_vm_op_exit:
         return sizeof(uint8_t) + sizeof(uint8_t);
     case lstf_vm_op_assert:
         return sizeof(uint8_t);
+    case lstf_vm_op_N:
+        break;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected VM opcode `%u'\n", __func__, instruction->opcode);
@@ -678,8 +690,12 @@ static inline void lstf_bc_instruction_clear(lstf_bc_instruction *instruction)
     case lstf_vm_op_rshift:
     case lstf_vm_op_not:
     case lstf_vm_op_print:
+    case lstf_vm_op_getopt:
     case lstf_vm_op_exit:
     case lstf_vm_op_assert:
         break;
+    case lstf_vm_op_N:
+        fprintf(stderr, "%s: unreachable code: unexpected VM opcode `%u'\n", __func__, instruction->opcode);
+        abort();
     }
 }

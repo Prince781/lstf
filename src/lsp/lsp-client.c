@@ -27,9 +27,9 @@ lsp_initializeparams_deserialize_property(lsp_initializeparams *self,
 }
 
 static json_serialization_status
-lsp_initializeparams_serialize_property(lsp_initializeparams *self,
-                                        const char           *property_name,
-                                        json_node           **property_node)
+lsp_initializeparams_serialize_property(const lsp_initializeparams *self,
+                                        const char                 *property_name,
+                                        json_node                 **property_node)
 {
     if (strcmp(property_name, "rootPath") == 0) {
         *property_node = json_string_new(self->root_path);
@@ -56,7 +56,7 @@ lsp_client *lsp_client_new(inputstream *istream, outputstream *ostream)
         abort();
     }
 
-    jsonrpc_server_init(&client->parent, istream, ostream);
+    jsonrpc_server_init(super(client), istream, ostream);
     array_init(&client->docs);
 
     return client;
@@ -64,65 +64,26 @@ lsp_client *lsp_client_new(inputstream *istream, outputstream *ostream)
 
 void lsp_client_destroy(lsp_client *client)
 {
-    jsonrpc_server_destroy((jsonrpc_server *)client);
     assert(client->docs.nofree);
     array_destroy(&client->docs);
     free(client->initialize_params.root_path);
+    client->initialize_params.root_path = NULL;
     free(client->initialize_params.client_info.name);
+    client->initialize_params.client_info.name = NULL;
     free(client->initialize_params.client_info.version);
-    memset(client, 0, sizeof *client);
-    free(client);
+    client->initialize_params.client_info.version = NULL;
+    jsonrpc_server_destroy((jsonrpc_server *)client);
 }
 
-struct initialize_server_ctx {
-    lsp_client *client;
-    event *server_reply_ev;
-};
-
-static void lsp_client_initialize_server_cb(event *ev, void *user_data)
+static void lsp_client_initialize_jsonrpc_call_remote_cb(const event *ev, void *user_data)
 {
-    struct initialize_server_ctx *ctx = user_data;
-    event *server_reply_ev = ctx->server_reply_ev;
+    event *initialize_server_ev = user_data;
     void *result = NULL;
 
     if (event_get_result(ev, &result)) {
-        // propagate the result
-        event_return(server_reply_ev, result);
+        event_return(initialize_server_ev, result);
     } else {
-        event_cancel_with_errno(server_reply_ev, event_get_errno(ev));
-    }
-    free(ctx);
-}
-
-static void lsp_client_outputstream_ready_cb(event *ready_ev, void *user_data)
-{
-    struct initialize_server_ctx *ctx = user_data;
-    lsp_client *client = ctx->client;
-    event *server_reply_ev = ctx->server_reply_ev;
-
-    if (!event_get_result(ready_ev, NULL)) {
-        fprintf(stderr, "error: output stream cannot be written to");
-        int errcode = event_get_errno(ready_ev);
-        if (errcode != 0)
-            fprintf(stderr, ": %s", strerror(errcode));
-        fprintf(stderr, "\n");
-        event_cancel_with_errno(server_reply_ev, errcode);
-        free(ctx);
-        return;
-    }
-
-    // the stream is ready for writing, so now we write some data and create an
-    // event waiting for a response
-
-    // serialize the initialize params
-    json_node *node = NULL;
-    json_serialization_status status = json_serialize(lsp_initializeparams, &ctx->client->initialize_params, &node);
-    if (status != json_serialization_status_continue) {
-        event_cancel_with_errno(server_reply_ev, errno);
-        free(ctx);
-    } else {
-        // write an initialize request to the remote
-        jsonrpc_server_call_remote_async(&client->parent, "initialize", node, ready_ev->loop, lsp_client_initialize_server_cb, ctx);
+        event_cancel_with_errno(initialize_server_ev, event_get_errno(ev));
     }
 }
 
@@ -135,8 +96,6 @@ void lsp_client_initialize_server_async(lsp_client    *client,
     if (client->initialize_params.process_id != 0)
         return;     // already initialized
 
-    jsonrpc_server *rpc_server = (jsonrpc_server *)client;
-
     client->initialize_params = (lsp_initializeparams) {
         .root_path = strdup(project_root),
         .process_id = io_getpid(),
@@ -146,31 +105,23 @@ void lsp_client_initialize_server_async(lsp_client    *client,
         }
     };
 
-    // wait for the outputstream to become ready for writing
-    event *server_reply_ev = event_new(callback, callback_data);
-    eventloop_add(loop, server_reply_ev);
+    json_node *parameters = NULL;
+    json_serialization_status status =
+        json_serialize(lsp_initializeparams, &client->initialize_params, &parameters);
+    assert(status == json_serialization_status_continue && "failed to serialize initialize parameters");
 
-    struct initialize_server_ctx *ctx = calloc(1, sizeof *ctx);
-    *ctx = (struct initialize_server_ctx) {
-        client,
-        server_reply_ev
-    };
+    event *initialize_server_ev = event_new(callback, callback_data);
+    eventloop_add(loop, initialize_server_ev);
 
-    event *ostream_ready_ev = NULL;
-    switch (rpc_server->output_stream->stream_type) {
-    case outputstream_type_file:
-        ostream_ready_ev =
-            event_new_from_fd(outputstream_get_fd(rpc_server->output_stream),
-                    false, lsp_client_outputstream_ready_cb, ctx);
-        break;
-    case outputstream_type_buffer:
-        ostream_ready_ev = event_new(lsp_client_outputstream_ready_cb, ctx);
-        break;
-    }
-    eventloop_add(loop, ostream_ready_ev);
+    jsonrpc_server_call_remote_async(super(client),
+                                     "initialize",
+                                     parameters,
+                                     loop,
+                                     lsp_client_initialize_jsonrpc_call_remote_cb,
+                                     initialize_server_ev);
 }
 
-json_node *lsp_client_initialize_server_finish(event *ev, int *error)
+json_node *lsp_client_initialize_server_finish(const event *ev, int *error)
 {
     void *result = NULL;
 
@@ -183,4 +134,25 @@ json_node *lsp_client_initialize_server_finish(event *ev, int *error)
     }
 
     return result;
+}
+
+void lsp_client_text_document_open_async(lsp_client       *client,
+                                         lsp_textdocument *text_document,
+                                         eventloop        *loop,
+                                         async_callback    callback,
+                                         void             *callback_data)
+{
+    assert(lsp_client_is_initialized(client) && "invoking textDocument/didOpen with uninitialized server!");
+
+    json_node *parameters = NULL;
+    json_serialization_status status =
+        json_serialize(lsp_textdocument, text_document, &parameters);
+    assert(status == json_serialization_status_continue && "failed to serialize text document");
+
+    jsonrpc_server_call_remote_async(super(client),
+                                     "textDocument/didOpen",
+                                     parameters,
+                                     loop,
+                                     callback,
+                                     callback_data);
 }

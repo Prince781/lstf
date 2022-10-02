@@ -4,12 +4,14 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "event.h"
 
 typedef struct _outputstream outputstream;
 
 enum _inputstream_type {
     inputstream_type_file,
-    inputstream_type_buffer
+    inputstream_type_buffer,
+    inputstream_type_fd
 };
 typedef enum _inputstream_type inputstream_type;
 
@@ -19,17 +21,24 @@ struct _inputstream {
     bool floating : 1;
     bool close_or_free_on_destruction : 1;
     union {
-        struct {
+        struct {        // inputstream_type_file
             FILE *file;
             long last_read_pos;
         };
-        struct {
+        struct {        // inputstream_type_buffer
             union {
                 uint8_t *buffer;
                 const uint8_t *static_buffer;
             };
             size_t buffer_offset;
             size_t buffer_size;
+        };
+        struct {        // inputstream_type_fd
+            int fd;
+            uint8_t *fdbuffer;
+            size_t fdbuffer_size;               // amount of data in buffer
+            size_t fdbuffer_offset;
+            size_t fdbuffer_capacity;           // max size of buffer
         };
     };
 };
@@ -55,14 +64,16 @@ inputstream *inputstream_new_from_static_buffer(const void *buffer, size_t buffe
 inputstream *inputstream_new_from_static_string(const char *str);
 
 /**
- * Creates a new input stream from a producer.
+ * Creates a new input stream from a file descriptor.
  */
-inputstream *inputstream_new_from_outputstream(outputstream *ostream);
+inputstream *inputstream_new_from_fd(int fd, bool close_on_destroy);
 
 /**
  * Reads a character and advances the underlying stream pointer.
+ *
+ * @return whether the operation succeded
  */
-int inputstream_read_char(inputstream *stream);
+bool inputstream_read_char(inputstream *stream, char *c);
 
 /**
  * Unreads a character. Returns `true` on success, `false` on error.
@@ -88,15 +99,15 @@ bool inputstream_read_uint64(inputstream *stream, uint64_t *integer);
 size_t inputstream_read(inputstream *stream, void *buffer, size_t buffer_size);
 
 /**
+ * Determines whether this has at least 1 byte that can be read synchronously.
+ */
+bool inputstream_ready(inputstream *stream);
+
+/**
  * Advances the stream by `bytes` bytes. Returns `true` if the operation was
  * successful, `false` otherwise.
  */
 bool inputstream_skip(inputstream *stream, size_t bytes);
-
-/**
- * Checks if the stream is NOT empty.
- */
-bool inputstream_has_data(inputstream *stream);
 
 char *inputstream_get_name(inputstream *stream);
 

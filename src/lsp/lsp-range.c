@@ -18,9 +18,9 @@ static json_serialization_status lsp_range_deserialize_property(lsp_range  *self
     return json_serialization_status_continue;
 }
 
-static json_serialization_status lsp_range_serialize_property(lsp_range  *self,
-                                                              const char *property_name,
-                                                              json_node **property_node)
+static json_serialization_status lsp_range_serialize_property(const lsp_range  *self,
+                                                              const char       *property_name,
+                                                              json_node       **property_node)
 {
     if (strcmp(property_name, "start") == 0)
         return json_serialize(lsp_position, &self->start, property_node);

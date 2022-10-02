@@ -7,6 +7,11 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 inputstream *inputstream_ref(inputstream *stream)
 {
@@ -27,15 +32,19 @@ inputstream *inputstream_ref(inputstream *stream)
 
 static void inputstream_free(inputstream *stream)
 {
-    switch (stream->stream_type) {
-    case inputstream_type_file:
-        if (stream->close_or_free_on_destruction)
+    if (stream->close_or_free_on_destruction) {
+        switch (stream->stream_type) {
+        case inputstream_type_file:
             fclose(stream->file);
-        break;
-    case inputstream_type_buffer:
-        if (stream->close_or_free_on_destruction)
+            break;
+        case inputstream_type_buffer:
             free(stream->buffer);
-        break;
+            break;
+        case inputstream_type_fd:
+            close(stream->fd);
+            free(stream->fdbuffer);
+            break;
+        }
     }
 
     free(stream);
@@ -131,18 +140,48 @@ inputstream *inputstream_new_from_static_string(const char *str)
     return inputstream_new_from_static_buffer(str, strlen(str));
 }
 
-int inputstream_read_char(inputstream *stream)
+inputstream *inputstream_new_from_fd(int fd, bool close_on_destroy)
 {
-    char read_char = EOF;
+    // note: we can't use fdopen() with inputstream_new_from_file() because we
+    // can't close the FILE without also closing the file descriptor
+    inputstream *stream = calloc(1, sizeof *stream);
+
+    if (!stream)
+        return NULL;
+
+    size_t fdbuffer_capacity = 1024;
+    uint8_t *fdbuffer = malloc(fdbuffer_capacity);
+    if (!fdbuffer) {
+        free(stream);
+        return NULL;
+    }
+
+    stream->stream_type = inputstream_type_fd;
+    stream->floating = true;
+    stream->fd = fd;
+    stream->fdbuffer = fdbuffer;
+    stream->fdbuffer_capacity = fdbuffer_capacity;
+    stream->close_or_free_on_destruction = close_on_destroy;
+
+    return stream;
+}
+
+bool inputstream_read_char(inputstream *stream, char *c)
+{
+    int read_char = EOF;
     switch (stream->stream_type) {
     case inputstream_type_file:
-        read_char = fgetc(stream->file);
-        return read_char;
+        if ((read_char = fgetc(stream->file)) == EOF)
+            return false;
+        *c = read_char;
+        return true;
     case inputstream_type_buffer:
-        if (stream->buffer_offset >= stream->buffer_size) {
-            return EOF;
-        }
-        return stream->buffer[stream->buffer_offset++];
+        if (stream->buffer_offset >= stream->buffer_size)
+            return false;
+        *c = stream->buffer[stream->buffer_offset++];
+        return true;
+    case inputstream_type_fd:
+        return inputstream_read(stream, c, sizeof *c) == 1;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -165,6 +204,13 @@ bool inputstream_unread_char(inputstream *stream, char c)
         }
         stream->buffer_offset--;
         return true;
+    case inputstream_type_fd:
+        if (stream->fdbuffer_offset == 0) {
+            errno = EINVAL;
+            return false;
+        }
+        stream->fdbuffer_offset--;
+        return true;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -176,9 +222,10 @@ bool inputstream_read_uint32(inputstream *stream, uint32_t *integer)
     uint32_t value = 0;
 
     for (unsigned i = 0; i < sizeof value; i++) {
-        if (!inputstream_has_data(stream))
+        char c;
+        if (!inputstream_read_char(stream, &c))
             return false;
-        uint8_t byte = inputstream_read_char(stream);
+        uint8_t byte = c;
         value |= ((uint32_t)byte) << (sizeof(value) - 1 - i) * CHAR_BIT;
     }
 
@@ -191,9 +238,10 @@ bool inputstream_read_uint64(inputstream *stream, uint64_t *integer)
     uint64_t value = 0;
 
     for (unsigned i = 0; i < sizeof value; i++) {
-        if (!inputstream_has_data(stream))
+        char c;
+        if (!inputstream_read_char(stream, &c))
             return false;
-        uint8_t byte = inputstream_read_char(stream);
+        uint8_t byte = c;
         value |= ((uint64_t)byte) << (sizeof(value) - 1 - i) * CHAR_BIT;
     }
 
@@ -217,6 +265,37 @@ size_t inputstream_read(inputstream *stream, void *buffer, size_t buffer_size)
         stream->buffer_offset += amt_read;
         return amt_read;
     }
+    case inputstream_type_fd:
+    {
+        if (stream->fdbuffer_offset >= stream->fdbuffer_size) {
+            // we have to refill the buffer
+            int amt = read(stream->fd, stream->fdbuffer, stream->fdbuffer_capacity);
+            if (amt == -1)      // error
+                return 0;
+            stream->fdbuffer_offset = 0;
+            stream->fdbuffer_size = amt;
+        }
+        size_t remaining_amt = stream->fdbuffer_size - stream->fdbuffer_offset;
+        size_t amt_read = buffer_size < remaining_amt ? buffer_size : remaining_amt;
+        memcpy(buffer, &stream->fdbuffer[stream->fdbuffer_offset], amt_read);
+        stream->fdbuffer_offset += amt_read;
+        return amt_read;
+    }
+    }
+
+    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
+    abort();
+}
+
+bool inputstream_ready(inputstream *stream)
+{
+    switch (stream->stream_type) {
+    case inputstream_type_file:
+        return false /* TODO */;
+    case inputstream_type_buffer:
+        return stream->buffer_offset < stream->buffer_size;
+    case inputstream_type_fd:
+        return stream->fdbuffer_offset < stream->fdbuffer_size;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -233,40 +312,25 @@ bool inputstream_skip(inputstream *stream, size_t bytes)
     }
     case inputstream_type_buffer:
         if (stream->buffer_size - stream->buffer_offset < bytes) {
-            errno = ESPIPE;
+            errno = ENOMEM;
             return false;
         } else {
             stream->buffer_offset += bytes;
         }
         return true;
-    }
-
-    fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
-    abort();
-}
-
-bool inputstream_has_data(inputstream *stream)
-{
-    switch (stream->stream_type) {
-    case inputstream_type_file:
-    {
-        if (feof(stream->file)) {
-            return false;
+    case inputstream_type_fd:
+        if (stream->fdbuffer_size - stream->fdbuffer_offset < bytes) {
+            // first, set offset to end of buffer
+            size_t seek_amt = bytes - (stream->fdbuffer_size - stream->fdbuffer_offset);
+            stream->fdbuffer_offset = stream->fdbuffer_size;
+            // now, seek the remaining amount
+            if (lseek(stream->fd, (off_t)seek_amt, SEEK_CUR) == -1)
+                return false;
+            return true;
+        } else {
+            stream->fdbuffer_offset += bytes;
         }
-        
-        // it's possible we could have not performed a first read, in which
-        // case we must do that to determine whether there is data available.
-        // NOTE: ungetc() will be undone by fseek(), so we can only perform this
-        // test if there is no underlying outputstream.
-        int byte = 0;
-        if ((byte = fgetc(stream->file)) == EOF)
-            return false;
-        // otherwise, unget character
-        ungetc(byte, stream->file);
         return true;
-    }
-    case inputstream_type_buffer:
-        return stream->buffer_offset < stream->buffer_size;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -282,6 +346,8 @@ char *inputstream_get_name(inputstream *stream)
     case inputstream_type_buffer:
         return string_destroy(string_appendf(string_new(), 
                     "<inputstream: buffer @ 0x%p>", (void *)stream->buffer)); 
+    case inputstream_type_fd:
+        return io_get_filename_from_fd(stream->fd);
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -295,6 +361,8 @@ int inputstream_get_fd(inputstream *stream)
         return fileno(stream->file);
     case inputstream_type_buffer:
         return -1;
+    case inputstream_type_fd:
+        return stream->fd;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);

@@ -73,7 +73,7 @@ void event_return(event *ev, void *result)
         eventloop_signal(ev->loop);
 }
 
-bool event_get_result(event *ev, void **pointer_ref)
+bool event_get_result(const event *ev, void **pointer_ref)
 {
     if (event_is_canceled(ev) || event_get_errno(ev) != 0)
         return false;
@@ -485,10 +485,9 @@ bool eventloop_process(eventloop *loop, bool force_nonblocking)
         ready_events = ready_events->next;
         ev->next = NULL;
 
-        // this is the last time the main loop knows about this task
-        // it's the responsibility of the callback to free it
         ev->callback(ev, ev->callback_data);
 
+        free(ev);
         // fprintf(stderr, "[DEBUG] processed and removed an event\n");
     }
 
@@ -508,6 +507,7 @@ void eventloop_destroy(eventloop *loop)
     loop->is_running = false;
     while (loop->pending_events) {
         event *ev = loop->pending_events;
+        event_cancel(ev);
         eventloop_remove(loop, loop->pending_events, NULL);
         free(ev);
     }

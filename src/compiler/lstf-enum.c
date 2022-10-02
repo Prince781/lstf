@@ -25,6 +25,8 @@ static void lstf_enum_accept_children(lstf_codenode *node, lstf_codevisitor *vis
 
 static void lstf_enum_destruct(lstf_codenode *node)
 {
+    lstf_enum *enum_symbol = (lstf_enum *)node;
+    lstf_codenode_unref(enum_symbol->members_type);
     lstf_typesymbol_destruct(node);
 }
 
@@ -34,9 +36,9 @@ static const lstf_codenode_vtable enum_vtable = {
     lstf_enum_destruct
 };
 
-lstf_symbol *lstf_enum_new(const lstf_sourceref *source_reference,
-                           const char           *name,
-                           bool                  is_builtin)
+lstf_enum *lstf_enum_new(const lstf_sourceref *source_reference,
+                         const char           *name,
+                         bool                  is_builtin)
 {
     lstf_enum *enum_symbol = calloc(1, sizeof *enum_symbol);
 
@@ -52,7 +54,7 @@ lstf_symbol *lstf_enum_new(const lstf_sourceref *source_reference,
             strdup(name),
             is_builtin);
 
-    return (lstf_symbol *)enum_symbol;
+    return enum_symbol;
 }
 
 void lstf_enum_add_member(lstf_enum *self, lstf_constant *member)

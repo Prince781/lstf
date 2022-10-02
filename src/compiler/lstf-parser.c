@@ -1518,7 +1518,7 @@ lstf_parser_parse_enum_declaration(lstf_parser *parser, lstf_parsererror **error
     }
 
     lstf_enum *enum_symbol =
-        (lstf_enum *) lstf_enum_new(&(lstf_sourceref) {
+        lstf_enum_new(&(lstf_sourceref) {
                     parser->file,
                     begin,
                     end
@@ -1989,7 +1989,7 @@ lstf_parser_parse_function_declaration(lstf_parser *parser, bool in_class_declar
                 parser->file,
                 begin,
                 end,
-            }, function_name, return_type, in_class_declaration, is_async);
+            }, function_name, return_type, in_class_declaration, is_async, false);
 
     for (iterator params_it = ptr_list_iterator_create(parameters);
             params_it.has_next; params_it = iterator_next(params_it))
@@ -2614,7 +2614,7 @@ lstf_parser_parse_main_block(lstf_parser *parser)
 {
     lstf_block_clear_statements(parser->file->main_function->block);
 
-    lstf_parser_create_builtins(parser);
+    lstf_file_create_builtins(parser->file);
 
     lstf_sourceloc begin = lstf_scanner_get_location(parser->scanner);
     ptr_list *statements = lstf_parser_parse_statement_list(parser, true);

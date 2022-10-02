@@ -51,7 +51,7 @@ else
       '-Wmissing-include-dirs',
       '-Wmissing-declarations',
       '-Wno-free-nonheap-object',
-      '-Wshadow',
+      '-Wshadow=compatible-local',
       '-Wstrict-overflow',
       '-Wstringop-overflow',
       '-Wsuggest-attribute=malloc',

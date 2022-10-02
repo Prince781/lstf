@@ -27,7 +27,7 @@ json_serializable_decl_as_object(lsp_initializeparams, {
 });
 
 struct _lsp_client {
-    jsonrpc_server parent;
+    jsonrpc_server parent_struct;
 
     lsp_initializeparams initialize_params;
 
@@ -42,6 +42,11 @@ typedef struct _lsp_client lsp_client;
 lsp_client *lsp_client_new(inputstream *istream, outputstream *ostream);
 
 void lsp_client_destroy(lsp_client *server);
+
+static inline bool lsp_client_is_initialized(const lsp_client *client)
+{
+    return client->initialize_params.process_id != 0;
+}
 
 /**
  * Sends the `initialize` request to the server and waits for a response.
@@ -60,4 +65,19 @@ void lsp_client_initialize_server_async(lsp_client    *client,
  *
  * @see lsp_client_initialize_server_async()
  */
-json_node *lsp_client_initialize_server_finish(event *ev, int *error);
+json_node *lsp_client_initialize_server_finish(const event *ev, int *error);
+
+/**
+ * Invokes the `textDocument/didOpen` notification on the server.
+ */
+void lsp_client_text_document_open_async(lsp_client       *client,
+                                         lsp_textdocument *text_document,
+                                         eventloop        *loop,
+                                         async_callback    callback,
+                                         void             *callback_data);
+
+/**
+ * Completes the `textDocument/didOpen` notification. If there was an error,
+ * `*error` will contain the appropriate value.
+ */
+void lsp_client_text_document_open_finish(event *ev, int *error);

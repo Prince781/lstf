@@ -455,12 +455,6 @@ lstf_codegenerator_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *
     lstf_scope *current_scope = lstf_codenode_get_containing_scope(lstf_codenode_cast(assign));
 
     if (assign->lhs->expr_type == lstf_expression_type_memberaccess) {
-        if (assign->lhs->symbol_reference->is_builtin) {
-            // TODO: handle assignment to built-in variable
-            lstf_report_warning(&lstf_codenode_cast(assign)->source_reference, "codegen: TODO");
-            return;
-        }
-
         // we are writing to an object or a variable
         lstf_memberaccess *maccess = (lstf_memberaccess *)assign->lhs;
 
@@ -471,22 +465,79 @@ lstf_codegenerator_visit_assignment(lstf_codevisitor *visitor, lstf_assignment *
             lstf_ir_basicblock *block = lstf_codegenerator_get_current_basicblock_for_scope(generator, current_scope);
             lstf_ir_instruction *rhs_temp = lstf_codegenerator_get_temp_for_expression(generator, assign->rhs);
 
-            // associate our new temporary (rhs_temp) with the symbol on the LHS
-            lstf_codegenerator_set_temp_for_symbol(generator,
-                    current_scope,
-                    assign->lhs->symbol_reference,
-                    rhs_temp);
-            int capture_id;
-            if ((capture_id = lstf_memberaccess_get_capture_id(maccess)) != -1) {
-                // generate a store to the up-value
+            if (assign->lhs->symbol_reference->is_builtin) {
+                // assignment to a built-in variable
+                // TODO: make these variables write-only
+                const char *builtin_name = assign->lhs->symbol_reference->name;
+                lstf_variable *builtin_var = lstf_variable_cast(assign->lhs->symbol_reference);
+                lstf_ir_function *builtin_fn = NULL;
+
+                if (strcmp(builtin_name, "server_path") == 0) {
+                    // this is the location of the binary for the language server.
+                    // assigning to this variable spawns the process and connects
+                    // to it
+                    builtin_fn =
+                        lstf_codegenerator_get_ir_function_from_codenode(generator,
+                                super(assign->lhs->symbol_reference));
+                    if (!builtin_fn) {
+                        builtin_fn =
+                            lstf_ir_function_new_for_instruction("lsp.connect", 
+                                    1, false, true,
+                                    lstf_vm_op_vmcall, lstf_vm_vmcall_connect);
+                        lstf_codegenerator_set_ir_function_from_codenode(
+                                generator,
+                                super(assign->lhs->symbol_reference),
+                                builtin_fn);
+                    }
+                } else if (strcmp(builtin_name, "project_files") == 0) {
+                    // assigning to this variable calls "textDocument/didOpen" for each
+                    // URI in the array on the RHS
+                    builtin_fn =
+                        lstf_codegenerator_get_ir_function_from_codenode(generator,
+                                super(assign->lhs->symbol_reference));
+                    if (!builtin_fn) {
+                        builtin_fn =
+                            lstf_ir_function_new_for_instruction("lsp.textDocument.didOpen",
+                                    1, false, true,
+                                    lstf_vm_op_vmcall, lstf_vm_vmcall_td_open);
+                        lstf_codegenerator_set_ir_function_from_codenode(
+                                generator,
+                                super(assign->lhs->symbol_reference),
+                                builtin_fn);
+                    }
+                } else {
+                    lstf_report_error(&lstf_codenode_cast(builtin_var)->source_reference,
+                            "assignment to built-in variable `%s' unsupported", builtin_name);
+                    generator->num_errors++;
+                    return;
+                }
+
+                // call the built-in function in place of the assignment
                 lstf_ir_basicblock_add_instruction(block,
-                        lstf_ir_setupvalueinstruction_new(lstf_codenode_cast(assign), capture_id, rhs_temp));
+                        lstf_ir_callinstruction_new(lstf_codenode_cast(builtin_var),
+                            builtin_fn,
+                            ptr_list_new_with_data((collection_item_ref_func) lstf_ir_node_ref,
+                                                   (collection_item_unref_func) lstf_ir_node_unref,
+                                                   rhs_temp, NULL)));
             } else {
-                // generate a store instruction
-                lstf_ir_basicblock_add_instruction(block,
-                        lstf_ir_storeinstruction_new(lstf_codenode_cast(assign),
-                            rhs_temp,
-                            lstf_codegenerator_get_alloc_for_local(generator, assign->lhs->symbol_reference)));
+                // associate our new temporary (rhs_temp) with the symbol on the LHS
+                lstf_codegenerator_set_temp_for_symbol(generator,
+                        current_scope,
+                        assign->lhs->symbol_reference,
+                        rhs_temp);
+
+                int capture_id;
+                if ((capture_id = lstf_memberaccess_get_capture_id(maccess)) != -1) {
+                    // generate a store to the up-value
+                    lstf_ir_basicblock_add_instruction(block,
+                            lstf_ir_setupvalueinstruction_new(lstf_codenode_cast(assign), capture_id, rhs_temp));
+                } else {
+                    // generate a store instruction
+                    lstf_ir_basicblock_add_instruction(block,
+                            lstf_ir_storeinstruction_new(lstf_codenode_cast(assign),
+                                rhs_temp,
+                                lstf_codegenerator_get_alloc_for_local(generator, assign->lhs->symbol_reference)));
+                }
             }
         } else {
             // we are writing to an object property
@@ -1004,12 +1055,20 @@ lstf_codegenerator_visit_function(lstf_codevisitor *visitor, lstf_function *func
     lstf_ir_function *fn = NULL;
 
     if (lstf_symbol_cast(function)->is_builtin) {
-        fn = lstf_ir_function_new_for_instruction(lstf_symbol_cast(function)->name,
-                function->parameters->length,
-                function->return_type->datatype_type != lstf_datatype_type_voidtype,
-                !(function->vm_opcode == lstf_vm_op_exit),
-                function->vm_opcode,
-                function->vm_callcode);
+        if (lstf_vm_opcode_can_cast(function->vm_opcode)) {
+            fn = lstf_ir_function_new_for_instruction(lstf_symbol_cast(function)->name,
+                    function->parameters->length,
+                    function->return_type->datatype_type != lstf_datatype_type_voidtype,
+                    !(function->vm_opcode == lstf_vm_op_exit),
+                    function->vm_opcode,
+                    function->vm_callcode);
+        } else {
+            // TODO: generate IR function for built-in function
+            lstf_report_error(&lstf_codenode_cast(function)->source_reference, "codegen: TODO for built-in function `%s'",
+                              lstf_symbol_cast(function)->name);
+            generator->num_errors++;
+            return;
+        }
     } else {
         fn = lstf_ir_function_new_for_userfn(lstf_symbol_cast(function)->name,
                 function->parameters->length,
@@ -1233,6 +1292,16 @@ lstf_codegenerator_visit_member_access(lstf_codevisitor *visitor, lstf_memberacc
                 lstf_ir_basicblock_add_instruction(block, loadfn_inst);
                 lstf_codegenerator_set_temp_for_expression(generator, expr, loadfn_inst);
             }
+        } else if (expr->symbol_reference->symbol_type == lstf_symbol_type_constant) {
+            // load a defined constant, like an enum value, as an immediate value
+            json_node *constant_json = lstf_expression_to_json(lstf_constant_cast(expr->symbol_reference)->expression);
+
+            assert(constant_json && "lstf_constant should be convertible to a JSON expression");
+
+            lstf_ir_instruction *const_inst = lstf_ir_constantinstruction_new(lstf_codenode_cast(expr), constant_json);
+
+            lstf_ir_basicblock_add_instruction(block, const_inst);
+            lstf_codegenerator_set_temp_for_expression(generator, expr, const_inst);
         } else {
             lstf_ir_instruction *t_container = lstf_codegenerator_get_temp_for_expression(generator, access->inner);
             lstf_ir_instruction *t_member =

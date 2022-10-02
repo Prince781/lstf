@@ -58,8 +58,16 @@ void json_scanner_next_async(json_scanner  *scanner,
                              async_callback callback,
                              void          *user_data);
 
-json_token json_scanner_next_finish(event *ev, int *error);
+json_token json_scanner_next_finish(const event *ev, int *error);
 
-const char *json_scanner_get_message(json_scanner *scanner);
+/**
+ * Resets the source locations
+ */
+static inline void json_scanner_reset(json_scanner *scanner) {
+    scanner->source_location = (json_sourceloc){ 0 };
+    scanner->prev_char_source_location = (json_sourceloc){ 0 };
+    scanner->last_token = json_token_eof;
+    scanner->last_token_begin = (json_sourceloc){ 0 };
+}
 
 void json_scanner_destroy(json_scanner *scanner);

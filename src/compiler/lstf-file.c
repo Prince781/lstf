@@ -76,7 +76,7 @@ lstf_file *lstf_file_load(const char *filename)
                     (lstf_sourceloc){ 1, 1, file->content },
                     (lstf_sourceloc){ 1, 1, file->content }
                 }),
-                false, false));
+                false, false, false));
 
     file->floating = true;
 

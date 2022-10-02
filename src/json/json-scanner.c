@@ -19,7 +19,7 @@ const char *json_token_to_string(json_token token)
     case json_token_eof:
         return "EOF";
     case json_token_error:
-        return NULL;
+        return "";
     case json_token_openbrace:
         return "open brace";
     case json_token_closebrace:
@@ -128,7 +128,9 @@ static int xvalue(int digit_character)
 
 static int json_scanner_getc(json_scanner *scanner)
 {
-    int read_character = inputstream_read_char(scanner->stream);
+    char read_character;
+    if (!inputstream_read_char(scanner->stream, &read_character))
+        return EOF;
 
     scanner->prev_char_source_location = scanner->source_location;
     if (read_character == '\n' || read_character == '\r') {
@@ -167,7 +169,8 @@ json_scanner_report_message(json_scanner *scanner, json_sourceloc source_locatio
 
 json_token json_scanner_next(json_scanner *scanner)
 {
-    if (!inputstream_has_data(scanner->stream))
+    int current_char = json_scanner_getc(scanner);
+    if (current_char == EOF)
         return scanner->last_token = json_token_eof;
 
     if (scanner->message) {
@@ -179,7 +182,6 @@ json_token json_scanner_next(json_scanner *scanner)
     if (scanner->last_token_buffer)
         scanner->last_token_buffer[scanner->last_token_length] = '\0';
 
-    int current_char = json_scanner_getc(scanner);
     while (isspace(current_char))
         current_char = json_scanner_getc(scanner);
 
@@ -380,9 +382,9 @@ static void json_scanner_stream_wait_async(json_scanner  *scanner,
 {
     int fd = inputstream_get_fd(scanner->stream);
 
-    if (fd == -1) {
+    if (fd == -1 || inputstream_ready(scanner->stream)) {
         // invoke the callback immediately
-        event tmp_ev = { 0 };
+        event tmp_ev = { .loop = loop };
         event_return(&tmp_ev, NULL);
         callback(&tmp_ev, user_data);
     } else {
@@ -395,7 +397,7 @@ struct token_read_ctx {
     event *token_read_ev;
     enum {
         token_read_state_skip_spaces,
-        token_read_state_nonspace_begin,
+        token_read_state_begin,
 
         token_read_state_number,
         token_read_state_fraction,
@@ -422,7 +424,7 @@ struct token_read_ctx {
     bool is_init_state;
 };
 
-static void json_scanner_stream_ready_cb(event *ev, void *user_data)
+static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
 {
     struct token_read_ctx *ctx = user_data;
     json_scanner *scanner = ctx->scanner;
@@ -443,7 +445,7 @@ static void json_scanner_stream_ready_cb(event *ev, void *user_data)
 
             if (ctx->state == token_read_state_skip_spaces && !isspace(read_character)) {
                 // immediately transition to the next state to handle this non-space character
-                ctx->state = token_read_state_nonspace_begin;
+                ctx->state = token_read_state_begin;
             }
 
             switch (ctx->state) {
@@ -454,7 +456,7 @@ static void json_scanner_stream_ready_cb(event *ev, void *user_data)
                 json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                 break;
 
-            case token_read_state_nonspace_begin:
+            case token_read_state_begin:
             {
                 scanner->last_token_begin = scanner->source_location;
 
@@ -553,6 +555,13 @@ static void json_scanner_stream_ready_cb(event *ev, void *user_data)
 
                 case EOF:
                     event_return(token_read_ev, (void *)(scanner->last_token = json_token_eof));
+                    free(ctx);
+                    break;
+
+                default:
+                    json_scanner_report_message(scanner, scanner->source_location,
+                            "unexpected character `%c' at token begin", read_character);
+                    event_cancel_with_errno(token_read_ev, EPROTO);
                     free(ctx);
                     break;
                 }
@@ -789,8 +798,8 @@ void json_scanner_next_async(json_scanner  *scanner,
     event *token_read_ev = event_new(callback, user_data);
     eventloop_add(loop, token_read_ev);
 
-    struct token_read_ctx *ctx = calloc(1, sizeof *ctx);
-    *ctx = (struct token_read_ctx) {
+    struct token_read_ctx *ctx;
+    box(struct token_read_ctx, ctx) {
         scanner,
         token_read_ev,
         token_read_state_skip_spaces,
@@ -800,7 +809,7 @@ void json_scanner_next_async(json_scanner  *scanner,
     json_scanner_stream_wait_async(scanner, loop, json_scanner_stream_ready_cb, ctx);
 }
 
-json_token json_scanner_next_finish(event *ev, int *error)
+json_token json_scanner_next_finish(const event *ev, int *error)
 {
     void *result = NULL;
 
@@ -811,11 +820,6 @@ json_token json_scanner_next_finish(event *ev, int *error)
     }
 
     return (json_token)(intptr_t)result;
-}
-
-const char *json_scanner_get_message(json_scanner *scanner)
-{
-    return scanner->message;
 }
 
 void json_scanner_destroy(json_scanner *scanner)

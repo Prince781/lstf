@@ -134,7 +134,7 @@ void jsonrpc_server_call_remote_async(jsonrpc_server *server,
  *
  * @see jsonrpc_server_call_remote_async
  */
-json_node *jsonrpc_server_call_remote_finish(event *ev, int *error);
+json_node *jsonrpc_server_call_remote_finish(const event *ev, int *error);
 
 /**
  * Send a notification to the remote.

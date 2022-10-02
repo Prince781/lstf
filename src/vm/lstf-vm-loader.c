@@ -78,11 +78,11 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
 
     // load magic header
     for (unsigned i = 0; i < sizeof LSTFC_MAGIC_HEADER; i++) {
-        if (!inputstream_has_data(istream)) {
+        if (!inputstream_read_char(istream, &byte)) {
             if (error)
                 *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
             goto error_cleanup;
-        } else if ((byte = inputstream_read_char(istream)) != LSTFC_MAGIC_HEADER[i]) {
+        } else if (byte != LSTFC_MAGIC_HEADER[i]) {
             if (error)
                 *error = lstf_vm_loader_error_invalid_magic_value;
             goto error_cleanup;
@@ -97,16 +97,15 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
     }
 
     // read the rest of the program header
-    if (!inputstream_has_data(istream)) {
+    if (!inputstream_read_char(istream, &byte) || byte == '\0') {
         // a list of sections was not found
         if (error)
             *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;
         goto error_cleanup;
     }
-    program = lstf_vm_program_create();
 
-    while (inputstream_has_data(istream) &&
-            (byte = inputstream_read_char(istream)) != '\0') {
+    // read the section names and sizes
+    do {
         char section_name[128];
         unsigned sn_length = 0;
         uint64_t section_size = 0;
@@ -114,8 +113,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
         section_name[sn_length++] = byte;
 
         // read section name until we encounter a NUL terminator
-        while (inputstream_has_data(istream)) {
-            byte = inputstream_read_char(istream);
+        while (inputstream_read_char(istream, &byte)) {
             if (sn_length >= sizeof section_name) {
                 if (error)
                     *error = lstf_vm_loader_error_too_long_section_name;
@@ -145,6 +143,9 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
             goto error_cleanup;
         }
 
+        if (!program)
+            program = lstf_vm_program_create();
+
         if (strcmp(section_name, "debuginfo") == 0) {
             program->debuginfo_size = section_size;
         } else if (strcmp(section_name, "comments") == 0) {
@@ -163,7 +164,7 @@ static lstf_vm_program *lstf_vm_loader_load_from_stream(inputstream *istream, ls
                 *error = lstf_vm_loader_error_invalid_section_name;
             goto error_cleanup;
         }
-    }
+    } while (inputstream_read_char(istream, &byte) && byte != '\0');
     if (byte != '\0') {
         if (error)
             *error = errno ? lstf_vm_loader_error_read : lstf_vm_loader_error_invalid_section_size;

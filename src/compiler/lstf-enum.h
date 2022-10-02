@@ -33,9 +33,9 @@ static inline lstf_enum *lstf_enum_cast(void *node)
     return NULL;
 }
 
-lstf_symbol *lstf_enum_new(const lstf_sourceref *source_reference,
-                           const char           *name,
-                           bool                  is_builtin)
+lstf_enum *lstf_enum_new(const lstf_sourceref *source_reference,
+                         const char           *name,
+                         bool                  is_builtin)
     __attribute__((nonnull (2)));
 
 void lstf_enum_add_member(lstf_enum *self, lstf_constant *member);

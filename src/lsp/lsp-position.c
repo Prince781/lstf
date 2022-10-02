@@ -28,9 +28,9 @@ static json_serialization_status lsp_position_deserialize_property(lsp_position 
     return json_serialization_status_continue;
 }
 
-static json_serialization_status lsp_position_serialize_property(lsp_position *self,
-                                                                 const char   *property_name,
-                                                                 json_node   **property_node)
+static json_serialization_status lsp_position_serialize_property(const lsp_position *self,
+                                                                 const char         *property_name,
+                                                                 json_node         **property_node)
 {
     if (strcmp(property_name, "line") == 0)
         *property_node = json_integer_new(self->line);

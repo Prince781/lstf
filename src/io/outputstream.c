@@ -10,6 +10,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32) || defined(_WIN64)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 outputstream *outputstream_ref(outputstream *stream)
 {
@@ -29,15 +34,18 @@ outputstream *outputstream_ref(outputstream *stream)
 
 static void outputstream_free(outputstream *stream)
 {
-    switch (stream->stream_type) {
-    case outputstream_type_file:
-        if (stream->close_or_free_on_destruction)
+    if (stream->close_or_free_on_destruction) {
+        switch (stream->stream_type) {
+        case outputstream_type_file:
             fclose(stream->file);
-        break;
-    case outputstream_type_buffer:
-        if (stream->close_or_free_on_destruction)
+            break;
+        case outputstream_type_buffer:
             free(stream->buffer);
-        break;
+            break;
+        case outputstream_type_fd:
+            close(stream->fd);
+            break;
+        }
     }
     free(stream);
 }
@@ -108,6 +116,18 @@ outputstream *outputstream_new_from_buffer(void *buffer, size_t initial_size, bo
     return stream;
 }
 
+outputstream *outputstream_new_from_fd(int fd, bool close_on_destroy)
+{
+    outputstream *stream = calloc(1, sizeof *stream);
+
+    stream->stream_type = outputstream_type_fd;
+    stream->floating = true;
+    stream->close_or_free_on_destruction = close_on_destroy;
+    stream->fd = fd;
+
+    return stream;
+}
+
 static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_size)
 {
     if (stream->stream_type != outputstream_type_buffer)
@@ -150,6 +170,8 @@ static bool outputstream_resize_buffer(outputstream *stream, size_t minimum_new_
         memcpy(stream->buffer + stream->buffer_offset, &integer, sizeof integer);\
         stream->buffer_offset += sizeof integer;\
         return sizeof integer;\
+    case outputstream_type_fd:\
+        return write(stream->fd, &integer, sizeof integer);\
     }\
 \
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);\
@@ -192,6 +214,8 @@ size_t outputstream_write_string(outputstream *stream, const char *str)
         memcpy(&stream->buffer[stream->buffer_offset], str, string_length);
         stream->buffer_offset += string_length;
         return string_length;
+    case outputstream_type_fd:
+        return write(stream->fd, str, strlen(str));
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -211,6 +235,9 @@ size_t outputstream_write(outputstream *stream, const void *buffer, size_t buffe
         memcpy(&stream->buffer[stream->buffer_offset], buffer, buffer_size);
         stream->buffer_offset += buffer_size;
         return buffer_size;
+    case outputstream_type_fd:
+        // TODO: handle SIGPIPE if [fd] is a pipe
+        return write(stream->fd, buffer, buffer_size);
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -241,6 +268,8 @@ char *outputstream_get_name(outputstream *stream)
     case outputstream_type_buffer:
         return string_destroy(string_appendf(string_new(), 
                     "<outputstream: buffer @ 0x%p>", (void *)stream->buffer)); 
+    case outputstream_type_fd:
+        return io_get_filename_from_fd(stream->fd);
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
@@ -254,6 +283,8 @@ int outputstream_get_fd(outputstream *stream)
         return fileno(stream->file);
     case outputstream_type_buffer:
         return -1;
+    case outputstream_type_fd:
+        return stream->fd;
     }
 
     fprintf(stderr, "%s: unreachable code: unexpected stream type `%u'\n", __func__, stream->stream_type);
