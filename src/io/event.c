@@ -272,6 +272,12 @@ static int eventloop_poll_thread(void *user_data)
 }
 #endif
 
+static inline void event_list_prepend(event **list, event *ev)
+{
+    ev->next = *list;
+    *list = ev;
+}
+
 /**
  * Wait for an event to happen. This will block if there are no events that
  * have already completed (when *ready_events != NULL) and force_nonblocking is
@@ -465,7 +471,8 @@ bool eventloop_process(eventloop *loop, bool force_nonblocking)
             have_non_io_tasks = true;
         }
 
-        prev = pending;
+        if (pending)
+            prev = pending;
         pending = next;
     }
 

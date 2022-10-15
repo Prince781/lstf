@@ -109,12 +109,6 @@ static inline bool event_is_ready(event *ev)
  */
 bool event_get_result(event *ev, void **pointer_ref);
 
-static inline void event_list_prepend(event **list, event *ev)
-{
-    ev->next = *list;
-    *list = ev;
-}
-
 struct _eventloop {
     event *pending_events;
     event *pending_events_tail;
