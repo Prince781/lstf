@@ -16,7 +16,7 @@ lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     // associate the content with a new URI
     string *uri =
-        string_newf("content:///buffer/%zu", (size_t)vm->client->docs.length++);
+        string_newf("content:///buffer/%zu", (size_t)vm->client->docs.length);
     lsp_textdocument document = {.uri = strdup(uri->buffer),
                                  .content = string_ref(content)};
 
