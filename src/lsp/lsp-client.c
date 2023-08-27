@@ -91,7 +91,7 @@ void lsp_client_initialize_server_async(lsp_client    *client,
                                         const char    *project_root,
                                         eventloop     *loop,
                                         async_callback callback,
-                                        void          *callback_data)
+                                        void          *const callback_data)
 {
     if (client->initialize_params.process_id != 0)
         return;     // already initialized
@@ -121,7 +121,7 @@ void lsp_client_initialize_server_async(lsp_client    *client,
                                      initialize_server_ev);
 }
 
-json_node *lsp_client_initialize_server_finish(const event *ev, int *error)
+json_node *lsp_client_initialize_server_finish(const event *ev, int *const error)
 {
     void *result = NULL;
 

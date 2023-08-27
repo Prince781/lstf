@@ -118,11 +118,6 @@ eventloop *eventloop_new(void)
     return loop;
 }
 
-/**
- * (to be used from a background thread)
- *
- * Signal the event loop that a background task may be ready.
- */
 void eventloop_signal(eventloop *loop)
 {
 #if defined(_WIN32) || defined(_WIN64)

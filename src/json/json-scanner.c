@@ -429,7 +429,6 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
     struct token_read_ctx *ctx = user_data;
     json_scanner *scanner = ctx->scanner;
     event *token_read_ev = ctx->token_read_ev;
-    bool data_available = inputstream_get_fd(scanner->stream) == -1;
 
     do {
         if (event_get_result(ev, NULL)) {
@@ -451,7 +450,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
             switch (ctx->state) {
             case token_read_state_skip_spaces:
                 // loop 
-                if (data_available)
+                if (inputstream_ready(scanner->stream))
                     continue;
                 json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                 break;
@@ -509,7 +508,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case '9':
                     ctx->state = token_read_state_number;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -517,14 +516,14 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case '.':
                     ctx->state = token_read_state_fraction;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
 
                 case '"':
                     ctx->state = token_read_state_string;
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -532,7 +531,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case 't':
                     ctx->state = token_read_state_true_r;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -540,7 +539,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case 'f':
                     ctx->state = token_read_state_false_a;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -548,7 +547,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case 'n':
                     ctx->state = token_read_state_null_u;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -581,7 +580,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case '8':
                 case '9':
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -589,7 +588,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case '.':
                     ctx->state = token_read_state_fraction;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -616,7 +615,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case '8':
                 case '9':
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -625,7 +624,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 case 'E':
                     ctx->state = token_read_state_exponent_begin;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                     break;
@@ -646,7 +645,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                     else
                         ctx->state = token_read_state_exponent;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                 } else {
@@ -663,7 +662,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                 if (isdigit(read_character)) {
                     ctx->state = token_read_state_exponent_continue;
                     json_scanner_save_char(scanner, read_character);
-                    if (data_available)
+                    if (inputstream_ready(scanner->stream))
                         continue;
                     json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
                 } else if (ctx->state == token_read_state_exponent) {
@@ -691,7 +690,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                     // loop in current state
                     json_scanner_save_char(scanner, read_character);
                 }
-                if (data_available)
+                if (inputstream_ready(scanner->stream))
                     continue;
                 json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
             }   break;
@@ -700,7 +699,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
             {   // accept the character and transition back to previous state
                 ctx->state = token_read_state_string;
                 json_scanner_save_char(scanner, read_character);
-                if (data_available)
+                if (inputstream_ready(scanner->stream))
                     continue;
                 json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
             }   break;
@@ -725,7 +724,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                     return;
                 }
                 json_scanner_save_char(scanner, read_character);
-                if (data_available)
+                if (inputstream_ready(scanner->stream))
                     continue;
                 json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
             }   break;
@@ -753,7 +752,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                     return;
                 }
                 json_scanner_save_char(scanner, read_character);
-                if (data_available)
+                if (inputstream_ready(scanner->stream))
                     continue;
                 json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
             }   break;
@@ -778,7 +777,7 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
                     return;
                 }
                 json_scanner_save_char(scanner, read_character);
-                if (data_available)
+                if (inputstream_ready(scanner->stream))
                     continue;
                 json_scanner_stream_wait_async(scanner, token_read_ev->loop, json_scanner_stream_ready_cb, ctx);
             }   break;
@@ -787,7 +786,8 @@ static void json_scanner_stream_ready_cb(const event *ev, void *user_data)
             event_cancel_with_errno(token_read_ev, event_get_errno(ev));
             free(ctx);
         }
-    } while (false);
+        return;
+    } while (true);
 }
 
 void json_scanner_next_async(json_scanner  *scanner,

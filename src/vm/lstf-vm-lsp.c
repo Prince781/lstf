@@ -15,11 +15,10 @@ lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
         return status;
 
     // associate the content with a new URI
-    string *uri = string_appendf(string_new(), "content:///buffer/%zu", (size_t)vm->client->docs.length++);
-    lsp_textdocument document = {
-        .uri = strdup(uri->buffer),
-        .content = string_ref(content)
-    };
+    string *uri =
+        string_newf("content:///buffer/%zu", (size_t)vm->client->docs.length++);
+    lsp_textdocument document = {.uri = strdup(uri->buffer),
+                                 .content = string_ref(content)};
 
     array_add(&vm->client->docs, document);
     if ((status = lstf_vm_stack_push_string(cr->stack, uri)))
@@ -56,7 +55,7 @@ lstf_vm_vmcall_connect_exec_initialize_server_cb(const event *ev, void *user_dat
     json_node *response = lsp_client_initialize_server_finish(ev, &errnum);
 
     if (!response) {
-        fprintf(stderr, "error: could not connect to server at `%s': %s\n",
+        fprintf(stderr, "error: could not initialize server at `%s': %s\n",
                 server_path->buffer, strerror(errnum));
         // print JSON parser/scanner errors
         for (iterator msg_it = json_parser_get_messages(super(vm->client)->parser);
