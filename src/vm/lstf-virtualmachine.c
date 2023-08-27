@@ -1428,12 +1428,8 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // Windows). When it's not time to context switch, we only want to
             // run the event loop if we have no choice because there is nothing
             // in the run queue.
-            while (ptr_list_is_empty(vm->run_queue)) {
-                // we have no runnable coroutines, so we must wait.
-                // vm->suspended_list must be non-empty here (because of the
-                // earlier check), so after this event loop iteration finishes
-                // we should have at least one runnable coroutine
-                eventloop_process(vm->event_loop, false);
+            while (ptr_list_is_empty(vm->run_queue) &&
+                   eventloop_process(vm->event_loop, false)) {
                 // errors can be raised inside event handlers
                 if (vm->last_status != lstf_vm_status_continue)
                     return vm->last_status == lstf_vm_status_hit_breakpoint;
@@ -1464,7 +1460,7 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
                 // add to run queue and remove from suspend list
                 if (sus_cr->outstanding_io == 0) {
                     ptr_list_node *node = ptr_list_append(vm->run_queue, sus_cr);
-                    ptr_list_remove_link(vm->suspended_list, node);
+                    ptr_list_remove_link(vm->suspended_list, sus_cr->node);
                     sus_cr->node = node;
                 }
             }
@@ -1474,8 +1470,8 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
                "there must be at least one runnable coroutine");
 
         // now pick a runnable coroutine from the head of the queue
-        lstf_vm_coroutine *cr = 
-            lstf_vm_coroutine_ref(ptr_list_node_get_data(vm->run_queue->head, lstf_vm_coroutine *));
+        lstf_vm_coroutine *cr = lstf_vm_coroutine_ref(
+            ptr_list_node_get_data(vm->run_queue->head, lstf_vm_coroutine *));
 
         vm->last_pc = cr->pc;
 
