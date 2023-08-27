@@ -25,6 +25,9 @@ string *string_ref(string *sb);
 
 void string_unref(string *sb);
 
+/**
+ * Creates an empty new string
+ */
 string *string_new(void);
 
 /**
@@ -53,6 +56,11 @@ string *string_append_va(string *sb, const char *format, va_list args)
 
 string *string_appendf(string *sb, const char *format, ...)
     __attribute__((format (printf, 2, 3)));
+
+/**
+ * Creates a new string with a format.
+ */
+#define string_newf(format, ...) string_appendf(string_new(), format, __VA_ARGS__)
 
 static inline bool string_is_empty(const string *sb) {
     return sb->length;

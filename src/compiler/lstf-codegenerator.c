@@ -1168,7 +1168,7 @@ lstf_codegenerator_visit_lambda_expression(lstf_codevisitor *visitor, lstf_lambd
     // 2. generate a closure
     
     lstf_codegenerator *generator = (lstf_codegenerator *)visitor;
-    string *lambda_name = string_appendf(string_new(), "__lambda.%u", expr->id);
+    string *lambda_name = string_newf("__lambda.%u", expr->id);
 
     // (1) generate function code
     lstf_ir_function *lambda_fn =

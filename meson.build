@@ -105,5 +105,9 @@ version_h = vcs_tag(input: 'include/version.h.in',
                     output: 'version.h',
                     command: ['git', 'describe', '--tags', '--dirty'])
 
+if get_option('jsonrpc_debug')
+  add_project_arguments(['-DJSONRPC_DEBUG'], language: 'c')
+endif
+
 subdir('src')
 subdir('tests')

@@ -394,7 +394,7 @@ lstf_vm_value_from_json_node(json_node *node)
         abort();
     }
 
-    fprintf(stderr, "%s: unreachable code: unexpected JSON node type `%u'\n", __func__, node->node_type);
+    fprintf(stderr, "%s: invalid JSON node type `%u'\n", __func__, node->node_type);
     abort();
 }
 

@@ -210,6 +210,7 @@ char *string_destroy(string *sb)
             abort();
         }
     } else {
+        // shrink size for efficiency
         char *new_buffer = realloc(buffer, length + 1);
         if (new_buffer) {
             new_buffer[length] = '\0';

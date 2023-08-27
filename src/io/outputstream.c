@@ -266,8 +266,8 @@ char *outputstream_get_name(outputstream *stream)
     case outputstream_type_file:
         return io_get_filename_from_fd(fileno(stream->file));
     case outputstream_type_buffer:
-        return string_destroy(string_appendf(string_new(), 
-                    "<outputstream: buffer @ 0x%p>", (void *)stream->buffer)); 
+        return string_destroy(string_newf("<outputstream: buffer @ 0x%p>",
+                                          (void *)stream->buffer));
     case outputstream_type_fd:
         return io_get_filename_from_fd(stream->fd);
     }

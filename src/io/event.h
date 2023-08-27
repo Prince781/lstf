@@ -148,9 +148,9 @@ event *eventloop_add(eventloop *loop, event *ev);
  * Spawns a background thread that runs `task`. When the task is done, it
  * should complete the event passed into it with either `event_return()` or
  * `event_cancel()`. Then, `callback` will be invoked with `callback_data` in
- * the event processing thread (wherever `eventloop_process()` is called).
- * `task` can retrieve `task_data` data by getting `ev->thread_data` from the
- * event passed to it.
+ * the event processing thread (wherever `eventloop_process()` is called,
+ * usually the main thread). `task` can retrieve `task_data` data by getting
+ * `ev->thread_data` from the event passed to it.
  */
 event *eventloop_add_bgtask(eventloop      *loop,
                             background_proc task,
@@ -167,6 +167,11 @@ event *eventloop_add_bgtask(eventloop      *loop,
  */
 bool eventloop_process(eventloop *loop, bool force_nonblocking);
 
+/**
+ * (to be used from a background thread)
+ *
+ * Signal the event loop that a background task may be ready.
+ */
 void eventloop_signal(eventloop *loop);
 
 void eventloop_quit(eventloop *loop);
