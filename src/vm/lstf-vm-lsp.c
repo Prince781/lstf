@@ -5,6 +5,8 @@
 #include "vm/lstf-vm-stack.h"
 #include <stdio.h>
 
+#define LSTF_VM_CONTENT_URI_FMT "content:///buffer/%zu"
+
 static lstf_vm_status
 lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
@@ -16,9 +18,9 @@ lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     // associate the content with a new URI
     string *uri =
-        string_newf("content:///buffer/%zu", (size_t)vm->client->docs.length);
-    lsp_textdocument document = {.uri = strdup(uri->buffer),
-                                 .content = string_ref(content)};
+        string_newf(LSTF_VM_CONTENT_URI_FMT, (size_t)vm->client->docs.length);
+    lsp_textdocument document = {.uri  = strdup(uri->buffer),
+                                 .text = string_ref(content)};
 
     array_add(&vm->client->docs, document);
     if ((status = lstf_vm_stack_push_string(cr->stack, uri)))
@@ -35,7 +37,7 @@ typedef struct {
         // for initialize_server_cb()
         string *server_path;
         // for td_open_cb()
-        string *text_document_uri;
+        json_node *text_document_uri;
     };
 } server_data;
 
@@ -155,40 +157,35 @@ lstf_vm_vmcall_td_open_exec_td_open_cb(const event *ev, void *user_data)
     server_data *data = user_data;
     lstf_virtualmachine *vm = data->vm;
     lstf_vm_coroutine *cr = data->cr;
-    string *text_document_uri = data->text_document_uri;
+    json_node *text_document_uri = data->text_document_uri;
 
     free(data);
     data = NULL;
 
     int errnum = 0;
-    json_node *response = jsonrpc_server_call_remote_finish(ev, &errnum);
 
-    if (!response) {
+    if (!lsp_client_text_document_open_finish(ev, &errnum)) {
         fprintf(stderr, "error: could not open text document `%s': %s\n",
-                text_document_uri->buffer, strerror(errnum));
+                json_node_cast(text_document_uri, string)->value, strerror(errnum));
         lstf_virtualmachine_raise(vm, lstf_vm_status_could_not_communicate);
     } else {
-        // discard the result
-        json_node_unref(response);
-        response = NULL;
-
-        // success: the text document is now open
+        // success: the text document open request was sent, but this may not be open
     }
 
     // the coroutine is done
     --cr->outstanding_io;
 
     // cleanup
-    string_unref(text_document_uri);
+    json_node_unref(text_document_uri);
 }
 
 static lstf_vm_status
 lstf_vm_vmcall_td_open_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
     lstf_vm_status status = lstf_vm_status_continue;
-    string *text_document_uri = NULL;
+    json_node *uri_array = NULL;
 
-    if ((status = lstf_vm_stack_pop_string(cr->stack, &text_document_uri)))
+    if ((status = lstf_vm_stack_pop_array(cr->stack, &uri_array)))
         return status;
 
     if (!vm->client) {
@@ -196,27 +193,45 @@ lstf_vm_vmcall_td_open_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
         goto cleanup_on_error;
     }
 
-    // communicate with server
-    json_node *request = json_object_new();
-    server_data *data;
-    box(server_data, data) {
-        .vm = vm,
-        .cr = cr,
-        .text_document_uri = text_document_uri
-    };
-    // set outstanding I/O to suspend the coroutine
-    ++cr->outstanding_io;
-    jsonrpc_server_call_remote_async(super(vm->client),
-                                     "textDocument/didOpen",
-                                     request,
-                                     vm->event_loop,
-                                     lstf_vm_vmcall_td_open_exec_td_open_cb,
-                                     data);
+    json_array *array = json_node_cast(uri_array, array);
+    for (unsigned i = 0; i < array->num_elements; ++i) {
+        json_string *uri = json_node_cast(array->elements[i], string);
+        if (!uri) {
+            status = lstf_vm_status_invalid_operand_type;
+            goto cleanup_on_error;
+        }
+
+        // communicate with server...
+        size_t doc_idx = -1;
+        if (sscanf(uri->value, LSTF_VM_CONTENT_URI_FMT, &doc_idx) != 1 ||
+            doc_idx >= array->num_elements) {
+            status = lstf_vm_status_invalid_document_id;
+            goto cleanup_on_error;
+        }
+
+        // 1. save server data
+        server_data *data;
+        box(server_data, data) {
+            .vm = vm,
+            .cr = cr,
+            .text_document_uri = json_node_ref(super(uri))
+        };
+
+        // 2. set outstanding I/O to suspend the coroutine
+        ++cr->outstanding_io;
+
+        // 3. send notification
+        lsp_client_text_document_open_async(vm->client,
+                                            &vm->client->docs.elements[doc_idx],
+                                            vm->event_loop,
+                                            lstf_vm_vmcall_td_open_exec_td_open_cb,
+                                            data);
+    }
 
     return status;
 
 cleanup_on_error:
-    string_unref(text_document_uri);
+    json_node_unref(uri_array);
     return status;
 }
 

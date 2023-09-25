@@ -135,7 +135,12 @@ enum _lstf_vm_status {
     /**
      * Could not communicate with the language server
      */
-    lstf_vm_status_could_not_communicate
+    lstf_vm_status_could_not_communicate,
+
+    /**
+     * Invalid document ID used with the language server
+     */
+    lstf_vm_status_invalid_document_id
 };
 typedef enum _lstf_vm_status lstf_vm_status;
 
@@ -219,7 +224,10 @@ lstf_vm_status_to_string(lstf_vm_status status)
         case lstf_vm_status_could_not_communicate:
             exception_message = "could not communicate with language server";
             break;
-    }
+        case lstf_vm_status_invalid_document_id:
+            exception_message = "invalid document ID for language server";
+            break;
+        }
 
     return exception_message;
 }

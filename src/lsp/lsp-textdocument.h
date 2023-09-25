@@ -12,7 +12,7 @@ json_serializable_decl_as_object(lsp_textdocument, {
     /**
      * Full content of the text document.
      */
-    string *content;
+    string *text;
 });
 
 /**

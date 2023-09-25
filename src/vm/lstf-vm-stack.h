@@ -35,7 +35,7 @@ struct _lstf_vm_stackframe {
     /**
      * The base of the current stack frame, as an offset within the stack.
      */
-    uint64_t offset : 48;
+    uint64_t offset : 56;
 
     /**
      * The number of parameters to pop on return.

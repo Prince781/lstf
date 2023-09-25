@@ -70,14 +70,14 @@ json_node *lsp_client_initialize_server_finish(const event *ev, int *error);
 /**
  * Invokes the `textDocument/didOpen` notification on the server.
  */
-void lsp_client_text_document_open_async(lsp_client       *client,
-                                         lsp_textdocument *text_document,
-                                         eventloop        *loop,
-                                         async_callback    callback,
-                                         void             *callback_data);
+void lsp_client_text_document_open_async(lsp_client             *client,
+                                         lsp_textdocument const *text_document,
+                                         eventloop              *loop,
+                                         async_callback          callback,
+                                         void                   *callback_data);
 
 /**
  * Completes the `textDocument/didOpen` notification. If there was an error,
  * `*error` will contain the appropriate value.
  */
-void lsp_client_text_document_open_finish(event *ev, int *error);
+bool lsp_client_text_document_open_finish(event const *ev, int *error);

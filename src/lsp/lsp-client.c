@@ -136,23 +136,53 @@ json_node *lsp_client_initialize_server_finish(const event *ev, int *const error
     return result;
 }
 
-void lsp_client_text_document_open_async(lsp_client       *client,
-                                         lsp_textdocument *text_document,
-                                         eventloop        *loop,
-                                         async_callback    callback,
-                                         void             *callback_data)
+static void
+lsp_client_text_document_open_jsonrpc_server_notify_cb(const event *ev,
+                                                       void        *user_data) 
 {
-    assert(lsp_client_is_initialized(client) && "invoking textDocument/didOpen with uninitialized server!");
+    event *td_open_sent_ev = user_data;
+    int errnum = 0;
 
-    json_node *parameters = NULL;
+    if (jsonrpc_server_notify_remote_finish(ev, &errnum)) {
+        event_return(td_open_sent_ev, NULL);
+    } else {
+        event_cancel_with_errno(td_open_sent_ev, errnum);
+    }
+}
+
+void lsp_client_text_document_open_async(lsp_client             *client,
+                                         lsp_textdocument const *text_document,
+                                         eventloop              *loop,
+                                         async_callback          callback,
+                                         void                   *callback_data)
+{
+    assert(lsp_client_is_initialized(client) &&
+           "invoking textDocument/didOpen with uninitialized server!");
+
+    json_node *td_json = NULL;
     json_serialization_status status =
-        json_serialize(lsp_textdocument, text_document, &parameters);
-    assert(status == json_serialization_status_continue && "failed to serialize text document");
+        json_serialize(lsp_textdocument, text_document, &td_json);
+    assert(status == json_serialization_status_continue &&
+           "failed to serialize text document");
 
-    jsonrpc_server_call_remote_async(super(client),
-                                     "textDocument/didOpen",
-                                     parameters,
-                                     loop,
-                                     callback,
-                                     callback_data);
+    json_node *parameters = json_object_new();
+    json_object_set_member(parameters, "textDocument", td_json);
+
+    event *ev = event_new(callback, callback_data);
+    eventloop_add(loop, ev);
+    jsonrpc_server_notify_remote_async(super(client),
+                                       "textDocument/didOpen",
+                                       parameters,
+                                       loop,
+                                       lsp_client_text_document_open_jsonrpc_server_notify_cb,
+                                       ev);
+}
+
+bool lsp_client_text_document_open_finish(event const *ev, int *error)
+{
+    if (event_get_result(ev, NULL))
+        return true;
+    if (error)
+        *error = event_get_errno(ev);
+    return false;
 }
