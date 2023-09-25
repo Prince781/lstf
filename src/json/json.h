@@ -110,6 +110,14 @@ json_node *json_node_ref(json_node *node);
 
 void json_node_unref(json_node *node);
 
+static inline json_node *json_node_typecheck(json_node *node, json_node_type node_type)
+{
+    return node->node_type == node_type ? node : NULL;
+}
+
+#define json_node_cast(node, type)                                             \
+    ((json_##type *)json_node_typecheck(node, json_node_type_##type))
+
 /**
  * Converts an unescaped JSON representation to an escaped form.
  */

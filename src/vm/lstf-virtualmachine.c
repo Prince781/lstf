@@ -1402,9 +1402,7 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
         }
 
         if (ptr_list_is_empty(vm->run_queue) && ptr_list_is_empty(vm->suspended_list)) {
-            // the main coroutine has exited normally (it is not in the run
-            // queue or the suspended list) and there are no other coroutines,
-            // so we should stop the virtual machine
+            // all coroutines are finished so we should stop the virtual machine
             if (!vm->last_status)
                 vm->last_status = lstf_vm_status_exited;
             return false;
@@ -1414,22 +1412,18 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // run one iteration of the event loop on every context switch, and
             // allow blocking if the run queue is empty
             vm->instructions_executed = 0;      // reset instruction counter
-            do {
-                eventloop_process(vm->event_loop,
-                        !ptr_list_is_empty(vm->run_queue));
-                // errors can be raised inside event handlers
-                if (vm->last_status != lstf_vm_status_continue)
-                    return vm->last_status == lstf_vm_status_hit_breakpoint;
-            } while (ptr_list_is_empty(vm->run_queue));
-        } else {
-            // we don't want to run the event loop every cycle, since that will
+            eventloop_process(vm->event_loop,
+                              !ptr_list_is_empty(vm->run_queue));
+            // errors can be raised inside event handlers
+            if (vm->last_status != lstf_vm_status_continue)
+                return vm->last_status == lstf_vm_status_hit_breakpoint;
+        } else if (ptr_list_is_empty(vm->run_queue)) {
+            // We don't want to run the event loop every cycle, since that will
             // involve a number of system calls (poll() on POSIX and
             // WaitForMultipleObjects() + CreateThread() and friends on
-            // Windows). When it's not time to context switch, we only want to
-            // run the event loop if we have no choice because there is nothing
-            // in the run queue.
-            while (ptr_list_is_empty(vm->run_queue) &&
-                   eventloop_process(vm->event_loop, false)) {
+            // Windows). However, since the run queue is empty (all coroutines
+            // are blocked on I/O) we want to make as much progress as possible.
+            while (eventloop_process(vm->event_loop, false)) {
                 // errors can be raised inside event handlers
                 if (vm->last_status != lstf_vm_status_continue)
                     return vm->last_status == lstf_vm_status_hit_breakpoint;

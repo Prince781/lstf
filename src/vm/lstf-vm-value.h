@@ -452,16 +452,19 @@ lstf_vm_value_take_ownership(lstf_vm_value *value)
     case lstf_vm_value_type_object_ref:
     case lstf_vm_value_type_pattern_ref:
         json_node_ref(new_value.data.json_node_ref);
+        // grabbed floating reference?
         if (new_value.data.json_node_ref->refcount == 1)
             value->takes_ownership = false;
         break;
     case lstf_vm_value_type_string:
         string_ref(new_value.data.string);
+        // grabbed floating reference?
         if (new_value.data.string->refcount == 1)
             value->takes_ownership = false;
         break;
     case lstf_vm_value_type_closure:
         lstf_vm_closure_ref(new_value.data.closure);
+        // grabbed floating reference?
         if (new_value.data.closure->refcount == 1)
             value->takes_ownership = false;
         break;

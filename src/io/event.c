@@ -59,10 +59,11 @@ event *event_new_from_fd(int fd, bool is_read_operation, async_callback callback
 
 void event_return(event *ev, void *result)
 {
-    assert(!event_is_ready(ev) && "cannot complete an event twice!");
+    bool was_ready =
+        atomic_exchange_explicit(&ev->is_ready, true, memory_order_release);
+    assert(!was_ready && "cannot complete an event twice!");
 
     ev->result = result;
-    atomic_store_explicit(&ev->is_ready, true, memory_order_release);
 
     if (ev->type == event_type_bg_task)
         /**

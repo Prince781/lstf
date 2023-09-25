@@ -38,6 +38,9 @@ struct _jsonrpc_server {
 
     uint64_t next_request_id;
 
+    /**
+     * Requests and notifications.
+     */
     ptr_list *received_requests;
 
     ptr_list *received_responses;
@@ -142,6 +145,28 @@ json_node *jsonrpc_server_call_remote_finish(const event *ev, int *error);
 void jsonrpc_server_notify_remote(jsonrpc_server *server,
                                   const char     *method,
                                   json_node      *parameters);
+
+/**
+ * Asynchronously calls a method on the remote and `callback` is executed as
+ * soon as the call has been sent, without expecting a response.
+ *
+ * Use `jsonrpc_server_notify_remote_finish()` in the callback to get a status
+ * or an error code if making the call failed.
+ */
+void jsonrpc_server_notify_remote_async(jsonrpc_server *server,
+                                        const char     *method,
+                                        json_node      *parameters,
+                                        eventloop      *loop,
+                                        async_callback  callback,
+                                        void           *user_data);
+
+/**
+ * Completes an asynchronous notification and returns whether sending the
+ * notification was successful on the client side.
+ *
+ * @see jsonrpc_server_notify_remote_async
+ */
+bool jsonrpc_server_notify_remote_finish(const event *ev, int *error);
 
 /**
  * Process received requests.
