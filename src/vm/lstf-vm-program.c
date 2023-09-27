@@ -172,13 +172,14 @@ static inline uint8_t log16i(uint64_t v) {
     return l + rem;
 }
 
-bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, uint8_t *pc)
+bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, uint8_t *pc, ptr_list *offsets)
 {
     uint8_t opcode = 0;
     uint64_t offset = 0;
     uint8_t field_width = log16i(prog->code_size) + 1;
 
     while (lstf_vm_program_read_imm_u8(prog, &offset, &opcode)) {
+        // print header before first instruction of function body
         if (opcode == lstf_vm_op_params) {
             if (offset > 1 && !outputstream_printf(ostream, "\n"))
                 goto err_write;
@@ -189,6 +190,7 @@ bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, u
             if (!outputstream_printf(ostream, "\n"))
                 goto err_write;
         }
+
         if (!outputstream_printf(ostream, (pc && offset - 1 == (uint64_t)(pc - prog->code)) ? " => " : "    "))
             goto err_write;
         if (!outputstream_printf(ostream, "<%#0*"PRIx64"> ", field_width, offset - 1))
@@ -198,6 +200,10 @@ bool lstf_vm_program_disassemble(lstf_vm_program *prog, outputstream *ostream, u
             if (!outputstream_printf(ostream, "<invalid opcode %#hhx>\n", opcode))
                 goto err_write;
         } else {
+            // save PCs after the original pc
+            if (pc && offsets && offset-1 > (uint64_t)(pc - prog->code))
+                ptr_list_append(offsets, prog->code + offset-1);
+
             switch (opcode) {
             case lstf_vm_op_load_frameoffset:
             {

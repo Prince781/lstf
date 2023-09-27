@@ -19,6 +19,7 @@
 #include "version.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <stddef.h>
 #include <errno.h>
 #include <stdint.h>
@@ -169,6 +170,7 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
         lstf_virtualmachine_new(program,
             options.expected_output ? outputstream_new_from_buffer(NULL, 0, false) : NULL,
             false);
+    outputstream *os = outputstream_new_from_file(stdout, false);
     if (options.breakpoints) {
         for (size_t i = 0; i < options.breakpoints->length; i++) {
             if (!lstf_virtualmachine_add_breakpoint(vm, options.breakpoints->elements[i])) {
@@ -185,20 +187,125 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
             lstf_virtualmachine_set_variable(vm, entry->key, entry->value);
         }
     }
+
+    bool first_hit_debugger = false;
+    bool print_prompt = true;   // don't print prompt until after a newline
+    // ptr_list<uint8_t *>
+    ptr_list *pc_offsets = ptr_list_new(NULL, NULL);
+    iterator pc_it = {0};
+
+    // Run the VM as long as it's in a non-error state. Returns when paused (true) or exiting (false).
     while (lstf_virtualmachine_run(vm)) {
-        if (vm->last_status == lstf_vm_status_hit_breakpoint) {
-            outputstream *os = outputstream_new_from_file(stdout, false);
-            lstf_vm_program_disassemble(vm->program, os, vm->last_pc);
-            outputstream_unref(os);
+        if (!first_hit_debugger && vm->last_status == lstf_vm_status_hit_breakpoint) {
+            ptr_list_clear(pc_offsets);
+            lstf_vm_program_disassemble(vm->program, os, vm->last_pc, pc_offsets);
+            pc_it = ptr_list_iterator_create(pc_offsets);
+            vm->next_stop = vm->last_pc; // keep VM stopped at current PC
         }
-        fprintf(stderr, "VM paused. press any key to continue...\n");
-        getchar();
+
+        if (print_prompt)
+            outputstream_printf(os, "(lstf debug) ");
+        first_hit_debugger = true;
+
+        char command = getchar();
+        switch (command) {
+        case 'b': {
+            // print current coroutine and suspended coroutines
+            outputstream_printf(os, "run list: %lu items\n", vm->run_queue->length);
+            for (iterator cr_it = ptr_list_iterator_create(vm->run_queue);
+                 cr_it.has_next; cr_it = iterator_next(cr_it)) {
+                const lstf_vm_coroutine *cr = iterator_get_item(cr_it);
+                outputstream_printf(
+                    os, " - coroutine @ %#lx (%u frames)\n",
+                    (unsigned long)(cr->pc - vm->program->code), cr->stack->n_frames);
+            }
+
+            outputstream_printf(os, "suspended list: %lu items\n", vm->suspended_list->length);
+            for (iterator cr_it = ptr_list_iterator_create(vm->suspended_list);
+                 cr_it.has_next; cr_it = iterator_next(cr_it)) {
+                const lstf_vm_coroutine *cr = iterator_get_item(cr_it);
+                outputstream_printf(os,
+                                    " - coroutine @ %#lx (%u frames) - waiting "
+                                    "for %u I/O events\n",
+                                    (unsigned long)(cr->pc - vm->program->code),
+                                    cr->stack->n_frames, cr->outstanding_io);
+            }
+            print_prompt = false;
+        } break;
+        case 'c':       // continue VM
+        case EOF:
+            vm->next_stop = NULL;
+            first_hit_debugger = false;
+            break;
+        case 'd': {
+            if (vm->last_status == lstf_vm_status_hit_breakpoint)
+                lstf_vm_program_disassemble(vm->program, os, vm->last_pc, NULL);
+            print_prompt = false;
+        } break;
+        case 'f': {
+            // iterate over items in current stack frame
+            if (ptr_list_is_empty(vm->run_queue)) {
+                // TODO: selecting a coroutine by ID
+                outputstream_printf(os, "all coroutines suspended for I/O\n");
+            } else {
+                // don't need to grab reference here
+                lstf_vm_coroutine const *cr = ptr_list_node_get_data(vm->run_queue->head, lstf_vm_coroutine *);
+                lstf_vm_stackframe const *cf = &cr->stack->frames[cr->stack->n_frames-1];
+                if (!cr->stack->n_values)
+                    outputstream_printf(os, "stack frame is empty.\n");
+                else {
+                    outputstream_printf(os, "stack:\n");
+                    for (uint64_t offset = cf->offset;
+                         offset < cr->stack->n_values; ++offset) {
+                      outputstream_printf(os, "|%0#5" PRIx64 "| ", offset);
+                      lstf_vm_value *value = &cr->stack->values[offset];
+                      lstf_vm_value_print(value, vm->program, os);
+                    }
+                }
+            }
+            print_prompt = false;
+        } break;
+        case 'h': {
+            outputstream_printf(os, "debug commands:\n"
+                    "b - print (b)acktrace of all running and suspended coroutines\n"
+                    "c - (c)ontinue\n"
+                    "d - show (d)isassembly\n"
+                    "f - examine current stack (f)rame\n"
+                    "h - print help\n"
+                    "n - continue to (n)ext instruction\n");
+            // TODO:
+            // s <coroutine ID> - (s)witch to another coroutine
+            print_prompt = false;
+        } break;
+        case 'n': {
+            if (pc_it.has_next) {
+                uint8_t *next_pc = iterator_get_item(pc_it);
+                pc_it = iterator_next(pc_it);
+                if (*next_pc == lstf_vm_op_params)
+                    outputstream_printf(os, "at end of function\n");
+                else {
+                    // temporarily breakpoint next instruction
+                    vm->next_stop = next_pc;
+                    outputstream_printf(os, "breaking at %0#lx\n", (uint64_t)(vm->next_stop - vm->program->code));
+                }
+            } else {
+                outputstream_printf(os, "at end of instruction stream\n");
+            }
+            first_hit_debugger = false;
+            print_prompt = false;
+        } break;
+        case '\n':
+            print_prompt = true;
+            break;
+        default:
+            outputstream_printf(os, "unsupported command `%c'. type `h' for help.\n", command);
+            print_prompt = false;
+            break;
+        }
     }
     if (vm->last_status != lstf_vm_status_exited) {
-        outputstream *os = outputstream_new_from_file(stderr, false);
         lstf_report_error(NULL, "VM: %s", lstf_vm_status_to_string(vm->last_status));
-        lstf_vm_program_disassemble(vm->program, os, vm->last_pc);
-        outputstream_unref(os);
+        lstf_vm_program_disassemble(vm->program, os, vm->last_pc, NULL);
         retval = 1;
     } else {
         retval = vm->return_code;
@@ -223,6 +330,8 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
     }
 
     lstf_virtualmachine_destroy(vm);
+    outputstream_unref(os);
+    ptr_list_destroy(pc_offsets);
     return retval;
 }
 
@@ -240,7 +349,7 @@ static int disassemble_program(lstf_vm_program *program, struct lstf_options opt
     if (!os) {
         lstf_report_error(NULL, "failed to open %s: %s", disas_filename, strerror(errno));
         retval = 99;
-    } else if (!lstf_vm_program_disassemble(program, os, NULL)) {
+    } else if (!lstf_vm_program_disassemble(program, os, NULL, NULL)) {
         lstf_report_error(NULL, "failed to write disassembly to %s: %s", disas_filename, strerror(errno));
         retval = 99;
     }
