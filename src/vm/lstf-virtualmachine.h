@@ -29,7 +29,7 @@ struct _lstf_virtualmachine {
     ptr_hashset *breakpoints;           // list of offset (uintptr_t)
     unsigned instructions_executed;     // number of instructions executed since last context switch
     bool debug;                         // whether the virtual machine is in debug mode
-    bool should_stop;                   // whether the virtual machine should stop on the next iteration
+    uint8_t *next_stop;                 // where the virtual machine should stop on the next iteration
     lsp_client *client;                 // a handle to the LSP client communicating with the remote server
 };
 typedef struct _lstf_virtualmachine lstf_virtualmachine;

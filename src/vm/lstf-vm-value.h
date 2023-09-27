@@ -3,6 +3,7 @@
 #include "data-structures/ptr-hashmap.h"
 #include "data-structures/string-builder.h"
 #include "json/json.h"
+#include "io/outputstream.h"
 #include <assert.h>
 #include <stddef.h>
 #include <limits.h>
@@ -120,6 +121,10 @@ struct _lstf_vm_value {
     } data;
 };
 typedef struct _lstf_vm_value lstf_vm_value;
+
+typedef struct _lstf_vm_program lstf_vm_program;
+void lstf_vm_value_print(lstf_vm_value *value, lstf_vm_program *program,
+                         outputstream *ostream);
 
 typedef struct _lstf_vm_coroutine lstf_vm_coroutine;
 

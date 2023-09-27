@@ -1218,39 +1218,7 @@ lstf_vm_op_print_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     if ((status = lstf_vm_stack_pop_value(cr->stack, &value)))
         return status;
 
-    switch (value.value_type) {
-        case lstf_vm_value_type_array_ref:
-        case lstf_vm_value_type_object_ref:
-        case lstf_vm_value_type_pattern_ref:
-        {
-            char *json_representation = json_node_to_string(value.data.json_node_ref, true);
-            outputstream_printf(vm->ostream, "%s\n", json_representation);
-            free(json_representation);
-        }   break;
-        case lstf_vm_value_type_boolean:
-            outputstream_printf(vm->ostream, "%s\n", value.data.boolean ? "true" : "false");
-            break;
-        case lstf_vm_value_type_code_address:
-            outputstream_printf(vm->ostream, "[VM code @ 0x%p]\n", (void *)value.data.address);
-            break;
-        case lstf_vm_value_type_double:
-            outputstream_printf(vm->ostream, "%lf\n", value.data.double_value);
-            break;
-        case lstf_vm_value_type_integer:
-            outputstream_printf(vm->ostream, "%"PRIi64"\n", value.data.integer);
-            break;
-        case lstf_vm_value_type_null:
-            outputstream_printf(vm->ostream, "null\n");
-            break;
-        case lstf_vm_value_type_string:
-            outputstream_printf(vm->ostream, "%s\n", value.data.string->buffer);
-            break;
-        case lstf_vm_value_type_closure:
-            outputstream_printf(vm->ostream, "[closure [VM code @ %#"PRIxPTR"] [%u up-values]]",
-                    (uintptr_t)(value.data.closure->code_address - vm->program->code),
-                    value.data.closure->num_upvalues);
-            break;
-    }
+    lstf_vm_value_print(&value, vm->program, vm->ostream);
 
     lstf_vm_value_clear(&value);
     return status;
@@ -1381,9 +1349,6 @@ bool
 lstf_virtualmachine_run(lstf_virtualmachine *vm)
 {
     while (true) {
-        if (vm->should_stop)
-            return true;
-
         if (!(vm->last_status == lstf_vm_status_continue ||
                     vm->last_status == lstf_vm_status_hit_breakpoint))
             return false;
@@ -1472,6 +1437,14 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
         // check if we just arrived at a breakpoint for the first time
         if (vm->last_status != lstf_vm_status_hit_breakpoint &&
             vm->debug && ptr_hashset_contains(vm->breakpoints, (void *)(cr->pc - vm->program->entry_point))) {
+            vm->last_status = lstf_vm_status_hit_breakpoint;
+            lstf_vm_coroutine_unref(cr);
+            return true;
+        }
+
+        // check if we are single-stepping to the next instruction in any
+        // coroutine
+        if (vm->debug && vm->next_stop && vm->next_stop == vm->last_pc) {
             vm->last_status = lstf_vm_status_hit_breakpoint;
             lstf_vm_coroutine_unref(cr);
             return true;
