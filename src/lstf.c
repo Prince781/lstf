@@ -259,6 +259,36 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
                          offset < cr->stack->n_values; ++offset) {
                       outputstream_printf(os, "|%0#5" PRIx64 "| ", offset);
                       lstf_vm_value *value = &cr->stack->values[offset];
+                      switch (value->value_type) {
+                      case lstf_vm_value_type_null:
+                          outputstream_printf(os, "<null> ");
+                          break;
+                      case lstf_vm_value_type_integer:
+                          outputstream_printf(os, "<int> ");
+                          break;
+                      case lstf_vm_value_type_double:
+                          outputstream_printf(os, "<double> ");
+                          break;
+                      case lstf_vm_value_type_boolean:
+                          outputstream_printf(os, "<bool> ");
+                          break;
+                      case lstf_vm_value_type_string:
+                          outputstream_printf(os, "<string> ");
+                          break;
+                      case lstf_vm_value_type_object_ref:
+                      case lstf_vm_value_type_array_ref:
+                          outputstream_printf(os, "<JSON> ");
+                          break;
+                      case lstf_vm_value_type_pattern_ref:
+                          outputstream_printf(os, "<JSON pattern> ");
+                          break;
+                      case lstf_vm_value_type_code_address:
+                          outputstream_printf(os, "<code address> ");
+                          break;
+                      case lstf_vm_value_type_closure:
+                          outputstream_printf(os, "<closure> ");
+                          break;
+                      }
                       lstf_vm_value_print(value, vm->program, os);
                     }
                 }
