@@ -842,10 +842,12 @@ static void lstf_ir_program_serialize_basic_block(lstf_ir_program    *ir,
             break;
 
         case lstf_ir_instruction_type_assert:
+            frame_offset--;
             bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_assert_new());
             break;
 
         case lstf_ir_instruction_type_append:
+            frame_offset -= 2;
             bc_inst = lstf_bc_function_add_instruction(bc_fn, lstf_bc_instruction_append_new());
             break;
         }
