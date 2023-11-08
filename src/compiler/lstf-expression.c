@@ -5,6 +5,7 @@
 #include "lstf-assignment.h"
 #include "lstf-datatype.h"
 #include "lstf-codenode.h"
+#include "lstf-constant.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -64,6 +65,7 @@ json_node *lstf_expression_to_json(lstf_expression *expression)
                     return NULL;
                 }
 
+                node->is_pattern |= element_json->is_pattern;
                 json_array_add_element(node, element_json);
             }
             break;
@@ -95,7 +97,15 @@ json_node *lstf_expression_to_json(lstf_expression *expression)
                     break;
             }
             break;
-        case lstf_expression_type_memberaccess:
+        case lstf_expression_type_memberaccess: 
+        {
+            // we might access an enum, which is a constant
+            lstf_constant *constant = lstf_constant_cast(expression->symbol_reference);
+            if (constant) {
+                node = lstf_expression_to_json(constant->expression);
+                assert(node && "lstf_constant should be convertible to a JSON expression");
+            }
+        } break;
         case lstf_expression_type_methodcall:
             break;
         case lstf_expression_type_object:
@@ -112,6 +122,7 @@ json_node *lstf_expression_to_json(lstf_expression *expression)
                 }
 
                 property_value_json->optional = property->is_nullable;
+                node->is_pattern |= property_value_json->is_pattern;
                 json_object_set_member(node, lstf_symbol_cast(property)->name, property_value_json);
             }
             break;

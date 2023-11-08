@@ -322,19 +322,10 @@ string_new_from_json_string(json_node *node)
 static inline lstf_vm_value
 lstf_vm_value_from_json_node(json_node *node)
 {
-    if (node->is_pattern &&
-            (node->node_type == json_node_type_string || node->node_type == json_node_type_object))
-        return (lstf_vm_value) {
-            lstf_vm_value_type_pattern_ref,
-            node->floating,
-            false,
-            { .json_node_ref = node->floating ? json_node_ref(node) : node }
-        };
-
     switch (node->node_type) {
     case json_node_type_array:
         return (lstf_vm_value) {
-            lstf_vm_value_type_array_ref,
+            node->is_pattern ? lstf_vm_value_type_pattern_ref : lstf_vm_value_type_array_ref,
             node->floating,
             false,
             { .json_node_ref = node->floating ? json_node_ref(node) : node }
@@ -371,7 +362,7 @@ lstf_vm_value_from_json_node(json_node *node)
         };
     case json_node_type_object:
         return (lstf_vm_value) {
-            lstf_vm_value_type_object_ref,
+            node->is_pattern ? lstf_vm_value_type_pattern_ref : lstf_vm_value_type_object_ref,
             node->floating,
             false,
             { .json_node_ref = node->floating ? json_node_ref(node) : node }
@@ -384,8 +375,12 @@ lstf_vm_value_from_json_node(json_node *node)
             { .string = string_new_from_json_string(node) }
         };
     case json_node_type_ellipsis:
-        fprintf(stderr, "%s: unreachable code: cannot convert JSON ellipsis to LSTF VM value\n", __func__);
-        abort();
+        return (lstf_vm_value) {
+            lstf_vm_value_type_pattern_ref,
+            node->floating,
+            false,
+            { .json_node_ref = node->floating ? json_node_ref(node) : node }
+        };
     case json_node_type_pointer:
         if (((json_pointer *)node)->ref_func == (collection_item_ref_func) lstf_vm_closure_ref) {
             return (lstf_vm_value) {

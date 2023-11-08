@@ -94,6 +94,7 @@ json_node *json_parser_parse_node(json_parser *parser)
         json_sourceloc last_sourceloc = parser->scanner->source_location;
 
         while ((element = json_parser_parse_node(parser)) != NULL) {
+            array->is_pattern |= element->is_pattern;
             json_array_add_element(array, element);
             // expect either a ',' or ']'
             token = json_scanner_next(parser->scanner);
@@ -136,6 +137,10 @@ json_node *json_parser_parse_node(json_parser *parser)
             return NULL;
         }
 
+        // convert to patterned JSON if parsed
+        if (array->is_pattern)
+            json_array_foreach(array, array_element, array_element->is_pattern = true);
+
         return array;
     }
     case json_token_openbrace:
@@ -172,6 +177,7 @@ json_node *json_parser_parse_node(json_parser *parser)
                 return NULL;
             }
 
+            object->is_pattern |= member_value->is_pattern;
             json_object_set_member(object, member_name, member_value);
 
             // expect either a ',' or '}'
@@ -218,8 +224,17 @@ json_node *json_parser_parse_node(json_parser *parser)
             return NULL;
         }
 
+        if (object->is_pattern) {
+            json_object_foreach(object, member, {
+                json_node *member_value = json_object_member_node(member);
+                member_value->is_pattern = true;
+            });
+        }
+
         return object;
     }
+    case json_token_pattern_ellipsis:
+        return json_ellipsis_new();
     }
 
     fprintf(stderr, "invalid JSON token `%u'", token);
@@ -489,6 +504,10 @@ static void json_parser_scanner_next_cb(const event *ev, void *user_data)
         };
         json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, parse_ctx);
     }   break;
+
+    case json_token_pattern_ellipsis:
+        event_return(node_parsed_ev, json_ellipsis_new());
+        break;
     }
 }
 
