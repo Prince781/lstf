@@ -19,7 +19,8 @@ enum _json_token {
     json_token_string,
     json_token_keyword_true,
     json_token_keyword_false,
-    json_token_keyword_null
+    json_token_keyword_null,
+    json_token_pattern_ellipsis
 };
 typedef enum _json_token json_token;
 

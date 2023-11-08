@@ -43,6 +43,8 @@ const char *json_token_to_string(json_token token)
         return "boolean";
     case json_token_keyword_null:
         return "null keyword";
+    case json_token_pattern_ellipsis:
+        return "ellipsis";
     }
 
     fprintf(stderr, "%s: unexpected value `%u' for json_token\n", __func__, token);
@@ -351,6 +353,17 @@ json_token json_scanner_next(json_scanner *scanner)
             json_scanner_ungetc(scanner, current_char);
         }
         return scanner->last_token;
+    case '.': 
+    {
+        if (json_scanner_getc(scanner) == '.' &&
+            json_scanner_getc(scanner) == '.') {
+            json_scanner_save_string(scanner, "...");
+            return scanner->last_token = json_token_pattern_ellipsis;
+        }
+        json_scanner_report_message(scanner, scanner->source_location,
+                                    "expected `...'");
+        return scanner->last_token = json_token_error;
+    }
     case EOF:
         return scanner->last_token = json_token_eof;
     default:
