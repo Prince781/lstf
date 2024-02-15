@@ -28,22 +28,47 @@ struct _jsonrpc_server {
 
     /**
      * For handling JSON-RPC method calls.
+     * type: `ptr_hashmap<char *, closure<jsonrpc_call_handler, UserDataTy>>`
+     * Maps (method name) -> closure(jsonrpc_call_handler)
      */
-    ptr_hashmap *reply_handlers;
+    ptr_hashmap *call_handlers;
 
     /**
      * For handling JSON-RPC notifications. 
+     * type: `ptr_hashmap<char *, closure<jsonrpc_notification_handler, UserDataTy>>`
+     * Maps (method name) -> closure(jsonrpc_notification_handler)
      */
     ptr_hashmap *notif_handlers;
 
-    uint64_t next_request_id;
+    /**
+     * The next ID that will be used when generating a request message.
+     */
+    uint64_t next_request_id : sizeof(uint64_t) * CHAR_BIT - 1;
+
+    /**
+     * Whether the server is actively listening.
+     */
+    bool is_listening : 1;
 
     /**
      * Requests and notifications.
+     * type: `ptr_list<json_node *>`
      */
     ptr_list *received_requests;
 
-    ptr_list *received_responses;
+    /**
+     * Received responses to JSON-RPC requests.
+     * type: `ptr_hashmap<json_node *, json_node *>`
+     * Maps (ID) -> (response object)
+     */
+    ptr_hashmap *received_responses;
+
+    /**
+     * Events to be triggered by received responses.
+     * type: `ptr_hashmap<json_node *, event *>`
+     * Maps (ID) -> (event)
+     */
+    ptr_hashmap *response_events;
 };
 typedef struct _jsonrpc_server jsonrpc_server;
 
@@ -111,6 +136,8 @@ void jsonrpc_server_reply_to_remote_async(jsonrpc_server *server,
                                           async_callback  callback,
                                           void           *user_data);
 
+// TODO: jsonrpc_server_reply_to_remote_finish()
+
 /**
  * Synchronously calls a method on the remote and waits for a response
  */
@@ -122,8 +149,8 @@ json_node *jsonrpc_server_call_remote(jsonrpc_server *server,
  * Asynchronously calls a method on the remote and `callback` is executed when
  * there is a response.
  *
- * Use `jsonrpc_server_call_remote_finish()` in the callback to get a `json_node
- * *` or an error code if getting the response failed.
+ * Use `jsonrpc_server_call_remote_finish()` in the callback to get a `json_node *`
+ * or an error code if getting the response failed.
  */
 void jsonrpc_server_call_remote_async(jsonrpc_server *server,
                                       const char     *method,
@@ -169,26 +196,16 @@ void jsonrpc_server_notify_remote_async(jsonrpc_server *server,
 bool jsonrpc_server_notify_remote_finish(const event *ev, int *error);
 
 /**
- * Process received requests.
- *
- * @return the number of requests processed
- */
-int jsonrpc_server_process_received_requests(jsonrpc_server *server);
-
-/**
- * Waits synchronously for incoming messages (calls, notifications) and invokes
- * event handlers.  Returns -1 (EOF) if the underlying stream has been closed.
- * Returns -2 on error. Otherwise, returns the number of new incoming messages.
- *
- * @see jsonrpc_server_process_received_requests
- */
-int jsonrpc_server_wait_for_incoming_messages(jsonrpc_server *server);
-
-/**
  * Begin the asynchronous handling of incoming messages. Use `eventloop_loop()`
  * after calling this function.
+ *
+ * TODO: make this accept a callback to handle errors
  */
 void jsonrpc_server_listen(jsonrpc_server *server, eventloop *loop);
+
+static inline bool jsonrpc_server_is_listening(const jsonrpc_server *server) {
+    return server->is_listening;
+}
 
 /**
  * Destroys the server, including any outstanding received requests.

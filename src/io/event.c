@@ -76,8 +76,10 @@ void event_return(event *ev, void *result)
 
 bool event_get_result(const event *ev, void **pointer_ref)
 {
-    if (event_is_canceled(ev) || event_get_errno(ev) != 0)
+    if (event_is_canceled(ev) || event_get_errno(ev))
         return false;
+
+    assert(event_is_ready(ev) && "must get result when event is ready");
 
     // at this point we don't have to use atomics since no concurrent procedure
     // will modify event anymore
@@ -443,7 +445,10 @@ static void eventloop_poll(eventloop *loop,
 #endif
 }
 
-bool eventloop_process(eventloop *loop, bool force_nonblocking)
+
+bool eventloop_process(eventloop *loop, 
+                       bool       force_nonblocking,
+                       unsigned   *num_processed)
 {
     event *ready_events = NULL;
 
@@ -485,6 +490,9 @@ bool eventloop_process(eventloop *loop, bool force_nonblocking)
 
         free(ev);
         // fprintf(stderr, "[DEBUG] processed and removed an event\n");
+
+        if (num_processed)
+            ++*num_processed;
     }
 
     // two possible conditions that terminate an event loop:

@@ -754,6 +754,8 @@ lstf_vm_status lstf_vm_stack_push_object(lstf_vm_stack *stack,
     if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
+    assert(!value->is_pattern && value->node_type == json_node_type_object &&
+           "expected JSON object");
     stack->values[stack->n_values++] = (lstf_vm_value) {
         .value_type = lstf_vm_value_type_object_ref,
         .takes_ownership = true,
@@ -772,6 +774,8 @@ lstf_vm_status lstf_vm_stack_push_array(lstf_vm_stack *stack,
     if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
+    assert(!value->is_pattern && value->node_type == json_node_type_array &&
+           "expected JSON array");
     stack->values[stack->n_values++] = (lstf_vm_value) {
         .value_type = lstf_vm_value_type_array_ref,
         .takes_ownership = true,
@@ -790,6 +794,7 @@ lstf_vm_status lstf_vm_stack_push_pattern(lstf_vm_stack *stack,
     if (!lstf_vm_stack_resize_values(stack, stack->n_values + 1))
         return lstf_vm_status_stack_overflow;
 
+    assert(value->is_pattern && "expected JSON pattern");
     stack->values[stack->n_values++] = (lstf_vm_value) {
         .value_type = lstf_vm_value_type_pattern_ref,
         .takes_ownership = true,
@@ -797,6 +802,16 @@ lstf_vm_status lstf_vm_stack_push_pattern(lstf_vm_stack *stack,
         .data = { .json_node_ref = json_node_ref(value) }
     };
     return lstf_vm_status_continue;
+}
+
+lstf_vm_status lstf_vm_stack_push_json(lstf_vm_stack *stack,
+                                       json_node     *node)
+{
+    lstf_vm_status status = lstf_vm_status_continue;
+    lstf_vm_value value = lstf_vm_value_from_json_node(node);
+    if ((status = lstf_vm_stack_push_value(stack, &value)))
+        lstf_vm_value_clear(&value);
+    return status;
 }
 
 lstf_vm_status lstf_vm_stack_push_closure(lstf_vm_stack   *stack,

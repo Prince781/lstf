@@ -213,15 +213,15 @@ int main(int argc, char *argv[])
     jsonrpc_server_listen(super(server), loop);
 
     // loop until we get an 'initialize' request
-    while (eventloop_process(loop, false))
-        jsonrpc_server_process_received_requests(super(server));
+    while (eventloop_process(loop, false, NULL))
+        ;
 
     // print scanner errors
     if (super(server)->parser->scanner->message)
         fprintf(stderr, "%s\n", super(server)->parser->scanner->message);
     // print parser errors
-    for (iterator it = ptr_list_iterator_create(super(server)->parser->messages); it.has_next; it = iterator_next(it))
-        fprintf(stderr, "%s\n", (char *)iterator_get_item(it));
+    json_parser_messages_foreach(super(server)->parser, message,
+                                 fprintf(stderr, "%s\n", message));
 
     lsp_server_destroy(server);
     eventloop_destroy(loop);

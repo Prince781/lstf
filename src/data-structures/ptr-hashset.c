@@ -17,7 +17,7 @@ ptr_hashset *ptr_hashset_new(collection_item_hash_func     item_hash_func,
         abort();
     }
 
-    ptr_hashmap_construct((ptr_hashmap *)set,
+    ptr_hashmap_construct(super(set),
             item_hash_func,
             item_ref_func, item_unref_func,
             item_equality_func, NULL, NULL);
@@ -27,24 +27,24 @@ ptr_hashset *ptr_hashset_new(collection_item_hash_func     item_hash_func,
 
 void ptr_hashset_insert(ptr_hashset *set, void *new_element)
 {
-    ptr_hashmap_insert((ptr_hashmap *)set, new_element, NULL);
+    ptr_hashmap_insert(super(set), new_element, NULL);
 }
 
 void ptr_hashset_delete(ptr_hashset *set, void *element)
 {
-    ptr_hashmap_delete((ptr_hashmap *)set, element);
+    ptr_hashmap_delete(super(set), element);
 }
 
 void *ptr_hashset_get_last_element(const ptr_hashset *set)
 {
-    const ptr_list_node *node = ((const ptr_hashmap *)set)->entries_list->tail;
+    const ptr_list_node *node = super(set)->entries_list->tail;
 
     return ptr_list_node_get_data(node, const ptr_hashmap_entry *)->key;
 }
 
 bool ptr_hashset_contains(const ptr_hashset *set, const void *element)
 {
-    return ptr_hashmap_get((const ptr_hashmap *)set, element);
+    return ptr_hashmap_get(super(set), element);
 }
 
 bool ptr_hashset_is_empty(const ptr_hashset *set)

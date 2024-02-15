@@ -60,13 +60,12 @@ lstf_vm_vmcall_connect_exec_initialize_server_cb(const event *ev, void *user_dat
         fprintf(stderr, "error: could not initialize server at `%s': %s\n",
                 server_path->buffer, strerror(errnum));
         // print JSON parser/scanner errors
-        for (iterator msg_it = json_parser_get_messages(super(vm->client)->parser);
-                msg_it.has_next; msg_it = iterator_next(msg_it)) {
-            if (msg_it.counter == 0)
+        json_parser_messages_foreach(super(vm->client)->parser, msg, {
+            unsigned long index = index_of(msg);
+            if (index == 0)
                 fprintf(stderr, "parser/scanner messages: ... \n");
-            const char *msg = iterator_get_item(msg_it);
-            fprintf(stderr, "  %lu. %s\n", (unsigned long)(msg_it.counter + 1), msg);
-        }
+            fprintf(stderr, " %2lu. %s\n", index + 1, msg);
+        });
         // queue an exception
         lstf_virtualmachine_raise(vm, lstf_vm_status_initialize_failed);
     } else {
@@ -118,7 +117,7 @@ lstf_vm_vmcall_connect_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     }
 
     // now create the language client
-    vm->client = lsp_client_new(stdout_is, stdin_os);
+    vm->client = lsp_client_new(stdout_is, stdin_os, vm->event_loop);
 
     // now initialize the client
     server_data *data;
@@ -235,11 +234,65 @@ cleanup_on_error:
     return status;
 }
 
+static void lstf_vm_vmcall_diagnostics_exec_cb(const event *ev, void *user_data)
+{
+    server_data *data = user_data;
+    lstf_virtualmachine *vm = data->vm;
+    lstf_vm_coroutine *cr = data->cr;
+    int errnum = 0;
+
+    json_node *params = lsp_client_wait_for_diagnostics_finish(ev, &errnum);
+    if (errnum) {
+        fprintf(stderr, "error: could not deserialize diagnostics: %s\n",
+                strerror(errnum));
+        lstf_virtualmachine_raise(vm, lstf_vm_status_could_not_communicate);
+    } else {
+        // success. now add the result to the stack
+        lstf_vm_status status = lstf_vm_status_continue;
+        if ((status = lstf_vm_stack_push_json(cr->stack, params)))
+            lstf_virtualmachine_raise(vm, status);
+    }
+}
+
+static lstf_vm_status
+lstf_vm_vmcall_diagnostics_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
+{
+    lstf_vm_status status = lstf_vm_status_continue;
+    string *text_document_uri = NULL;
+
+    if ((status = lstf_vm_stack_pop_string(cr->stack, &text_document_uri)))
+        return status;
+
+    if (!vm->client) {
+        status = lstf_vm_status_not_connected;
+        goto cleanup;
+    }
+
+
+    // 1. save server data
+    server_data *data;
+    box(server_data, data) {
+        .vm = vm,
+        .cr = cr,
+    };
+
+    // 2. set outstanding I/O to suspend the coroutine
+    ++cr->outstanding_io;
+
+    // 3. wait for diagnostics
+    lsp_client_wait_for_diagnostics_async(vm->client, vm->event_loop,
+                                          lstf_vm_vmcall_diagnostics_exec_cb, data);
+
+cleanup:
+    string_unref(text_document_uri);
+    return status;
+}
+
 lstf_vm_status (*const vmcall_table[256])(lstf_virtualmachine *, lstf_vm_coroutine *) = {
     [lstf_vm_vmcall_memory]         = lstf_vm_vmcall_memory_exec,
     [lstf_vm_vmcall_connect]        = lstf_vm_vmcall_connect_exec,
     [lstf_vm_vmcall_td_open]        = lstf_vm_vmcall_td_open_exec,
-    [lstf_vm_vmcall_diagnostics]    = NULL /* TODO */,
+    [lstf_vm_vmcall_diagnostics]    = lstf_vm_vmcall_diagnostics_exec,
     [lstf_vm_vmcall_change]         = NULL /* TODO */,
     [lstf_vm_vmcall_completion]     = NULL /* TODO */,
 };

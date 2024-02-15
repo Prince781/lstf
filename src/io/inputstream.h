@@ -100,6 +100,7 @@ size_t inputstream_read(inputstream *stream, void *buffer, size_t buffer_size);
 
 /**
  * Determines whether this has at least 1 byte that can be read synchronously.
+ * This can happen because the buffer is not empty, or because of\bl
  */
 bool inputstream_ready(inputstream *stream);
 

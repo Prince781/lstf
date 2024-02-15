@@ -47,3 +47,15 @@ json_serializable_decl_as_object(lsp_diagnostic, {
      */
     array(lsp_diagnostictag) tags;
 });
+
+static inline void 
+lsp_diagnostic_clear(lsp_diagnostic *diag)
+{
+    if (diag->code)
+        free(diag->code);
+    if (diag->source)
+        free(diag->source);
+    if (diag->message)
+        free(diag->message);
+    array_destroy(&diag->tags);
+}

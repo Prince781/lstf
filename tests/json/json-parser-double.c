@@ -39,11 +39,9 @@ int main(int argc, char *argv[])
     if ((parsed_node = json_parser_parse_node(parser))) {
         retval = !json_node_equal_to(array, parsed_node);
     } else {
-        fprintf(stderr, "parser: failed to parse JSON:\n"); 
-        for (iterator it = json_parser_get_messages(parser);
-                it.has_next;
-                it = iterator_next(it))
-            fprintf(stderr, "%s\n", (char *)iterator_get_item(it));
+        fprintf(stderr, "parser: failed to parse JSON:\n");
+        json_parser_messages_foreach(parser, message,
+                                     fprintf(stderr, "%s\n", message));
         retval = 1;
     }
 

@@ -14,6 +14,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 struct _lstf_virtualmachine {
     lstf_vm_program *program;           // the code and data of the program

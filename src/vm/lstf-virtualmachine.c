@@ -1378,7 +1378,7 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // allow blocking if the run queue is empty
             vm->instructions_executed = 0;      // reset instruction counter
             eventloop_process(vm->event_loop,
-                              !ptr_list_is_empty(vm->run_queue));
+                              !ptr_list_is_empty(vm->run_queue), NULL);
             // errors can be raised inside event handlers
             if (vm->last_status != lstf_vm_status_continue)
                 return vm->last_status == lstf_vm_status_hit_breakpoint;
@@ -1388,10 +1388,15 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // WaitForMultipleObjects() + CreateThread() and friends on
             // Windows). However, since the run queue is empty (all coroutines
             // are blocked on I/O) we want to make as much progress as possible.
-            while (eventloop_process(vm->event_loop, false)) {
+            unsigned processed = 0;
+            while (eventloop_process(vm->event_loop, false, &processed)) {
                 // errors can be raised inside event handlers
                 if (vm->last_status != lstf_vm_status_continue)
                     return vm->last_status == lstf_vm_status_hit_breakpoint;
+
+                // avoid busy waiting if nothing was processed. sleep for .2s
+                if (processed == 0)
+                    thrd_sleep(&(struct timespec){.tv_nsec = 200000000}, NULL);
             }
         }
 

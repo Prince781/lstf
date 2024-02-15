@@ -218,6 +218,9 @@ lstf_vm_status lstf_vm_stack_push_array(lstf_vm_stack *stack,
 lstf_vm_status lstf_vm_stack_push_pattern(lstf_vm_stack *stack,
                                           json_node     *value);
 
+lstf_vm_status lstf_vm_stack_push_json(lstf_vm_stack *stack,
+                                       json_node     *node);
+
 lstf_vm_status lstf_vm_stack_push_closure(lstf_vm_stack   *stack,
                                           lstf_vm_closure *closure);
 

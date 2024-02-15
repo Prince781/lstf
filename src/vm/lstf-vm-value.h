@@ -313,7 +313,7 @@ string_new_from_json_string(json_node *node)
     if (node->floating) {
         sb = string_new_take_data(json_string_destroy(node));
     } else {
-        sb = string_new_copy_data(((json_string *)node)->value);
+        sb = string_new_copy_data(json_node_cast(node, string)->value);
     }
 
     return sb;
@@ -335,21 +335,21 @@ lstf_vm_value_from_json_node(json_node *node)
             lstf_vm_value_type_boolean,
             false,
             false,
-            { .boolean = node->floating ? json_boolean_destroy(node) : ((json_boolean *)node)->value }
+            { .boolean = node->floating ? json_boolean_destroy(node) : json_node_cast(node, boolean)->value }
         };
     case json_node_type_double:
         return (lstf_vm_value) {
             lstf_vm_value_type_double,
             false,
             false,
-            { .double_value = node->floating ? json_double_destroy(node) : ((json_double *)node)->value }
+            { .double_value = node->floating ? json_double_destroy(node) : json_node_cast(node, double)->value }
         };
     case json_node_type_integer:
         return (lstf_vm_value) {
             lstf_vm_value_type_integer,
             false,
             false,
-            { .integer = node->floating ? json_integer_destroy(node) : ((json_integer *)node)->value }
+            { .integer = node->floating ? json_integer_destroy(node) : json_node_cast(node, integer)->value }
         };
     case json_node_type_null:
         if (node->floating)
@@ -387,7 +387,7 @@ lstf_vm_value_from_json_node(json_node *node)
                 lstf_vm_value_type_closure,
                 node->floating,
                 false,
-                { .closure = node->floating ? json_pointer_destroy(node) : ((json_pointer *)node)->value }
+                { .closure = node->floating ? json_pointer_destroy(node) : json_node_cast(node, pointer)->value }
             };
         }
         fprintf(stderr, "%s: unreachable code: cannot unwrap JSON wrapped pointer node\n", __func__);
