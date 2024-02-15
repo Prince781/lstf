@@ -38,7 +38,7 @@ bool ptr_hashset_contains(const ptr_hashset *set, const void *element);
 
 static inline void ptr_hashset_clear(ptr_hashset *set)
 {
-    ptr_hashmap_clear((ptr_hashmap *)set);
+    ptr_hashmap_clear(super(set));
 }
 
 bool ptr_hashset_is_empty(const ptr_hashset *set);

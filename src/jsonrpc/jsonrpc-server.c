@@ -34,6 +34,35 @@
   } while (0);
 #endif
 
+/**
+ * Hash an ID for a response or request.
+ */
+static unsigned jsonrpc_id_hash(json_node *id) 
+{
+    switch (id->node_type) {
+    case json_node_type_null:
+        return 0;
+    case json_node_type_integer:
+        return (uint64_t)json_node_cast(id, integer)->value;
+    case json_node_type_double: 
+    {
+        char *representation = json_node_to_string(id, false);
+        unsigned hash = strhash(representation);
+        free(representation);
+        return hash;
+    }
+    case json_node_type_string:
+        return strhash(json_node_cast(id, string)->value);
+    default:
+        fprintf(stderr,
+                "%s: ID for request object must be a string, integer, double, "
+                "or null\n",
+                __func__);
+        abort();
+        break;
+    }
+}
+
 void jsonrpc_server_init(jsonrpc_server *server,
                          inputstream    *input_stream, 
                          outputstream   *output_stream)
@@ -41,7 +70,7 @@ void jsonrpc_server_init(jsonrpc_server *server,
     server->parser = json_parser_create_from_stream(input_stream);
     server->output_stream = outputstream_ref(output_stream);
 
-    server->reply_handlers = ptr_hashmap_new((collection_item_hash_func) strhash,
+    server->call_handlers = ptr_hashmap_new((collection_item_hash_func) strhash,
             NULL,
             (collection_item_unref_func) free,
             (collection_item_equality_func) strequal,
@@ -58,8 +87,19 @@ void jsonrpc_server_init(jsonrpc_server *server,
     server->received_requests = ptr_list_new((collection_item_ref_func) json_node_ref,
                                              (collection_item_unref_func) json_node_unref);
 
-    server->received_responses = ptr_list_new((collection_item_ref_func) json_node_ref,
-                                             (collection_item_unref_func) json_node_unref);
+    server->received_responses =
+        ptr_hashmap_new((collection_item_hash_func)jsonrpc_id_hash,
+                        (collection_item_ref_func)json_node_ref,
+                        (collection_item_unref_func)json_node_unref,
+                        (collection_item_equality_func)json_node_equal_to,
+                        (collection_item_ref_func)json_node_ref,
+                        (collection_item_unref_func)json_node_unref);
+
+    server->response_events = ptr_hashmap_new(
+        (collection_item_hash_func)jsonrpc_id_hash,
+        (collection_item_ref_func)json_node_ref,
+        (collection_item_unref_func)json_node_unref,
+        (collection_item_equality_func)json_node_equal_to, NULL, NULL);
 }
 
 jsonrpc_server *jsonrpc_server_new(inputstream *input_stream,
@@ -83,7 +123,7 @@ void jsonrpc_server_handle_call(jsonrpc_server          *server,
                                 void                    *user_data,
                                 closure_data_unref_func  user_data_unref_func)
 {
-    ptr_hashmap_insert(server->reply_handlers, 
+    ptr_hashmap_insert(server->call_handlers, 
                         strdup(method), 
                         closure_new((closure_func) handler, user_data, user_data_unref_func));
 }
@@ -100,7 +140,7 @@ void jsonrpc_server_handle_notification(jsonrpc_server              *server,
 }
 
 /**
- * Returns success or failure.
+ * Sends a message synchronously. Returns success or failure.
  */
 static bool jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
 {
@@ -138,8 +178,9 @@ struct ostream_ready_ctx {
     event *send_message_ev;
 };
 
-static void jsonrpc_server_outputstream_ready_cb(const event *ready_ev,
-                                                 void        *user_data)
+static void
+jsonrpc_server_send_message_outputstream_ready_cb(const event *ready_ev,
+                                                  void        *user_data) 
 {
     struct ostream_ready_ctx *ctx = user_data;
 
@@ -164,6 +205,9 @@ static void jsonrpc_server_outputstream_ready_cb(const event *ready_ev,
     free(ctx);
 }
 
+/**
+ * Sends a request (a call or notification) asynchronously.
+ */
 static void jsonrpc_server_send_message_async(jsonrpc_server *server,
                                               json_node      *message,
                                               eventloop      *loop,
@@ -190,7 +234,7 @@ static void jsonrpc_server_send_message_async(jsonrpc_server *server,
     });
     event *ostream_ready_ev =
         event_new_from_fd(outputstream_get_fd(server->output_stream), false,
-                jsonrpc_server_outputstream_ready_cb, ctx);
+                jsonrpc_server_send_message_outputstream_ready_cb, ctx);
     eventloop_add(loop, ostream_ready_ev);
 }
 
@@ -249,12 +293,13 @@ void jsonrpc_server_reply_to_remote_async(jsonrpc_server *server,
     event *replied_ev = event_new(callback, user_data);
     eventloop_add(loop, replied_ev);
 
-    jsonrpc_server_send_message_async(server, response_object, loop, jsonrpc_server_reply_sent_cb, replied_ev);
+    jsonrpc_server_send_message_async(server, response_object, loop,
+                                      jsonrpc_server_reply_sent_cb, replied_ev);
 }
 
 static bool 
-jsonrpc_verify_is_request_object(json_node      *node, 
-                                 const char    **reason)
+jsonrpc_verify_is_request_object(json_node         *node, 
+                                 const char **const reason)
 {
     if (reason)
         *reason = NULL;
@@ -276,7 +321,7 @@ jsonrpc_verify_is_request_object(json_node      *node,
             *reason = "\"jsonrpc\" property of node is not a JSON string";
         return false;
     }
-    if (strcmp(((json_string *)member_jsonrpc)->value, "2.0") != 0) {
+    if (strcmp(json_node_cast(member_jsonrpc, string)->value, "2.0") != 0) {
         if (reason)
             *reason = "\"jsonrpc\" property of node is not equal to \"2.0\"";
         return false;
@@ -297,10 +342,21 @@ jsonrpc_verify_is_request_object(json_node      *node,
     // ID if request (with expected response), or no ID if notification
     json_node *member_id = json_object_get_member(node, "id");
     if (member_id && !(member_id->node_type == json_node_type_string ||
-                member_id->node_type == json_node_type_integer ||
-                member_id->node_type == json_node_type_null)) {
+                       member_id->node_type == json_node_type_integer ||
+                       member_id->node_type == json_node_type_double ||
+                       member_id->node_type == json_node_type_null)) {
         if (reason)
             *reason = "\"id\" property of node doesn't exist or is neither a JSON string, integer, nor null";
+        return false;
+    }
+
+    // requests either have no params or if they do, they must be structured
+    // (arrays or objects)
+    json_node *member_params = json_object_get_member(node, "params");
+    if (member_params && !(member_params->node_type == json_node_type_array ||
+                           member_params->node_type == json_node_type_object)) {
+        if (reason)
+            *reason = "\"params\" must be array or object, or omitted";
         return false;
     }
 
@@ -329,8 +385,8 @@ jsonrpc_verify_is_error_object(json_node *node)
 }
 
 static bool
-jsonrpc_verify_is_response_object(json_node        *node,
-                                  const char      **reason)
+jsonrpc_verify_is_response_object(json_node         *node,
+                                  const char **const reason)
 {
     if (reason)
         *reason = NULL;
@@ -352,7 +408,7 @@ jsonrpc_verify_is_response_object(json_node        *node,
             *reason = "\"jsonrpc\" property of node is not a JSON string";
         return false;
     }
-    if (strcmp(((json_string *)member_jsonrpc)->value, "2.0") != 0) {
+    if (strcmp(json_node_cast(member_jsonrpc, string)->value, "2.0") != 0) {
         if (reason)
             *reason = "\"jsonrpc\" property of node is not equal to \"2.0\"";
         return false;
@@ -443,7 +499,7 @@ json_node *jsonrpc_server_call_remote(jsonrpc_server *server,
         } else if (jsonrpc_verify_is_request_object(response_node, NULL)) {
             json_string *member_method = (json_string *) json_object_get_member(response_node, "method");
 
-            if (ptr_hashmap_get(server->reply_handlers, member_method->value) ||
+            if (ptr_hashmap_get(server->call_handlers, member_method->value) ||
                 ptr_hashmap_get(server->notif_handlers, member_method->value)) {
                 ptr_list_append(server->received_requests, response_node);
             } else {
@@ -459,8 +515,8 @@ json_node *jsonrpc_server_call_remote(jsonrpc_server *server,
 
     if (!response_node) {
         // print parser errors if they occurred
-        for (iterator it = json_parser_get_messages(server->parser); it.has_next; it = iterator_next(it))
-            fprintf(stderr, "%s: %s\n", __func__, (const char *) iterator_get_item(it));
+        json_parser_messages_foreach(server->parser, message,
+          fprintf(stderr, "%s: %s\n", __func__, message));
     }
 
     json_node_unref(request_object);
@@ -487,11 +543,19 @@ static void jsonrpc_server_wait_stream_async(jsonrpc_server *server,
     }
 }
 
+static bool jsonrpc_server_wait_stream_finish(const event *ev, int *error) {
+    if (event_get_result(ev, NULL))
+        return true;
+    if (error)
+        *error = event_get_errno(ev);
+    return false;
+}
+
 struct parse_content_length_ctx {
     jsonrpc_server *server;
     event *header_parsed_ev;
     enum {
-        parse_content_length_state_skipping_first,
+        parse_content_length_state_skipping_text,
         parse_content_length_state_reading_length,
         parse_content_length_state_parse_newlines
     } state;
@@ -504,8 +568,9 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
 {
     struct parse_content_length_ctx *ctx = user_data;
     const char header_begin[] = "Content-Length: ";
+    int errnum = EPROTO;
 
-    if (!event_get_result(ev, NULL)) {
+    if (!jsonrpc_server_wait_stream_finish(ev, &errnum)) {
         // error - cleanup
         goto cancel;
     }
@@ -518,7 +583,7 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
         goto cancel;
     } else {
         switch (ctx->state) {
-        case parse_content_length_state_skipping_first:
+        case parse_content_length_state_skipping_text:
             if (ctx->i < sizeof(header_begin) - 1) {
                 if (read_character == header_begin[ctx->i])
                     // read another char
@@ -542,6 +607,9 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
                 if (ctx->i == sizeof(ctx->numbuf) - 1) {
                     fprintf(stderr, "%s: too-long content length of %s%c!\n",
                             __func__, ctx->numbuf, read_character);
+                    // throw "not supported" since JSON-RPC technically has no
+                    // limit on content length
+                    errnum = ENOTSUP;
                     goto cancel;
                 } else {
                     // save char, read next
@@ -566,7 +634,8 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
                 jsonrpc_debug(fprintf(
                     stderr, "done reading 'Content-Length: ', size = %zu\n",
                     content_length));
-                event_return(ctx->header_parsed_ev, (void *)content_length);
+                event_return(ctx->header_parsed_ev,
+                             (void *)(uintptr_t)content_length);
                 free(ctx);
                 return;
             } else {
@@ -587,7 +656,7 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
     return;
 
 cancel:
-    event_cancel_with_errno(ctx->header_parsed_ev, EPROTO);
+    event_cancel_with_errno(ctx->header_parsed_ev, errnum);
     free(ctx);
 }
 
@@ -605,7 +674,15 @@ static size_t jsonrpc_server_parse_response_header_finish(const event *ev,
     return (uintptr_t)result;
 }
 
-static void jsonrpc_server_parse_response_header_async(jsonrpc_server *server,
+/**
+ * (private API)
+ *
+ * Parses a header in the JSON-RPC stream. This is what comes before JSON-RPC
+ * requests and responses.
+ *
+ * @param callback the callback to invoke after parsing the header
+ */
+static void jsonrpc_server_parse_header(jsonrpc_server *server,
                                                        eventloop      *loop,
                                                        async_callback  callback,
                                                        void           *user_data)
@@ -617,7 +694,7 @@ static void jsonrpc_server_parse_response_header_async(jsonrpc_server *server,
     box(struct parse_content_length_ctx, ctx) {
         server,
         header_parsed_ev,
-        .state = parse_content_length_state_skipping_first
+        .state = parse_content_length_state_skipping_text
     };
     json_scanner_reset(server->parser->scanner);
 
@@ -630,192 +707,14 @@ static void jsonrpc_server_parse_response_header_async(jsonrpc_server *server,
     jsonrpc_server_wait_stream_async(server, loop, jsonrpc_server_parse_content_length_cb, ctx);
 }
 
-struct parse_node_ctx {
-    jsonrpc_server *server;
-    json_node *response_id;
-    event *response_handled_ev;
-    eventloop *loop;
-};
-
-static void jsonrpc_server_parse_response_node_cb(const event *ev, void *user_data)
-{
-    struct parse_node_ctx *ctx = user_data;
-    jsonrpc_server *server = ctx->server;
-    json_node *response_id = ctx->response_id;
-    event *response_handled_ev = ctx->response_handled_ev;
-    void *result = NULL;
-
-    if (event_get_result(ev, &result)) {
-        json_node *received_node = result;
-
-        jsonrpc_debug({
-          char *id_str = json_node_to_string(response_id, false);
-          char *received_str = json_node_to_string(received_node, true);
-          fprintf(stderr, "[id: %s] received node:\n%s\n", id_str, received_str);
-          free(id_str);
-          free(received_str);
-        });
-        if (jsonrpc_verify_is_response_object(received_node, NULL)) {
-            if (json_node_equal_to(json_object_get_member(received_node, "id"), response_id)) {
-                event_return(response_handled_ev, received_node);
-                json_node_unref(ctx->response_id);
-                free(ctx);
-                return;
-            }
-
-            // otherwise save the received node
-            jsonrpc_debug({
-              fprintf(stderr, "received response for different request. saving "
-                              "and continuing...\n");
-            });
-            ptr_list_append(server->received_responses, received_node);
-        } else if (jsonrpc_verify_is_request_object(received_node, NULL)) {
-            jsonrpc_debug(fprintf(stderr, "received notification. saving and continuing...\n"));
-            ptr_list_append(server->received_requests, received_node);
-        } else {
-            event_cancel_with_errno(response_handled_ev, EPROTO);
-            json_node_unref(ctx->response_id);
-            free(ctx);
-            return;
-        }
-
-        // listen for another response
-        json_parser_parse_node_async(server->parser, 
-                ctx->loop, jsonrpc_server_parse_response_node_cb, ctx);
-    } else {
-        event_cancel_with_errno(response_handled_ev, event_get_errno(ev));
-        json_node_unref(ctx->response_id);
-        free(ctx);
-    }
-}
-
-static bool jsonrpc_server_response_node_filter(void *item, void *user_data)
-{
-    json_node *node = item;
-    json_node *response_id = user_data;
-
-    return jsonrpc_verify_is_response_object(node, NULL)
-        && json_node_equal_to(json_object_get_member(node, "id"), response_id);
-}
-
-struct parse_response_header_ctx {
-    async_callback callback;
-    void *callback_data;
-    eventloop *loop;
-    jsonrpc_server *server;
-    json_node *response_id;
-};
-
-static void jsonrpc_server_parse_response_header_cb(const event *ev,
-                                                    void        *user_data)
-{
-    struct parse_response_header_ctx *ctx = user_data;
-    async_callback callback = ctx->callback;
-    void *callback_data = ctx->callback_data;
-    eventloop *loop = ctx->loop;
-    jsonrpc_server *server = ctx->server;
-    json_node *response_id = ctx->response_id;
-
-    event *response_handled_ev = event_new(callback, callback_data);
-    eventloop_add(loop, response_handled_ev);
-
-    size_t content_length = 0;
-    int error = 0;
-
-    if ((content_length = jsonrpc_server_parse_response_header_finish(ev, &error))) {
-        jsonrpc_debug({
-          char *id_str = json_node_to_string(response_id, false);
-          fprintf(stderr, "[id: %s] received header. "
-                          "await json_parser_parse_node_async();\n"
-                          "callback: => jsonrpc_server_parse_response_node_cb\n", id_str);
-          free(id_str);
-        });
-        // schedule parsing the response node after success
-        struct parse_node_ctx *ctx;
-        box(struct parse_node_ctx, ctx) {
-            server,
-            json_node_ref(response_id),
-            response_handled_ev,
-            loop
-        };
-        json_parser_parse_node_async(server->parser, loop, jsonrpc_server_parse_response_node_cb, ctx);
-    } else {
-        // failure
-        event_cancel_with_errno(response_handled_ev, error);
-    }
-
-    json_node_unref(response_id);
-    free(ctx);
-}
-
-static void jsonrpc_server_handle_response_async(jsonrpc_server *server,
-                                                 json_node      *response_id,
-                                                 eventloop      *loop,
-                                                 async_callback  callback,
-                                                 void           *user_data)
-{
-    // first, check if we already have responses saved
-    ptr_list_node *query = ptr_list_query(server->received_responses, jsonrpc_server_response_node_filter, response_id);
-    if (query) {
-        // we've found our response, so there's no need to run the event loop
-        jsonrpc_debug({
-          char *id_str = json_node_to_string(response_id, false);
-          char *response_str = json_node_to_string(query->data, true);
-          fprintf(stderr, "[id: %s]: already received response:\n%s\n", id_str,
-                  response_str);
-          free(id_str);
-          free(response_str);
-        });
-        event tmp_ev = { 0 };
-        event_return(&tmp_ev, query->data);
-        callback(&tmp_ev, user_data);
-        return;
-    }
-
-    struct parse_response_header_ctx *ctx;
-    box(struct parse_response_header_ctx, ctx) {
-        callback,
-        user_data,
-        loop,
-        server,
-        json_node_ref(response_id)
-    };
-
-    // parse the header asynchronously, then parse the node
-    jsonrpc_debug({
-      char *id_str = json_node_to_string(response_id, false);
-      fprintf(stderr,
-              "[id: %s]: await jsonrpc_server_parse_response_header_async();\n"
-              "callback: => jsonrpc_server_parse_response_header_cb\n",
-              id_str);
-      free(id_str);
-    });
-    jsonrpc_server_parse_response_header_async(server, loop, jsonrpc_server_parse_response_header_cb, ctx);
-}
-
-static void jsonrpc_server_handle_response_cb(const event *receive_ev,
-                                              void        *user_data)
-{
-    event *handle_ev = user_data;
-    void *response = NULL;
-
-    // just propagate the result of this receiving of the response to the event
-    // for handling the response
-    if (event_get_result(receive_ev, &response)) {
-        event_return(handle_ev, response);
-    } else {
-        event_cancel_with_errno(handle_ev, event_get_errno(receive_ev));
-    }
-}
-
 struct send_request_ctx {
     jsonrpc_server *server;
     json_node *request_id;
     event *response_ev;
 };
 
-static void jsonrpc_server_send_request_cb(const event *send_request_ev,
-                                           void        *user_data)
+static void jsonrpc_server_call_remote_send_message_cb(const event *send_request_ev,
+                                                       void        *user_data)
 {
     struct send_request_ctx *ctx = user_data;
     jsonrpc_server *server = ctx->server;
@@ -833,7 +732,7 @@ static void jsonrpc_server_send_request_cb(const event *send_request_ev,
         });
         event_cancel_with_errno(response_ev, event_get_errno(send_request_ev));
     } else {
-        // success - now wait for a response
+        // success - now get the response
         jsonrpc_debug({
           char *id_str = json_node_to_string(request_id, false);
           fprintf(stderr,
@@ -842,8 +741,16 @@ static void jsonrpc_server_send_request_cb(const event *send_request_ev,
                   id_str);
           free(id_str);
         });
-        jsonrpc_server_handle_response_async(server, request_id, response_ev->loop,
-                                             jsonrpc_server_handle_response_cb, response_ev);
+
+        ptr_hashmap_entry *query = ptr_hashmap_get(server->received_responses, request_id);
+        if (query) {
+            // we received a response already (XXX: how?)
+            event_return(response_ev, json_node_ref(query->value));
+            ptr_hashmap_delete(server->received_responses, query->key);
+        } else {
+            // no response yet exists. wait for one
+            ptr_hashmap_insert(server->response_events, request_id, response_ev);
+        }
     }
 
     json_node_unref(ctx->request_id);
@@ -887,7 +794,7 @@ void jsonrpc_server_call_remote_async(jsonrpc_server *server,
           "callback: => jsonrpc_server_send_request_cb();\n");
     });
     jsonrpc_server_send_message_async(server, request_object, loop,
-                                      jsonrpc_server_send_request_cb, ctx);
+                                      jsonrpc_server_call_remote_send_message_cb, ctx);
 }
 
 json_node *jsonrpc_server_call_remote_finish(const event *ev, int *error)
@@ -951,138 +858,148 @@ bool jsonrpc_server_notify_remote_finish(const event *ev, int *error)
     return false;
 }
 
-int jsonrpc_server_process_received_requests(jsonrpc_server *server)
+static void
+jsonrpc_server_listen_parse_header_cb(const event *header_parsed_ev,
+                                               void        *user_data);
+
+static void jsonrpc_server_handle_request(jsonrpc_server *server,
+                                          json_node      *parsed_node) 
 {
-    int num_processed = 0;
-
-    for (iterator it = ptr_list_iterator_create(server->received_requests);
-            it.has_next;
-            it = iterator_next(it)) {
-        json_node *request_node = iterator_get_item(it);
-        json_string *request_method = (json_string *) json_object_get_member(request_node, "method");
-        json_node *request_id = json_object_get_member(request_node, "id");
-        json_node *request_params = json_object_get_member(request_node, "params");
-
-        if (request_id) {
-            ptr_hashmap_entry *entry = ptr_hashmap_get(server->reply_handlers, request_method->value);
-            closure *cl = entry->value;
-            jsonrpc_call_handler handler = (jsonrpc_call_handler) cl->func_ptr;
-            handler(server, request_method->value, request_id, request_params, cl->user_data);
-        } else {
-            ptr_hashmap_entry *entry = ptr_hashmap_get(server->notif_handlers, request_method->value);
-            closure *cl = entry->value;
-            jsonrpc_notification_handler handler = (jsonrpc_notification_handler) cl->func_ptr;
-            handler(server, request_method->value, request_params, cl->user_data);
-        }
-        num_processed++;
-    }
-    ptr_list_clear(server->received_requests);
-
-    return num_processed;
-}
-
-int jsonrpc_server_wait_for_incoming_messages(jsonrpc_server *server)
-{
-    unsigned num_received_requests = server->received_requests->length;
-
-    if (num_received_requests == 0) {
-        // wait for at least one message
-        json_node *request_node = NULL;
-
-        if (!(request_node = json_parser_parse_node(server->parser))) {
-            // print parser errors
-            for (iterator it = json_parser_get_messages(server->parser); it.has_next; it = iterator_next(it))
-                fprintf(stderr, "%s: %s\n", __func__, (const char *) iterator_get_item(it));
-            return server->parser->error ? -2 : -1;
-        }
-
-        if (!jsonrpc_verify_is_request_object(request_node, NULL)) {
-            bool have_valid_requests = false;
-            // handle batched requests
-            if (request_node->node_type == json_node_type_array) {
-                for (unsigned i = 0; i < ((json_array *)request_node)->num_elements; i++) {
-                    json_node *element = ((json_array *)request_node)->elements[i];
-
-                    if (jsonrpc_verify_is_request_object(element, NULL)) {
-                        json_string *member_method = (json_string *) json_object_get_member(element, "method");
-
-                        if (ptr_hashmap_get(server->reply_handlers, member_method->value) || 
-                                ptr_hashmap_get(server->notif_handlers, member_method->value)) {
-                            have_valid_requests = true;
-                            ptr_list_append(server->received_requests, element);
-                        } else {
-                            fprintf(stderr, "%s: warning: method \"%s\" not found\n",
-                                    __func__, member_method->value);
-                        }
-                    }
-                }
-            }
-            json_node_unref(request_node);
-            if (!have_valid_requests)
-                return -2;
-        } else {
-            json_string *member_method = (json_string *) json_object_get_member(request_node, "method");
-
-            if (ptr_hashmap_get(server->reply_handlers, member_method->value) || 
-                    ptr_hashmap_get(server->notif_handlers, member_method->value)) {
-                ptr_list_append(server->received_requests, request_node);
-            } else {
-                fprintf(stderr, "%s: warning: method \"%s\" not found\n",
-                        __func__, member_method->value);
-                json_node_unref(request_node);
-            }
-        }
-    }
-
-    return server->received_requests->length - num_received_requests;
-}
-
-static void jsonrpc_server_listen_parse_node_cb(const event *parse_node_ev, void *user_data)
-{
-    jsonrpc_debug();
-
-    jsonrpc_server *server = user_data;
-    int error = 0;
-    json_node *node = json_parser_parse_node_finish(parse_node_ev, &error);
-
-    if (node) {
-        jsonrpc_debug({
-          char *str = json_node_to_string(node, true);
-          fprintf(stderr, "... => parsed node:\n%s\n", str);
-          free(str);
-        });
-        // process the message
-        if (jsonrpc_verify_is_request_object(node, NULL)) {
-            json_string *member_method = (json_string *) json_object_get_member(node, "method");
-
-            // save this message
-            if (ptr_hashmap_get(server->reply_handlers, member_method->value) || 
-                    ptr_hashmap_get(server->notif_handlers, member_method->value)) {
-                ptr_list_append(server->received_requests, node);
-            } else {
-                // otherwise discard this node
-                fprintf(stderr, "%s: warning: method \"%s\" not found\n", __func__, member_method->value);
-                json_node_unref(node);
-            }
-        } else {
-            // TODO: handle response
-            json_node_unref(node);
-        }
-
-        // loop
-        json_parser_parse_node_async(server->parser, parse_node_ev->loop, jsonrpc_server_listen_parse_node_cb, server);
+    const char *method_name =
+        json_node_cast(json_object_get_member(parsed_node, "method"), string)
+            ->value;
+    json_node *id = json_object_get_member(parsed_node, "id");
+    json_node *params = json_object_get_member(parsed_node, "params");
+    ptr_hashmap_entry *handler_entry = NULL;
+    if (id &&
+        (handler_entry = ptr_hashmap_get(server->call_handlers, method_name))) {
+        closure *cl = handler_entry->value;
+        jsonrpc_call_handler call_handler = (jsonrpc_call_handler)cl->func_ptr;
+        call_handler(server, method_name, id, params, cl->user_data);
+    } else if (!id && (handler_entry = ptr_hashmap_get(server->notif_handlers,
+                                                       method_name))) {
+        closure *cl = handler_entry->value;
+        jsonrpc_notification_handler notif_handler =
+            (jsonrpc_notification_handler)cl->func_ptr;
+        notif_handler(server, method_name, params, cl->user_data);
     } else {
-        // otherwise quit
-        fprintf(stderr, "%s: warning: failed to parse node - %s\n", __func__, strerror(error));
+        jsonrpc_debug(
+            fprintf(stderr, "warning: method \"%s\" not found\n", method_name));
+    }
+}
+
+static void
+jsonrpc_server_listen_parse_node_after_header_cb(const event *node_parsed_ev,
+                                                 void        *user_data) 
+{
+    jsonrpc_server *server = user_data;
+    eventloop *loop = node_parsed_ev->loop;
+    json_node *parsed_node = NULL;
+    int error = 0;
+
+    if ((parsed_node = json_parser_parse_node_finish(node_parsed_ev, &error))) {
+        // is this a request object, a response object, or a batch of requests?
+        const char *reason = NULL;
+        if (jsonrpc_verify_is_request_object(parsed_node, &reason)) {
+            jsonrpc_server_handle_request(server, parsed_node);
+        } else if (jsonrpc_verify_is_response_object(parsed_node, NULL)) {
+            // first, check if there is an event waiting on completion of this method
+            json_node *id = json_object_get_member(parsed_node, "id");
+            json_node *result = json_object_get_member(parsed_node, "result");
+            ptr_hashmap_entry *response_ev_entry = ptr_hashmap_get(server->response_events, id);
+            if (response_ev_entry) {
+                // complete the event by returning the parsed response
+                event *response_ev = response_ev_entry->value;
+                event_return(response_ev, json_node_ref(result));
+            } else {
+                // XXX: if there is no event, then we have a "response" without
+                //      a corresponding request?
+                jsonrpc_debug(fprintf(
+                    stderr, "received response before request. saving...\n"));
+                ptr_hashmap_insert(server->received_responses, id, parsed_node);
+            }
+        } else if (parsed_node->node_type == json_node_type_array) {
+            // possible batched requests...
+            json_array_foreach(parsed_node, parsed_element, {
+              if (jsonrpc_verify_is_request_object(parsed_element, &reason)) {
+                jsonrpc_server_handle_request(server, parsed_element);
+              } else {
+                // invalid - bail out
+                char *representation =
+                    json_node_to_string(parsed_element, true);
+                fprintf(stderr,
+                        "%s: expected request object in batch: %s\n%s\n",
+                        __func__, reason, representation);
+                free(representation);
+                json_node_unref(parsed_node);
+                return;
+              }
+            });
+            json_node_unref(parsed_node);       // discard the array
+            return;
+        } else {
+            // invalid JSON node - bail out
+            char *representation = json_node_to_string(parsed_node, true);
+            fprintf(stderr,
+                    "%s: JSON-RPC: got something neither a request nor a "
+                    "response: %s\n%s\n",
+                    __func__, reason, representation);
+            free(representation);
+            json_node_unref(parsed_node);
+            return;
+        }
+
+        // we want to continue parsing - loop
+        json_parser_parse_node_async(server->parser, loop,
+            jsonrpc_server_listen_parse_header_cb, server);
+    } else {
+        // failed to parse node
+        fprintf(stderr, "%s: JSON-RPC: failed to parse node: %s\n", __func__, strerror(error));
+        json_parser_messages_foreach(server->parser, msg, {
+            unsigned long index = index_of(msg);
+            if (index == 0)
+                fprintf(stderr, "parser/scanner error messages:\n");
+            fprintf(stderr, " %2lu. %s\n", index + 1, msg);
+        });
+    }
+}
+
+/**
+ * Loop endlessly, parsing nodes and headers.
+ */
+static void
+jsonrpc_server_listen_parse_header_cb(const event *header_parsed_ev,
+                                               void        *user_data)
+{
+    jsonrpc_server *server = user_data;
+    size_t content_length;
+    int error = 0;
+    eventloop *loop = header_parsed_ev->loop;
+
+    if ((content_length = jsonrpc_server_parse_response_header_finish(header_parsed_ev, &error))) {
+        // schedule parsing the node after success
+
+        // XXX: we currently ignore the content length and read from the
+        // stream until a complete parse. Is this okay?
+        json_parser_parse_node_async(server->parser, loop,
+            jsonrpc_server_listen_parse_node_after_header_cb, server);
+    } else {
+        // failure (TODO: restart on certain conditions - EAGAIN?)
+        server->is_listening = false;
+        fprintf(stderr, "%s: JSON-RPC server failed to listen: %s\n", __func__,
+                strerror(error));
     }
 }
 
 void jsonrpc_server_listen(jsonrpc_server *server, eventloop *loop)
 {
+    assert(!jsonrpc_server_is_listening(server) && "JSON-RPC server already listening");
     jsonrpc_debug(fprintf(stderr,
-                          "await json_parser_parse_node_async();\n"
-                          "callback: => jsonrpc_server_listen_parse_node_cb()\n"));
-    json_parser_parse_node_async(server->parser, loop, jsonrpc_server_listen_parse_node_cb, server);
+                          "await jsonrpc_server_parse_response_header_async();\n"
+                          "callback: => jsonrpc_server_listen_parse_response_header_cb()\n"));
+    server->is_listening = true;
+    jsonrpc_server_parse_header(server, loop,
+                                jsonrpc_server_listen_parse_header_cb, server);
 }
 
 void jsonrpc_server_destroy(jsonrpc_server *server)
@@ -1093,16 +1010,19 @@ void jsonrpc_server_destroy(jsonrpc_server *server)
     outputstream_unref(server->output_stream);
     server->output_stream = NULL;
 
-    ptr_hashmap_destroy(server->reply_handlers);
-    server->reply_handlers = NULL;
+    ptr_hashmap_destroy(server->call_handlers);
+    server->call_handlers = NULL;
     ptr_hashmap_destroy(server->notif_handlers);
     server->notif_handlers = NULL;
 
     ptr_list_destroy(server->received_requests);
     server->received_requests = NULL;
 
-    ptr_list_destroy(server->received_responses);
+    ptr_hashmap_destroy(server->received_responses);
     server->received_responses = NULL;
+
+    ptr_hashmap_destroy(server->response_events);
+    server->response_events = NULL;
 
     free(server);
 }

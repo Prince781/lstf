@@ -88,3 +88,11 @@ static inline void *iterator_get_item(iterator it)
 
     return item;
 }
+
+
+/**
+ * Gets the iterator name of an element. Useful in `*_foreach()` constructs.
+ */
+#define iterator_of(element_name) element_name##_it
+
+#define index_of(element_name) ((unsigned long)((element_name##_it).counter))

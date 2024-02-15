@@ -61,7 +61,8 @@ void json_parser_parse_node_async(json_parser   *parser,
                                   void          *user_data);
 
 /**
- * Completes parsing of a single node.
+ * Completes parsing of a single node. Returns a floating reference to the
+ * constructed node.
  *
  * @see json_parser_parse_node_async
  */
@@ -72,5 +73,18 @@ json_node *json_parser_parse_node_finish(const event *ev, int *error);
  * or the scanner.
  */
 iterator json_parser_get_messages(json_parser *parser);
+
+/**
+ * Iterate over all parser messages
+ */
+#define json_parser_messages_foreach(parser, message, statements)              \
+    do {                                                                       \
+      for (iterator iterator_of(message) = json_parser_get_messages(parser);   \
+           iterator_of(message).has_next;                                      \
+           iterator_of(message) = iterator_next(iterator_of(message))) {       \
+        const char *message = iterator_get_item(iterator_of(message));         \
+        statements;                                                            \
+      }                                                                        \
+    } while (0)
 
 void json_parser_destroy(json_parser *parser);

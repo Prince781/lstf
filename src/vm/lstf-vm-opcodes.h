@@ -225,7 +225,9 @@ enum _lstf_vm_vmcallcode {
     lstf_vm_vmcall_td_open,
 
     /**
-     * `async fun diagnostics(file: DocumentUri): future<PublishDiagnosticsParams>`
+     * **Waits for** incoming `textDocument/publishDiagnostics` notification 
+     * from the server and returns the parameters sent.
+     * `async fun diagnostics(file: DocumentUri): future<{diagnostics: Diagnostic[], version?: int}>`
      */
     lstf_vm_vmcall_diagnostics,
 

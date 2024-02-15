@@ -2,6 +2,7 @@
 #include "json/json.h"
 #include "io/outputstream.h"
 #include "io/inputstream.h"
+#include "io/event.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -46,11 +47,14 @@ int main(int argc, char *argv[]) {
 
     int retval = 1;
     jsonrpc_server *server = jsonrpc_server_new(json_file_to_parse, outputstream_new_from_file(stdout, false));
+    eventloop *loop = eventloop_new();
 
     jsonrpc_server_handle_call(server, "testmethod", testmethod, &retval, NULL);
-    while (jsonrpc_server_wait_for_incoming_messages(server) > 0)
-        jsonrpc_server_process_received_requests(server);
+    jsonrpc_server_listen(server, loop);
+    while (eventloop_process(loop, false, NULL))
+        ;
 
+    eventloop_destroy(loop);
     jsonrpc_server_destroy(server);
 
     return retval;

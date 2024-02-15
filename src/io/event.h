@@ -164,8 +164,12 @@ event *eventloop_add_bgtask(eventloop      *loop,
  * 
  * Returns `true` if the event loop should continue to run, or `false`
  * otherwise.
+ *
+ * @param num_processed (optional)
  */
-bool eventloop_process(eventloop *loop, bool force_nonblocking);
+bool eventloop_process(eventloop *loop, 
+                       bool       force_nonblocking,
+                       unsigned   *num_processed);
 
 /**
  * (to be used from a background thread)
