@@ -555,6 +555,7 @@ struct parse_content_length_ctx {
     jsonrpc_server *server;
     event *header_parsed_ev;
     enum {
+        parse_content_length_state_skipping_spaces,
         parse_content_length_state_skipping_text,
         parse_content_length_state_reading_length,
         parse_content_length_state_parse_newlines
@@ -568,7 +569,7 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
 {
     struct parse_content_length_ctx *ctx = user_data;
     const char header_begin[] = "Content-Length: ";
-    int errnum = EPROTO;
+    int errnum = 0;
 
     if (!jsonrpc_server_wait_stream_finish(ev, &errnum)) {
         // error - cleanup
@@ -578,11 +579,23 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
     char read_character;
     if (!inputstream_read_char(ctx->server->parser->scanner->stream,
                                &read_character)) {
-        // failed to read
-        jsonrpc_debug(fprintf(stderr, "failed to read 'Content-Length: '\n"));
+        if ((errnum = errno) != 0) {
+            // failed to read, not EOF
+            jsonrpc_debug(fprintf(stderr,
+                                  "failed to read 'Content-Length: ': %s\n",
+                                  strerror(errno)));
+        }
         goto cancel;
     } else {
         switch (ctx->state) {
+        case parse_content_length_state_skipping_spaces:
+            if (!isspace(read_character)) {
+                ctx->state = parse_content_length_state_skipping_text;
+                __attribute__((fallthrough));
+            } else {
+                break;
+            }
+
         case parse_content_length_state_skipping_text:
             if (ctx->i < sizeof(header_begin) - 1) {
                 if (read_character == header_begin[ctx->i])
@@ -660,8 +673,8 @@ cancel:
     free(ctx);
 }
 
-static size_t jsonrpc_server_parse_response_header_finish(const event *ev,
-                                                          int         *error)
+static size_t jsonrpc_server_parse_header_finish(const event *ev,
+                                                 int         *error)
 {
     void *result = NULL;
 
@@ -682,10 +695,10 @@ static size_t jsonrpc_server_parse_response_header_finish(const event *ev,
  *
  * @param callback the callback to invoke after parsing the header
  */
-static void jsonrpc_server_parse_header(jsonrpc_server *server,
-                                                       eventloop      *loop,
-                                                       async_callback  callback,
-                                                       void           *user_data)
+static void jsonrpc_server_parse_header_async(jsonrpc_server *server,
+                                              eventloop      *loop,
+                                              async_callback  callback,
+                                              void           *user_data)
 {
     event *header_parsed_ev = event_new(callback, user_data);
     eventloop_add(loop, header_parsed_ev);
@@ -694,7 +707,7 @@ static void jsonrpc_server_parse_header(jsonrpc_server *server,
     box(struct parse_content_length_ctx, ctx) {
         server,
         header_parsed_ev,
-        .state = parse_content_length_state_skipping_text
+        .state = parse_content_length_state_skipping_spaces
     };
     json_scanner_reset(server->parser->scanner);
 
@@ -860,7 +873,7 @@ bool jsonrpc_server_notify_remote_finish(const event *ev, int *error)
 
 static void
 jsonrpc_server_listen_parse_header_cb(const event *header_parsed_ev,
-                                               void        *user_data);
+                                      void        *user_data);
 
 static void jsonrpc_server_handle_request(jsonrpc_server *server,
                                           json_node      *parsed_node) 
@@ -902,7 +915,7 @@ jsonrpc_server_listen_parse_node_after_header_cb(const event *node_parsed_ev,
         const char *reason = NULL;
         if (jsonrpc_verify_is_request_object(parsed_node, &reason)) {
             jsonrpc_server_handle_request(server, parsed_node);
-        } else if (jsonrpc_verify_is_response_object(parsed_node, NULL)) {
+        } else if (jsonrpc_verify_is_response_object(parsed_node, &reason)) {
             // first, check if there is an event waiting on completion of this method
             json_node *id = json_object_get_member(parsed_node, "id");
             json_node *result = json_object_get_member(parsed_node, "result");
@@ -950,8 +963,8 @@ jsonrpc_server_listen_parse_node_after_header_cb(const event *node_parsed_ev,
         }
 
         // we want to continue parsing - loop
-        json_parser_parse_node_async(server->parser, loop,
-            jsonrpc_server_listen_parse_header_cb, server);
+        jsonrpc_server_parse_header_async(
+            server, loop, jsonrpc_server_listen_parse_header_cb, server);
     } else {
         // failed to parse node
         fprintf(stderr, "%s: JSON-RPC: failed to parse node: %s\n", __func__, strerror(error));
@@ -969,25 +982,24 @@ jsonrpc_server_listen_parse_node_after_header_cb(const event *node_parsed_ev,
  */
 static void
 jsonrpc_server_listen_parse_header_cb(const event *header_parsed_ev,
-                                               void        *user_data)
+                                      void        *user_data)
 {
     jsonrpc_server *server = user_data;
     size_t content_length;
     int error = 0;
     eventloop *loop = header_parsed_ev->loop;
 
-    if ((content_length = jsonrpc_server_parse_response_header_finish(header_parsed_ev, &error))) {
+    if ((content_length = jsonrpc_server_parse_header_finish(header_parsed_ev, &error))) {
         // schedule parsing the node after success
-
-        // XXX: we currently ignore the content length and read from the
-        // stream until a complete parse. Is this okay?
         json_parser_parse_node_async(server->parser, loop,
             jsonrpc_server_listen_parse_node_after_header_cb, server);
     } else {
-        // failure (TODO: restart on certain conditions - EAGAIN?)
         server->is_listening = false;
-        fprintf(stderr, "%s: JSON-RPC server failed to listen: %s\n", __func__,
-                strerror(error));
+        // only report errors. no errors are EOF
+        if ((server->error_code = error)) {
+            fprintf(stderr, "%s: JSON-RPC server failed to listen: %s\n",
+                    __func__, strerror(error));
+        }
     }
 }
 
@@ -998,8 +1010,8 @@ void jsonrpc_server_listen(jsonrpc_server *server, eventloop *loop)
                           "await jsonrpc_server_parse_response_header_async();\n"
                           "callback: => jsonrpc_server_listen_parse_response_header_cb()\n"));
     server->is_listening = true;
-    jsonrpc_server_parse_header(server, loop,
-                                jsonrpc_server_listen_parse_header_cb, server);
+    jsonrpc_server_parse_header_async(server, loop,
+                                      jsonrpc_server_listen_parse_header_cb, server);
 }
 
 void jsonrpc_server_destroy(jsonrpc_server *server)

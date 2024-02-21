@@ -67,7 +67,7 @@ void event_return(event *ev, void *result)
 
     if (ev->type == event_type_bg_task)
         /**
-         * We only need to signal the event loop if we're completing an event
+         * We only need to signal the event loop if we're completing this event
          * from a background thread. If we're in the foreground, this isn't
          * necessary because we just set [is_ready] to true.
          */
@@ -352,7 +352,7 @@ static void eventloop_poll(eventloop *loop,
             if (WaitForSingleObject((HANDLE) _get_osfhandle(pending->fd), 0) == WAIT_OBJECT_0) {
                 // remove [pending] off the list of pending tasks and add
                 // it to the list of ready tasks
-                pending->is_ready = true;
+                event_return(pending, NULL);
                 eventloop_remove(loop, pending, prev);
                 event_list_prepend(ready_events, pending);
                 pending = NULL;
@@ -390,12 +390,11 @@ static void eventloop_poll(eventloop *loop,
         ++p;
     }
 
-    int poll_status = -1;
     // poll without waiting (0) if there are other ready tasks
     // otherwise, poll with an indefinite wait (-1)
     int timeout_ms = (*ready_events && !force_nonblocking) ? 0 : -1;
 
-    while ((poll_status = poll(pollfds, num_io_pending + have_non_io_tasks, timeout_ms)) == -1 &&
+    while (poll(pollfds, num_io_pending + have_non_io_tasks, timeout_ms) == -1 &&
             (errno == EAGAIN || errno == EINTR))
         ;
 
@@ -410,7 +409,7 @@ static void eventloop_poll(eventloop *loop,
             if (pollfds[p].revents & (pending->type == event_type_io_read ? POLLIN : POLLOUT)) {
                 // remove [pending] off the list of pending tasks and add
                 // it to the list of ready tasks
-                pending->is_ready = true;
+                event_return(pending, NULL);
                 eventloop_remove(loop, pending, prev);
                 event_list_prepend(ready_events, pending);
                 pending = NULL;

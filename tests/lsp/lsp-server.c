@@ -216,14 +216,29 @@ int main(int argc, char *argv[])
     while (eventloop_process(loop, false, NULL))
         ;
 
+    int error_code = super(server)->error_code;
+    bool parser_error = false;
     // print scanner errors
-    if (super(server)->parser->scanner->message)
+    if (super(server)->parser->scanner->message) {
         fprintf(stderr, "%s\n", super(server)->parser->scanner->message);
+        parser_error = true;
+    }
     // print parser errors
-    json_parser_messages_foreach(super(server)->parser, message,
-                                 fprintf(stderr, "%s\n", message));
+    json_parser_messages_foreach(super(server)->parser, message, {
+      fprintf(stderr, "%s\n", message);
+      parser_error = true;
+    });
 
     lsp_server_destroy(server);
     eventloop_destroy(loop);
+
+    if (error_code) {
+        fprintf(stderr, "JSON-RPC server has error condition set: %s\n",
+                strerror(error_code));
+    }
+
+    if (return_code == 0 && (error_code || parser_error))
+        return_code = 1;
+
     return return_code;
 }

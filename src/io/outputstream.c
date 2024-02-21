@@ -120,6 +120,9 @@ outputstream *outputstream_new_from_fd(int fd, bool close_on_destroy)
 {
     outputstream *stream = calloc(1, sizeof *stream);
 
+    if (!stream)
+        return NULL;
+
     stream->stream_type = outputstream_type_fd;
     stream->floating = true;
     stream->close_or_free_on_destruction = close_on_destroy;

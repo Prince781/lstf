@@ -1,9 +1,19 @@
-io_memory_pipe = executable('io-memory-pipe',
+memory_pipe = executable('memory-pipe',
   dependencies: [io],
   include_directories: include_dirs,
   c_args: c_args,
-  sources: ['io-memory-pipe.c'],
+  sources: ['memory-pipe.c'],
   install: false,
 )
 
-test('io-memory-pipe', io_memory_pipe, suite: 'io')
+test('memory-pipe', memory_pipe, suite: 'io')
+
+event_pipe = executable('event-pipe',
+  dependencies: [io],
+  include_directories: include_dirs,
+  c_args: c_args,
+  sources: ['event-pipe.c'],
+  install: false
+)
+
+test('event-pipe', event_pipe, timeout: 2, suite: 'io')

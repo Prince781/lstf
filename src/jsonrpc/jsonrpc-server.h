@@ -51,6 +51,11 @@ struct _jsonrpc_server {
     bool is_listening : 1;
 
     /**
+     * The error code (see man errno(3)) of the server.
+     */
+    unsigned error_code;
+
+    /**
      * Requests and notifications.
      * type: `ptr_list<json_node *>`
      */
