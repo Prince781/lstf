@@ -13,6 +13,7 @@
 #include <windows.h>
 #include <consoleapi.h>
 #include <io.h>
+
 char *io_get_filename_from_fd(int fd) {
     HANDLE fh = (HANDLE) _get_osfhandle(fd);
     char resolved_path[MAX_PATH] = { '\0' };
@@ -85,6 +86,7 @@ const char *io_get_current_dir(void)
 #include <limits.h>
 #include <signal.h>
 #include <sys/wait.h>
+
 char *io_get_filename_from_fd(int fd)
 {
     string *path_sb = string_new();
@@ -117,16 +119,23 @@ bool io_communicate(const char    *path,
     assert((in_stream || out_stream || err_stream) && "at least one stream must be specified");
     int saved_errno = 0;
 
-    // create two pipes
-    int stdin_pipe_fds[2] = {-1, -1};
-    int stdout_pipe_fds[2] = {-1, -1};
-    int stderr_pipe_fds[2] = {-1, -1};
+    // create three pipes
+    union pipe_info {
+        struct {
+          int read_fd;
+          int write_fd;
+        };
+        int fds[2];
+    };
+    union pipe_info stdin_pipe = {.fds = {-1, -1}};
+    union pipe_info stdout_pipe = {.fds = {-1, -1}};
+    union pipe_info stderr_pipe = {.fds = {-1, -1}};
     pid_t child_pid = -1;
-    if (in_stream && pipe(stdin_pipe_fds) != 0)
+    if (in_stream && pipe(stdin_pipe.fds) != 0)
         goto cleanup_on_error;
-    if (out_stream && pipe(stdout_pipe_fds) != 0)
+    if (out_stream && pipe(stdout_pipe.fds) != 0)
         goto cleanup_on_error;
-    if (err_stream && pipe(stderr_pipe_fds) != 0)
+    if (err_stream && pipe(stderr_pipe.fds) != 0)
         goto cleanup_on_error;
 
     // fork
@@ -135,15 +144,15 @@ bool io_communicate(const char    *path,
     } else if (child_pid == 0) {
         // --- child ---
         // connect stdin/stdout/stderr
-        if (in_stream && dup2(stdin_pipe_fds[0], STDIN_FILENO) == -1) {
+        if (in_stream && dup2(stdin_pipe.read_fd, STDIN_FILENO) == -1) {
             fprintf(stderr, "error: could not dup read end of stdin pipe: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-        if (out_stream && dup2(stdout_pipe_fds[1], STDOUT_FILENO) == -1) {
+        if (out_stream && dup2(stdout_pipe.write_fd, STDOUT_FILENO) == -1) {
             fprintf(stderr, "error: could not dup write end of stdout pipe: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
-        if (err_stream && dup2(stderr_pipe_fds[1], STDERR_FILENO) == -1) {
+        if (err_stream && dup2(stderr_pipe.write_fd, STDERR_FILENO) == -1) {
             fprintf(stderr, "error: could not dup write end of stderr pipe: %s\n", strerror(errno));
             exit(EXIT_FAILURE);
         }
@@ -177,23 +186,23 @@ bool io_communicate(const char    *path,
     } else {
         // --- parent ---
         // setup streams
-        if (in_stream && !(*in_stream = outputstream_new_from_fd(stdin_pipe_fds[1], true)))
+        if (in_stream && !(*in_stream = outputstream_new_from_fd(stdin_pipe.write_fd, true)))
             goto cleanup_on_error;
-        if (out_stream && !(*out_stream = inputstream_new_from_fd(stdout_pipe_fds[0], true)))
+        if (out_stream && !(*out_stream = inputstream_new_from_fd(stdout_pipe.read_fd, true)))
             goto cleanup_on_error;
-        if (err_stream && !(*err_stream = inputstream_new_from_fd(stderr_pipe_fds[0], true)))
+        if (err_stream && !(*err_stream = inputstream_new_from_fd(stderr_pipe.read_fd, true)))
             goto cleanup_on_error;
         return true;
     }
 
 cleanup_on_error:
     saved_errno = errno;
-    close(stdin_pipe_fds[0]);
-    close(stdin_pipe_fds[1]);
-    close(stdout_pipe_fds[0]);
-    close(stdout_pipe_fds[1]);
-    close(stderr_pipe_fds[0]);
-    close(stderr_pipe_fds[1]);
+    close(stdin_pipe.read_fd);
+    close(stdin_pipe.write_fd);
+    close(stdout_pipe.read_fd);
+    close(stdout_pipe.write_fd);
+    close(stderr_pipe.read_fd);
+    close(stderr_pipe.write_fd);
     if (child_pid != -1) {
         // end child process
         if (kill(child_pid, SIGTERM) == -1) {

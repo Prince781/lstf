@@ -54,8 +54,15 @@ int main(int argc, char *argv[]) {
     while (eventloop_process(loop, false, NULL))
         ;
 
+    int error_code = server->error_code;
     eventloop_destroy(loop);
     jsonrpc_server_destroy(server);
+
+    if (error_code) {
+        fprintf(stderr, "JSON-RPC server has error condition set: %s\n",
+                strerror(error_code));
+        return 1;
+    }
 
     return retval;
 }

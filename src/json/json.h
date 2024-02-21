@@ -118,20 +118,31 @@ static inline json_node *json_node_typecheck(json_node *node, json_node_type nod
 #define json_node_cast(node, type)                                             \
     ((json_##type *)json_node_typecheck(node, json_node_type_##type))
 
-#define json_array_foreach(array, element, statements) \
-    for (unsigned i = 0; i < ((json_array *)array)->num_elements; ++i) { \
-        json_node *element = ((json_array *)array)->elements[i]; \
-        statements; \
+#define json_array_foreach(array, element, statements)                         \
+    {                                                                          \
+      json_array *_tmp_array = (json_array *)json_node_typecheck(              \
+          (json_node *)array, json_node_type_array);                           \
+      assert(_tmp_array && "not a JSON array!");                               \
+      for (unsigned i = 0; i < _tmp_array->num_elements; ++i) {                \
+        json_node *element = _tmp_array->elements[i];                          \
+        statements;                                                            \
+      }                                                                        \
     }
 
 #define json_object_member_name(member) ((const char *)member->key)
 #define json_object_member_node(member) ((json_node *)member->value)
 
-#define json_object_foreach(object, member, statements) \
-    for (iterator member##_it = ptr_hashmap_iterator_create(((json_object *)object)->members); \
-            member##_it.has_next; member##_it = iterator_next(member##_it)) { \
-        ptr_hashmap_entry *member = iterator_get_item(member##_it); \
-        statements; \
+#define json_object_foreach(object, member, statements)                        \
+    {                                                                          \
+      json_object *_tmp_object = (json_object *)json_node_typecheck(           \
+          (json_node *)object, json_node_type_object);                         \
+      assert(_tmp_object && "not a JSON object!");                             \
+      for (iterator member##_it =                                              \
+               ptr_hashmap_iterator_create(_tmp_object->members);              \
+           member##_it.has_next; member##_it = iterator_next(member##_it)) {   \
+        ptr_hashmap_entry *member = iterator_get_item(member##_it);            \
+        statements;                                                            \
+      }                                                                        \
     }
 
 /**
