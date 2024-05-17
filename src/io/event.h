@@ -1,10 +1,10 @@
 #pragma once
 
+#include "lstf-common.h"
 #include <errno.h>
 #include <stdbool.h>
 #include <stdatomic.h>
 #include <threads.h>
-#include "lstf-common.h"
 
 typedef struct _event event;
 typedef void (*async_callback)(event *ev, void *data);

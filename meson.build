@@ -25,7 +25,7 @@ if cc.get_id() == 'msvc'
       '/wd4706',      # suppress assignment within conditional expression
       '/wd5105',      # suppress warning about undefined 'defined' macro usage outside of #if
       '/wd4116',      # suppress warning about unnamed type in parentheses
-      '/std:c17',
+      '/experimental:c11atomics'
     ])
 else
     c_args = cc.get_supported_arguments([
@@ -65,7 +65,7 @@ else
     ])
 endif
 
-if not cc.has_header('stdatomic.h')
+if not cc.check_header('stdatomic.h', args: c_args)
     if cc.has_argument('-isystem')
         add_project_arguments([
             '-isystem' + meson.project_source_root() + '/include/c11/atomic'
@@ -77,7 +77,7 @@ if not cc.has_header('stdatomic.h')
     endif
 endif
 
-if not cc.has_header('threads.h')
+if not cc.check_header('threads.h', args: c_args)
     if cc.has_argument('-isystem')
         add_project_arguments([
             '-isystem' + meson.project_source_root() + '/include/c11/threads'
@@ -89,7 +89,7 @@ if not cc.has_header('threads.h')
     endif
 endif
 
-if not cc.has_header('stdalign.h')
+if not cc.check_header('stdalign.h', args: c_args)
     if cc.has_argument('-isystem')
         add_project_arguments([
             '-isystem' + meson.project_source_root() + '/include/c11/align'
