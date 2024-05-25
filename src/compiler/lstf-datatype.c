@@ -1,5 +1,5 @@
 #include "lstf-datatype.h"
-#include "compiler/lstf-interface.h"
+#include "lstf-interface.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-list.h"
 #include "data-structures/string-builder.h"

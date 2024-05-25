@@ -9,6 +9,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#if defined(interface)
+#undef interface        // MSVC
+#endif
+
 struct _lstf_interfaceproperty {
     lstf_symbol parent_struct;
 

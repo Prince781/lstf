@@ -87,6 +87,10 @@ static inline char *strndup(const char *str, size_t n)
     if (string_length < n)
         n = string_length;
     char *new_str = malloc(n + 1);
+    if (!new_str) {
+        fprintf(stderr, "%s: %s\n", __func__, strerror(errno));
+        abort();
+    }
     memcpy(new_str, str, n);
     new_str[n] = '\0';
     return new_str;
@@ -104,20 +108,6 @@ static inline unsigned popcount(uintmax_t x)
     
     return n;
 }
-
-#if defined(_WIN32) || defined(_WIN64)
-/**
- * Windows wrapper for PathStripPathA().
- */
-static inline char *basename(char *path)
-{
-    char buffer[FILENAME_MAX] = { 0 };
-    strncpy(buffer, path, sizeof buffer - 1);
-    PathStripPath(buffer);
-    strncpy(path, buffer, strlen(path));
-    return path;
-}
-#endif
 
 // --- math
 

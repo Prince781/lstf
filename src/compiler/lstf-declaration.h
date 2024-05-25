@@ -9,6 +9,10 @@
 #include "lstf-typesymbol.h"
 #include "lstf-statement.h"
 
+#if defined(interface)
+#undef interface        // MSVC
+#endif
+
 struct _lstf_declaration {
     lstf_statement parent_struct;
     lstf_symbol *declared_symbol;

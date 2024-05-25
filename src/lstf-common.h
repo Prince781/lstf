@@ -4,6 +4,7 @@
 #include <windows.h>
 #define fileno _fileno
 #define strdup _strdup
+typedef long int off_t;
 #endif
 
 // Win32 compatibility

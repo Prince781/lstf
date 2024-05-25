@@ -13,10 +13,11 @@
 #include <windows.h>
 #include <consoleapi.h>
 #include <io.h>
+// #include <fcntl.h> // for flags
 
 char *io_get_filename_from_fd(int fd) {
     HANDLE fh = (HANDLE) _get_osfhandle(fd);
-    char resolved_path[MAX_PATH] = { '\0' };
+    char resolved_path[MAX_PATH] = {};
     DWORD ret = 0;
 
     if (!fh) {
@@ -47,7 +48,186 @@ bool io_communicate(const char    *path,
                     inputstream  **out_stream,
                     inputstream  **err_stream)
 {
-    // TODO
+    assert((in_stream || out_stream || err_stream) && "at least one stream must be specified");
+
+    int saved_errno = 0;
+
+    // create three pipes
+    struct pipe_info {
+        HANDLE read_handle;
+        HANDLE write_handle;
+    };
+    struct pipe_info child_stdin = {};
+    struct pipe_info child_stdout = {};
+    struct pipe_info child_stderr = {};
+
+    SECURITY_ATTRIBUTES security_attrs = {
+        .nLength = sizeof(SECURITY_ATTRIBUTES),
+        .bInheritHandle = true
+    };
+
+    string *command_line = NULL;
+
+    int child_stdin_write_fd = -1,
+        child_stdout_read_fd = -1,
+        child_stderr_read_fd = -1;
+
+    // setup the pipe handles
+
+    if (in_stream && !CreatePipe(&child_stdin.read_handle, &child_stdin.write_handle,
+                    &security_attrs, 0))
+        goto cleanup_on_error;
+
+    if (in_stream && !SetHandleInformation(child_stdin.write_handle, HANDLE_FLAG_INHERIT, 0))
+        goto cleanup_on_error;
+
+    if (out_stream && !CreatePipe(&child_stdout.read_handle, &child_stdout.write_handle,
+                    &security_attrs, 0))
+        goto cleanup_on_error;
+
+    if (out_stream && !SetHandleInformation(child_stdout.read_handle, HANDLE_FLAG_INHERIT, 0))
+        goto cleanup_on_error;
+
+    if (err_stream && !CreatePipe(&child_stderr.read_handle, &child_stderr.write_handle,
+                    &security_attrs, 0))
+        goto cleanup_on_error;
+
+    if (err_stream && !SetHandleInformation(child_stderr.read_handle, HANDLE_FLAG_INHERIT, 0))
+        goto cleanup_on_error;
+
+    // launch the new process
+    PROCESS_INFORMATION process_info = {};
+
+    STARTUPINFO startup_info = {
+        .cb = sizeof(STARTUPINFO),
+        .hStdInput = child_stdin.read_handle,
+        .hStdOutput = child_stdout.write_handle,
+        .hStdError = child_stderr.write_handle,
+        .dwFlags = STARTF_USESTDHANDLES
+    };
+
+    // quote args (skip "path") as it's repeated in args[0]
+    command_line = string_new();
+    for (const char **argp = args; *argp; argp++) {
+        if (argp != args)
+            string_appendf(command_line, " ");
+
+        // quote the argument if it needs it
+        if (**argp != '"') {
+            string_appendf(command_line, "\"");
+            for (const char *p = *argp; *p; p++) {
+                // escape special characters in quoted argument
+                switch (*p) {
+                    case '"':
+                        string_appendf(command_line, "\\\"");
+                        break;
+                    case '\\':
+                        string_appendf(command_line, "\\\\");
+                        break;
+                    default:
+                        string_appendf(command_line, "%c", *p);
+                        break;
+                }
+            }
+            string_appendf(command_line, "\"");
+        } else {
+            string_appendf(command_line, "%s", *argp);
+        }
+    }
+
+    // XXX: verify or warn here?
+    // see CreateProcess() docs: 
+    //  https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa
+    // if (command_line->length > 32767) {
+    //     errno = ENAMETOOLONG;
+    //     goto cleanup_on_error;
+    // }
+
+    // launch the process!
+    if (!CreateProcess(NULL, command_line->buffer, NULL, NULL, true, 0, NULL, NULL,
+                &startup_info, &process_info))
+        goto cleanup_on_error;
+
+    // now do some cleanup
+    string_unref(command_line);
+    command_line = NULL;
+
+    // close handles to the process and thread that we don't need
+    CloseHandle(process_info.hProcess);
+    process_info.hProcess = NULL;
+    CloseHandle(process_info.hThread);
+    process_info.hThread = NULL;
+
+    // close the ends of the pipes we opened for the child
+    if (child_stdin.read_handle) {
+        CloseHandle(child_stdin.read_handle);
+        child_stdin.read_handle = NULL;
+        startup_info.hStdInput = NULL;
+    }
+    if (child_stdout.write_handle) {
+        CloseHandle(child_stdout.write_handle);
+        child_stdout.write_handle = NULL;
+        startup_info.hStdOutput = NULL;
+    }
+    if (child_stderr.write_handle) {
+        CloseHandle(child_stdout.write_handle);
+        child_stderr.write_handle = NULL;
+        startup_info.hStdError = NULL;
+    }
+
+    // first, open file descriptors for each of the handles
+    if (in_stream && 
+            (child_stdin_write_fd = 
+                _open_osfhandle((intptr_t) child_stdin.write_handle, 0)) == -1)
+        goto cleanup_on_error;
+    child_stdin.write_handle = NULL;    // hereafter, use child_stdin_write_fd
+    if (out_stream &&
+            (child_stdout_read_fd = 
+                 _open_osfhandle((intptr_t) child_stdout.read_handle, 0)) == -1)
+        goto cleanup_on_error;
+    child_stdout.read_handle = NULL;    // hereafter, use child_stdout_read_fd
+    if (err_stream &&
+            (child_stderr_read_fd =
+                 _open_osfhandle((intptr_t) child_stderr.read_handle, 0)) == -1)
+        goto cleanup_on_error;
+    child_stderr.read_handle = NULL;    // hereafter, use child_stderr_read_fd
+
+    // now wrap each in a stream
+    if (in_stream && 
+            !(*in_stream = outputstream_new_from_fd(child_stdin_write_fd, true)))
+        goto cleanup_on_error;
+    if (out_stream &&
+            !(*out_stream = inputstream_new_from_fd(child_stdout_read_fd, true)))
+        goto cleanup_on_error;
+    if (err_stream &&
+            !(*err_stream = inputstream_new_from_fd(child_stderr_read_fd, true)))
+        goto cleanup_on_error;
+
+    return true;
+
+cleanup_on_error:
+    saved_errno = errno;
+    if (child_stdin.read_handle)
+        CloseHandle(child_stdin.read_handle);
+    if (child_stdin.write_handle)
+        CloseHandle(child_stdin.write_handle);
+    if (child_stdout.read_handle)
+        CloseHandle(child_stdout.read_handle);
+    if (child_stdout.write_handle)
+        CloseHandle(child_stdout.write_handle);
+    if (child_stderr.read_handle)
+        CloseHandle(child_stdout.read_handle);
+    if (child_stderr.write_handle)
+        CloseHandle(child_stdout.write_handle);
+    string_unref(command_line);
+    if (child_stdin_write_fd != -1)
+        close(child_stdin_write_fd);
+    if (child_stdout_read_fd != -1)
+        close(child_stdout_read_fd);
+    if (child_stderr_read_fd != -1)
+        close(child_stderr_read_fd);
+    errno = saved_errno;
+    return false;
 }
 
 static mtx_t io_get_current_dir__mutex;
@@ -63,17 +243,19 @@ static void io_get_current_dir__mutex_init(void)
 
 const char *io_get_current_dir(void)
 {
-    static thread_local char buffer[8192 /* should be good enough */];
+    static thread_local char buffer[MAX_PATH];
     static once_flag flag = ONCE_FLAG_INIT;
     call_once(&flag, io_get_current_dir__mutex_init);
 
     // GetCurrentDirectory() is not thread-safe, so use mutexes
-    if (mtx_lock(&io_get_current_dir__mutex) == thrd_failure) {
+    if (mtx_lock(&io_get_current_dir__mutex) == thrd_error) {
         fprintf(stderr, "%s: failed to acquire mutex: %s\n", __func__, strerror(errno));
         abort();
     }
+
     DWORD result = GetCurrentDirectory(sizeof(buffer) - 1, buffer);
-    if (mtx_unlock(&io_get_current_dir__mutex) == thrd_failure) {
+
+    if (mtx_unlock(&io_get_current_dir__mutex) == thrd_error) {
         fprintf(stderr, "%s: failed to release mutex: %s\n", __func__, strerror(errno));
         abort();
     }

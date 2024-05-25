@@ -9,7 +9,9 @@
 #include <string.h>
 #include <threads.h>
 
-static const char message[] = "Hello, world!\n";
+// keep the message simple (no newline chars for example that might get
+// converted to '\r\n' in printf())
+static const char message[] = "Hello, world!";
 
 static int subprocess_entry(void) {
     printf("%s", message);
@@ -70,20 +72,23 @@ int main(int argc, char *argv[]) {
                                           true, data_ready_cb, &params));
 
     unsigned num_processed = 0;
-    for (unsigned processed = 0; eventloop_process(loop, true, &processed);
-         num_processed += processed) {
-        if (processed == 0) {
+    for (unsigned processed = num_processed; eventloop_process(loop, true, &num_processed);
+        processed = num_processed) {
+        if (processed - num_processed == 0) {
             // avoid busy-waiting
             thrd_sleep(&(struct timespec){.tv_nsec = 200000000}, NULL);
         }
     }
 
+    if (num_processed > 1)
+        fprintf(stderr, "[parent] processed too many events: %u\n", num_processed);
+
     bool equal = true;
 
     if (!(equal = strcmp(buffer, message) == 0))
-        fprintf(stderr, "[parent] expected `%s', got:\n%s\n", message, buffer);
+        fprintf(stderr, "[parent] expected `%s', got `%s'\n", message, buffer);
 
     eventloop_destroy(loop);
     inputstream_unref(child_stdout);
-    return equal && num_processed == 1;  // only 1 event should be processed
+    return !(equal && num_processed == 1);  // only 1 event should be processed
 }

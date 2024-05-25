@@ -5,6 +5,10 @@
 #include "lstf-interface.h"
 #include "lstf-datatype.h"
 
+#if defined(interface)
+#undef interface        // MSVC
+#endif
+
 struct _lstf_interfacetype {
     lstf_datatype parent_struct;
 
