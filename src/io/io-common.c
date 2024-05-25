@@ -272,11 +272,11 @@ const char *io_get_current_dir(void)
 char *io_get_filename_from_fd(int fd)
 {
     string *path_sb = string_new();
-    char resolved_path[PATH_MAX] = { '\0' };
+    char resolved_path[PATH_MAX + 1] = { 0 };
     ssize_t ret = 0;
 
     string_appendf(path_sb, "/proc/self/fd/%d", fd); 
-    ret = readlink(path_sb->buffer, resolved_path, sizeof resolved_path);
+    ret = readlink(path_sb->buffer, resolved_path, sizeof resolved_path - 1);
     free(string_destroy(path_sb));
 
     if (ret != -1)
