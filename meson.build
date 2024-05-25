@@ -1,7 +1,7 @@
 project('lstf', 'c',
   version: '0.0.1',
   license: 'GPLv3+',
-  default_options: ['c_std=c17', 'buildtype=debugoptimized', 'werror=true'])
+  default_options: ['c_std=c23', 'buildtype=debugoptimized', 'werror=true'])
 
 cc = meson.get_compiler('c')
 
