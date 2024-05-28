@@ -1,0 +1,20 @@
+async fun fibonacci(n: int): future<int> {
+    if (n < 0) return 0;
+    if (n < 2) return n;
+    let left = await fibonacci(n - 1);
+    let right = await fibonacci(n - 2);
+    return left + right;
+}
+
+async fun task(n: int): future<void> {
+    print("computing...");
+    print(await fibonacci(n) /* wait for it to complete */);
+}
+
+print("fibonacci() for n = 20,21,22,23,30");
+// let these finish out of order
+task(30);
+task(23);
+task(22);
+task(21);
+task(20);
