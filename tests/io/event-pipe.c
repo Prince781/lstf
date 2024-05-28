@@ -63,13 +63,13 @@ int main(int argc, char *argv[]) {
     // 2. create an event loop
     // 3. communicate with the subprocess
     // 4. terminate
-    char buffer[BUFSIZ];
+    char buffer[BUFSIZ] = { 0 };
     struct data_ready_params params = {child_stdout, &buffer};
 
     eventloop *loop = eventloop_new();
 
-    eventloop_add(loop, event_new_from_fd(inputstream_get_fd(child_stdout),
-                                          true, data_ready_cb, &params));
+    eventloop_add_fd(loop, inputstream_get_fd(child_stdout), true,
+                     data_ready_cb, &params);
 
     unsigned num_processed = 0;
     for (unsigned processed = num_processed; eventloop_process(loop, true, &num_processed);

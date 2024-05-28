@@ -214,8 +214,7 @@ static void jsonrpc_server_send_message_async(jsonrpc_server *server,
                                               async_callback  callback,
                                               void           *user_data)
 {
-    event *send_message_ev = event_new(callback, user_data);
-    eventloop_add(loop, send_message_ev);
+    event *send_message_ev = eventloop_add(loop, callback, user_data);
 
     struct ostream_ready_ctx *ctx = NULL;
     box(struct ostream_ready_ctx, ctx) {
@@ -232,10 +231,8 @@ static void jsonrpc_server_send_message_async(jsonrpc_server *server,
               "callback: => jsonrpc_server_outputstream_ready_cb();\n",
               outfd);
     });
-    event *ostream_ready_ev =
-        event_new_from_fd(outputstream_get_fd(server->output_stream), false,
-                jsonrpc_server_send_message_outputstream_ready_cb, ctx);
-    eventloop_add(loop, ostream_ready_ev);
+    eventloop_add_fd(loop, outputstream_get_fd(server->output_stream), false,
+                     jsonrpc_server_send_message_outputstream_ready_cb, ctx);
 }
 
 static bool jsonrpc_server_send_message_finish(const event *ev, int *error)
@@ -290,8 +287,7 @@ void jsonrpc_server_reply_to_remote_async(jsonrpc_server *server,
 {
     json_node *response_object = jsonrpc_server_create_response(id, result);
 
-    event *replied_ev = event_new(callback, user_data);
-    eventloop_add(loop, replied_ev);
+    event *replied_ev = eventloop_add(loop, callback, user_data);
 
     jsonrpc_server_send_message_async(server, response_object, loop,
                                       jsonrpc_server_reply_sent_cb, replied_ev);
@@ -538,8 +534,7 @@ static void jsonrpc_server_wait_stream_async(jsonrpc_server *server,
     } else {
         // wait for the file to become readable
         jsonrpc_debug(fprintf(stderr, "wait for fd %d to become readable...\n", fd));
-        event *ready_ev = event_new_from_fd(fd, true, callback, user_data);
-        eventloop_add(loop, ready_ev);
+        eventloop_add_fd(loop, fd, true, callback, user_data);
     }
 }
 
@@ -700,8 +695,7 @@ static void jsonrpc_server_parse_header_async(jsonrpc_server *server,
                                               async_callback  callback,
                                               void           *user_data)
 {
-    event *header_parsed_ev = event_new(callback, user_data);
-    eventloop_add(loop, header_parsed_ev);
+    event *header_parsed_ev = eventloop_add(loop, callback, user_data);
 
     struct parse_content_length_ctx *ctx;
     box(struct parse_content_length_ctx, ctx) {
@@ -790,8 +784,7 @@ void jsonrpc_server_call_remote_async(jsonrpc_server *server,
       free(req_obj_str);
     });
 
-    event *response_ev = event_new(callback, user_data);
-    eventloop_add(loop, response_ev);
+    event *response_ev = eventloop_add(loop, callback, user_data);
 
     struct send_request_ctx *ctx;
     box(struct send_request_ctx, ctx) {
@@ -856,10 +849,10 @@ void jsonrpc_server_notify_remote_async(jsonrpc_server *server,
 {
     json_node *request_object =
         jsonrpc_server_create_request(server, method, parameters, NULL);
-    event *ev = event_new(callback, user_data);
-    eventloop_add(loop, ev);
+    event *notify_remove_ev = eventloop_add(loop, callback, user_data);
     jsonrpc_server_send_message_async(server, request_object, loop,
-                                      jsonrpc_server_notify_remote_cb, ev);
+                                      jsonrpc_server_notify_remote_cb,
+                                      notify_remove_ev);
 }
 
 bool jsonrpc_server_notify_remote_finish(const event *ev, int *error)

@@ -195,8 +195,7 @@ void lsp_client_initialize_server_async(lsp_client    *client,
         json_serialize(lsp_initializeparams, &client->initialize_params, &parameters);
     assert(status == json_serialization_status_continue && "failed to serialize initialize parameters");
 
-    event *initialize_server_ev = event_new(callback, callback_data);
-    eventloop_add(loop, initialize_server_ev);
+    event *initialize_server_ev = eventloop_add(loop, callback, callback_data);
 
     jsonrpc_server_call_remote_async(super(client),
                                      "initialize",
@@ -253,14 +252,13 @@ void lsp_client_text_document_open_async(lsp_client             *client,
     json_node *parameters = json_object_new();
     json_object_set_member(parameters, "textDocument", td_json);
 
-    event *ev = event_new(callback, callback_data);
-    eventloop_add(loop, ev);
+    event *textdocument_open_ev = eventloop_add(loop, callback, callback_data);
     jsonrpc_server_notify_remote_async(super(client),
                                        "textDocument/didOpen",
                                        parameters,
                                        loop,
                                        lsp_client_text_document_open_jsonrpc_server_notify_cb,
-                                       ev);
+                                       textdocument_open_ev);
 }
 
 bool lsp_client_text_document_open_finish(event const *ev, int *error)
@@ -277,9 +275,8 @@ void lsp_client_wait_for_diagnostics_async(lsp_client    *client,
                                            async_callback callback,
                                            void          *callback_data)
 {
-    event *ev = event_new(callback, callback_data);
-    eventloop_add(loop, ev);
-    array_add(&client->diagnostics_waiters, ev);
+    event *diagnostics_ready_ev = eventloop_add(loop, callback, callback_data);
+    array_add(&client->diagnostics_waiters, diagnostics_ready_ev);
 
     for (iterator it = ptr_list_iterator_create(client->diagnostics_results);
          it.has_next && client->diagnostics_waiters.length > 0;

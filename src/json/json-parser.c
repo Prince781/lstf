@@ -521,11 +521,10 @@ void json_parser_parse_node_async(json_parser   *parser,
         parser->error = false;
     }
 
-    event *ev = event_new(callback, user_data);
-    eventloop_add(loop, ev);
+    event *node_parsed_ev = eventloop_add(loop, callback, user_data);
 
     struct next_token_ctx *ctx;
-    box(struct next_token_ctx, ctx) { parser, ev };
+    box(struct next_token_ctx, ctx) { parser, node_parsed_ev };
     json_scanner_next_async(parser->scanner, loop, json_parser_scanner_next_cb, ctx);
 }
 

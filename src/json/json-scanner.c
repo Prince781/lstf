@@ -401,7 +401,7 @@ static void json_scanner_stream_wait_async(json_scanner  *scanner,
         event_return(&tmp_ev, NULL);
         callback(&tmp_ev, user_data);
     } else {
-        eventloop_add(loop, event_new_from_fd(fd, true, callback, user_data));
+        eventloop_add_fd(loop, fd, true, callback, user_data);
     }
 }
 
@@ -808,8 +808,7 @@ void json_scanner_next_async(json_scanner  *scanner,
                              async_callback callback,
                              void          *user_data)
 {
-    event *token_read_ev = event_new(callback, user_data);
-    eventloop_add(loop, token_read_ev);
+    event *token_read_ev = eventloop_add(loop, callback, user_data);
 
     struct token_read_ctx *ctx;
     box(struct token_read_ctx, ctx) {

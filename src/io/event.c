@@ -33,9 +33,12 @@ static char *win32_errormsg(int errnum)
 }
 #endif
 
-event *event_new(async_callback callback, void *callback_data)
+__attribute__((warn_unused_result))
+static event *event_new(async_callback callback, void *callback_data)
 {
     event *ev = calloc(1, sizeof *ev);
+
+    // TODO: handle NULL
 
     ev->fd = -1;
     ev->type = event_type_default;
@@ -45,9 +48,15 @@ event *event_new(async_callback callback, void *callback_data)
     return ev;
 }
 
-event *event_new_from_fd(int fd, bool is_read_operation, async_callback callback, void *callback_data)
+__attribute__((warn_unused_result))
+static event *event_new_from_fd(int            fd,
+                                bool           is_read_operation,
+                                async_callback callback,
+                                void          *callback_data)
 {
     event *ev = calloc(1, sizeof *ev);
+
+    // TODO: handle NULL
 
     ev->fd = fd;
     ev->type = is_read_operation ? event_type_io_read : event_type_io_write;
@@ -55,6 +64,28 @@ event *event_new_from_fd(int fd, bool is_read_operation, async_callback callback
     ev->callback_data = callback_data;
 
     return ev;
+}
+
+/**
+ * (to be used from a background thread)
+ *
+ * Signal the event loop that a background task may be ready.
+ */
+static void eventloop_signal(eventloop *loop)
+{
+#if defined(_WIN32) || defined(_WIN64)
+    if (!SetEvent(loop->bg_eventh)) {
+        fprintf(stderr, "%s: failed to signal event loop: %s\n",
+                __func__, win32_errormsg(GetLastError()));
+        abort();
+    }
+#else
+    if (write(loop->bg_signalfd, "a", 1) == -1) {
+        fprintf(stderr, "%s: failed to signal event loop: %s\n",
+                __func__, strerror(errno));
+        abort();
+    }
+#endif
 }
 
 void event_return(event *ev, void *result)
@@ -121,24 +152,10 @@ eventloop *eventloop_new(void)
     return loop;
 }
 
-void eventloop_signal(eventloop *loop)
-{
-#if defined(_WIN32) || defined(_WIN64)
-    if (!SetEvent(loop->bg_eventh)) {
-        fprintf(stderr, "%s: failed to signal event loop: %s\n",
-                __func__, win32_errormsg(GetLastError()));
-        abort();
-    }
-#else
-    if (write(loop->bg_signalfd, "a", 1) == -1) {
-        fprintf(stderr, "%s: failed to signal event loop: %s\n",
-                __func__, strerror(errno));
-        abort();
-    }
-#endif
-}
-
-event *eventloop_add(eventloop *loop, event *ev)
+/**
+ * Adds the event to the event list. Returns the previous event.
+ */
+static event *eventloop_add_event(eventloop *loop, event *ev) 
 {
     assert(!ev->loop && "event is already part of an event loop");
     assert(!ev->is_ready && "cannot add completed event to an event loop");
@@ -178,10 +195,31 @@ static void eventloop_remove(eventloop *loop, event *ev, event *prev)
     ev->next = NULL;
 }
 
+event *eventloop_add(eventloop     *loop,
+                     async_callback callback,
+                     void          *callback_data) {
+    event *ev = event_new(callback, callback_data);
+    eventloop_add_event(loop, ev);
+    return ev;
+}
+
+event *eventloop_add_fd(eventloop     *loop,
+                        int            fd,
+                        bool           is_read_operation,
+                        async_callback callback,
+                        void          *callback_data)
+{
+    event *ev = event_new_from_fd(fd, is_read_operation, callback, callback_data);
+    eventloop_add_event(loop, ev);
+    return ev;
+}
+
 static int eventloop_bgtask_start(void *data)
 {
     event *ev = data;
     ev->thread_proc(ev);
+    assert((event_is_ready(ev) || event_is_canceled(ev)) &&
+           "background process did not complete or cancel the event!");
     return 0;
 }
 
@@ -195,7 +233,7 @@ event *eventloop_add_bgtask(eventloop      *loop,
     ev->type = event_type_bg_task;
     ev->thread_proc = task;
     ev->thread_data = task_data;
-    event *prev = eventloop_add(loop, ev);
+    event *prev = eventloop_add_event(loop, ev);
 
     if (thrd_create(&ev->thread, eventloop_bgtask_start, ev) != thrd_success) {
         eventloop_remove(loop, ev, prev);
@@ -447,7 +485,7 @@ static void eventloop_poll(eventloop *loop,
 
 bool eventloop_process(eventloop *loop, 
                        bool       force_nonblocking,
-                       unsigned   *num_processed)
+                       unsigned  *num_processed)
 {
     event *ready_events = NULL;
 

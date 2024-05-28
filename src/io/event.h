@@ -53,13 +53,6 @@ struct _event {
     struct _event *next;
 };
 
-event *event_new(async_callback callback, void *callback_data);
-
-event *event_new_from_fd(int            fd,
-                         bool           is_read_operation,
-                         async_callback callback,
-                         void          *callback_data);
-
 /**
  * Completes the event and associates `result` as the result. The callback
  * routine will be invoked on the next iteration of the event loop and when
@@ -76,25 +69,40 @@ static inline int event_get_errno(const event *ev)
     return atomic_load_explicit(&ev->io_errno, memory_order_acquire);
 }
 
+/**
+ * Cancels the event and associates `errnum` as the error code. The callback
+ * routine will be invoked on the next iteration of the event loop and when that
+ * calls `event_get_result()` it will fail, indicating an error.
+ */
 static inline void event_cancel_with_errno(event *ev, int errnum)
 {
     atomic_store_explicit(&ev->is_canceled, true, memory_order_release);
     atomic_store_explicit(&ev->io_errno, errnum, memory_order_release);
 }
 
+/**
+ * Cancels the event. The callback routine will be invoked on the next iteration
+ * of the event loop and when that calls `event_get_result()` it will fail with
+ * an error.
+ */
 static inline void event_cancel(event *ev)
 {
     event_cancel_with_errno(ev, ECANCELED);
 }
 
 /**
- * Will return `false` if the event is canceled.
+ * Determines whether the event is canceled. An event cannot be both ready and
+ * canceled.
  */
 static inline bool event_is_canceled(const event *ev)
 {
     return atomic_load_explicit(&ev->is_canceled, memory_order_acquire);
 }
 
+/**
+ * Determines whether the event is finished in a successful state. An event
+ * cannot be both ready and canceled.
+ */
 static inline bool event_is_ready(const event *ev)
 {
     return atomic_load_explicit(&ev->is_ready, memory_order_acquire);
@@ -102,7 +110,8 @@ static inline bool event_is_ready(const event *ev)
 
 /**
  * Returns true and the result is stored in `*pointer_ref`. Otherwise returns
- * false if the event was canceled or reached an error.
+ * false if the event was canceled or reached an error. Then call
+ * event_get_errno() to see why the event was cancelled.
  *
  * If `pointer_ref` is NULL, the meaning of `true` and `false` is whether the
  * event completed successfully without cancelation or error.
@@ -118,6 +127,8 @@ struct _eventloop {
     /**
      * An event handle (created with CreateEvent()) to wait on/signal for when
      * background (thread) task becomes ready.
+     *
+     * @see eventloop_signal()
      */
     HANDLE bg_eventh;
 #else
@@ -125,12 +136,16 @@ struct _eventloop {
      * A file descriptor to poll for when background (thread) tasks are ready.
      * This is needed so that we can wait for tasks that are not I/O-bound
      * without being busy.
+     *
+     * @see eventloop_signal()
      */
     int bg_eventfd;
 
     /**
      * A file descriptor to write to, to signal that a background task may be
      * ready.
+     *
+     * @see eventloop_signal()
      */
     int bg_signalfd;
 #endif
@@ -140,9 +155,25 @@ struct _eventloop {
 eventloop *eventloop_new(void);
 
 /**
- * Adds the event to the event list. Returns the previous event in the list.
+ * Creates a new event with a given callback. This event is static and won't
+ * complete unless another event or piece of code calls `event_return()` /
+ * `event_cancel*()` on it.
  */
-event *eventloop_add(eventloop *loop, event *ev);
+__attribute__((warn_unused_result))
+event *eventloop_add(eventloop     *loop,
+                     async_callback callback,
+                     void          *callback_data);
+
+/**
+ * Adds a new file descriptor to the event loop. This event will complete on its
+ * own when the file descriptor is ready for reading or writing, depending on
+ * [is_read_operation].
+ */
+event *eventloop_add_fd(eventloop     *loop,
+                        int            fd,
+                        bool           is_read_operation,
+                        async_callback callback,
+                        void          *callback_data);
 
 /**
  * Spawns a background thread that runs `task`. When the task is done, it
@@ -169,14 +200,7 @@ event *eventloop_add_bgtask(eventloop      *loop,
  */
 bool eventloop_process(eventloop *loop, 
                        bool       force_nonblocking,
-                       unsigned   *num_processed);
-
-/**
- * (to be used from a background thread)
- *
- * Signal the event loop that a background task may be ready.
- */
-void eventloop_signal(eventloop *loop);
+                       unsigned  *num_processed);
 
 void eventloop_quit(eventloop *loop);
 
