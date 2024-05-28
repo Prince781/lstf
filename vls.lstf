@@ -1,0 +1,25 @@
+server_path = option('server-path');
+
+let f = file(`
+void main() {
+    print ("GLib is a string");
+}
+`);
+
+project_files = [ f ];
+
+print("awaiting diagnostics ...");
+
+assert {
+    diagnostics: [
+        ...,
+        {
+            range: {
+                start: { line: 3, character: 5 },
+                end: { line: 3, character: 16 }
+            },
+            severity: DiagnosticSeverity.Error
+        },
+        ...
+    ]
+} <=> await diagnostics(f);

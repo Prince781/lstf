@@ -1,0 +1,56 @@
+digraph G {
+    node [shape="box" fontname="monospace" fontsize=5];
+    edge [fontsize=5];
+    subgraph "main" {
+        "main_bb_entry";
+        "main_bb_entry" -> "main_bb_1";
+
+        "main_bb_1" [label="%0 = constant \"fibonacci(20) and fibonacci(30)\"\ncall @print, %0\n%2 = constant 20\nschedule @task, %2\n%4 = constant 30\nschedule @task, %4\nreturn\n"];
+        "main_bb_1" -> "main_bb_exit";
+
+        "main_bb_exit";
+
+    }
+    subgraph "option" {
+    }
+    subgraph "memory" {
+    }
+    subgraph "diagnostics" {
+    }
+    subgraph "print" {
+    }
+    subgraph "fibonacci" {
+        "fibonacci_bb_entry";
+        "fibonacci_bb_entry" -> "fibonacci_bb_1";
+
+        "fibonacci_bb_1" [label="%0 = alloc param\n%1 = load *%0\n%2 = constant 0\n%3 = lessthan, %1, %2\nbranch %3, fibonacci_bb_2, fibonacci_bb_3\n"];
+        "fibonacci_bb_1" -> "fibonacci_bb_2";
+        "fibonacci_bb_1" -> "fibonacci_bb_3";
+
+        "fibonacci_bb_2" [label="%5 = constant 0\nreturn %5\n"];
+        "fibonacci_bb_2" -> "fibonacci_bb_exit";
+
+        "fibonacci_bb_3" [label="%7 = load *%0\n%8 = constant 2\n%9 = lessthan, %7, %8\nbranch %9, fibonacci_bb_4, fibonacci_bb_5\n"];
+        "fibonacci_bb_3" -> "fibonacci_bb_4";
+        "fibonacci_bb_3" -> "fibonacci_bb_5";
+
+        "fibonacci_bb_4" [label="%11 = load *%0\nreturn %11\n"];
+        "fibonacci_bb_4" -> "fibonacci_bb_exit";
+
+        "fibonacci_bb_5" [label="%13 = load *%0\n%14 = constant 1\n%15 = sub, %13, %14\n%16 = call @fibonacci, %15\n%17 = alloc var %16\n%18 = load *%0\n%19 = constant 2\n%20 = sub, %18, %19\n%21 = call @fibonacci, %20\n%22 = alloc var %21\n%23 = load *%17\n%24 = load *%22\n%25 = add, %23, %24\nreturn %25\n"];
+        "fibonacci_bb_5" -> "fibonacci_bb_exit";
+
+        "fibonacci_bb_exit";
+
+    }
+    subgraph "task" {
+        "task_bb_entry";
+        "task_bb_entry" -> "task_bb_1";
+
+        "task_bb_1" [label="%0 = alloc param\n%1 = constant \"computing...\"\ncall @print, %1\n%3 = load *%0\n%4 = call @fibonacci, %3\ncall @print, %4\nreturn\n"];
+        "task_bb_1" -> "task_bb_exit";
+
+        "task_bb_exit";
+
+    }
+}
