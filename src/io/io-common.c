@@ -17,7 +17,7 @@
 
 char *io_get_filename_from_fd(int fd) {
     HANDLE fh = (HANDLE) _get_osfhandle(fd);
-    char resolved_path[MAX_PATH] = {};
+    char resolved_path[MAX_PATH] = { 0 };
     DWORD ret = 0;
 
     if (!fh) {
@@ -48,6 +48,7 @@ bool io_communicate(const char    *path,
                     inputstream  **out_stream,
                     inputstream  **err_stream)
 {
+    (void) path;
     assert((in_stream || out_stream || err_stream) && "at least one stream must be specified");
 
     int saved_errno = 0;
@@ -57,9 +58,9 @@ bool io_communicate(const char    *path,
         HANDLE read_handle;
         HANDLE write_handle;
     };
-    struct pipe_info child_stdin = {};
-    struct pipe_info child_stdout = {};
-    struct pipe_info child_stderr = {};
+    struct pipe_info child_stdin = { 0 };
+    struct pipe_info child_stdout = { 0 };
+    struct pipe_info child_stderr = { 0 };
 
     SECURITY_ATTRIBUTES security_attrs = {
         .nLength = sizeof(SECURITY_ATTRIBUTES),
@@ -96,7 +97,7 @@ bool io_communicate(const char    *path,
         goto cleanup_on_error;
 
     // launch the new process
-    PROCESS_INFORMATION process_info = {};
+    PROCESS_INFORMATION process_info = { 0 };
 
     STARTUPINFO startup_info = {
         .cb = sizeof(STARTUPINFO),

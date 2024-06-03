@@ -63,6 +63,12 @@ else
       '-Wunused-function',    # needed by Clang
       '-Wvla',
     ])
+
+    if host_machine.system() == 'windows'
+      c_args += cc.get_supported_arguments([
+        '-Wno-deprecated-declarations'
+      ])
+    endif
 endif
 
 if not cc.check_header('stdatomic.h', args: c_args)

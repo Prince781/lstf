@@ -316,7 +316,7 @@ static int run_program(lstf_vm_program *program, struct lstf_options options)
                 else {
                     // temporarily breakpoint next instruction
                     vm->next_stop = next_pc;
-                    outputstream_printf(os, "breaking at %0#lx\n", (uint64_t)(vm->next_stop - vm->program->code));
+                    outputstream_printf(os, "breaking at %0#"PRIx64"\n", (uint64_t)(vm->next_stop - vm->program->code));
                 }
             } else {
                 outputstream_printf(os, "at end of instruction stream\n");
