@@ -216,3 +216,5 @@ lstf = executable('lstf',
   sources: ['lstf.c', version_h],
   include_directories: include_dirs,
   install: not meson.is_subproject())
+
+meson.override_find_program('lstf', lstf)
