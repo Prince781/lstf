@@ -12,6 +12,7 @@
 #include <poll.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #endif
 #include <fcntl.h>
 
@@ -40,7 +41,6 @@ static event *event_new(async_callback callback, void *callback_data)
 
     // TODO: handle NULL
 
-    ev->fd = -1;
     ev->type = event_type_default;
     ev->callback = callback;
     ev->callback_data = callback_data;
@@ -147,6 +147,8 @@ eventloop *eventloop_new(void)
                 __func__, strerror(errno));
         abort();
     }
+
+    mtx_init(&loop->monitoring_lock, mtx_plain);
 #endif
 
     return loop;
@@ -244,6 +246,95 @@ event *eventloop_add_bgtask(eventloop      *loop,
     return ev;
 }
 
+#if !(defined(_WIN32) || defined(_WIN64))
+/**
+ * The monitor for subprocesses. We only launch this when we add a new
+ * subprocess into the queue, if the monitor is not already running.
+ */
+static int eventloop_monitor_subprocesses(void *user_data)
+{
+    eventloop *loop = user_data;
+
+    // TODO: We want a way to monitor only exactly those processes that are part
+    // of the event loop, without busy-waiting, conforming to POSIX. Is this
+    // possible? Or maybe we have to busy-wait? Or perhaps we have to drop POSIX?
+    while (true) {
+        // wait for processes...
+        int   child_status = 0;
+        pid_t child_pid    = -1;
+        while ((child_pid = wait(&child_status)) == (pid_t)-1) {
+            assert(errno != ECHILD && "expected processes to reap!");
+            if (errno != EAGAIN) {
+                fprintf(stderr, "%s: unhandled error with wait(): %s\n",
+                        __func__, strerror(errno));
+                abort();
+            }
+        }
+
+        bool is_managed = false;
+
+        // check if this child is a managed process
+        mtx_lock(&loop->monitoring_lock);
+        for (size_t i = 0; i < loop->processes.length; ++i) {
+            if (loop->processes.elements[i] == child_pid) {
+                is_managed = true;
+                break;
+            }
+        }
+
+        if (is_managed) {
+            array_add(&loop->ready_processes,
+                      ((io_procstat){child_pid, child_status}));
+        }
+        mtx_unlock(&loop->monitoring_lock);
+
+        if (is_managed) {
+            // now signal the foreground thread
+            ssize_t amt_written = 0;
+            if ((amt_written = write(loop->bg_signalfd, ".", 1)) == -1) {
+                fprintf(stderr,
+                        "%s: failed to signal foreground for PID %ld, status "
+                        "%d: %s\n",
+                        __func__, (long)child_pid, child_status,
+                        strerror(errno));
+                abort();
+            }
+        }
+    }
+
+    return 0;
+}
+#endif
+
+event *eventloop_add_subprocess(eventloop     *loop,
+                                io_process     process,
+                                async_callback callback,
+                                void          *callback_data)
+{
+    event *ev = event_new(callback, callback_data);
+    ev->type = event_type_subprocess;
+    ev->process = process;
+    event *prev = eventloop_add_event(loop, ev);
+
+#if !(defined(_WIN32) || defined(_WIN64))
+    // There is no OS primitive on POSIX for monitoring both file descriptors
+    // and subprocesses at the same time (alas, we can't use Linux's pidfds). So
+    // on POSIX, we launch a monitoring thread that will write to
+    // [loop->signalfd] when a subprocess is done. See
+    // eventloop_monitor_subprocesses() for more details.
+    array_add(&loop->processes, process);
+    if (!loop->monitoring_thread_running &&
+        thrd_create(&loop->monitoring_thread, eventloop_monitor_subprocesses,
+                    loop) != thrd_success) {
+        eventloop_remove(loop, ev, prev);
+        free(ev);
+        return NULL;
+    }
+#endif
+
+    return ev;
+}
+
 #if defined(_WIN32) || defined(_WIN64)
 typedef struct {
     HANDLE handles[MAXIMUM_WAIT_OBJECTS];
@@ -318,6 +409,10 @@ static inline void event_list_prepend(event **list, event *ev)
  * Wait for an event to happen. This will block if there are no events that
  * have already completed (when *ready_events != NULL) and force_nonblocking is
  * false. Otherwise this will return immediately.
+ *
+ * TODO: implement polling of subprocesses:
+ *
+ * - on Windows, we can add the
  */
 static void eventloop_poll(eventloop *loop,
                            event    **ready_events,
@@ -410,6 +505,32 @@ static void eventloop_poll(eventloop *loop,
     CloseHandle(barrier);
 #else
     // POSIX
+
+    // TODO: make io_communicate() return process ID, then
+    //       allow adding it to the event loop so that it
+    //       can be awaited, and potentially trigger further
+    //       events.
+    //
+    // example API:
+    // io/io-common.h:
+    //     io_process io_communicate(...);
+    // where:
+    //     typedef pid_t io_process;    (on Linux)
+    //     typedef HANDLE io_process;   (on Windows)
+    //
+    // io/event.h:
+    //     event *eventloop_add_subproc(eventloop     *loop,
+    //                                  io_process     subprocess,
+    //                                  async_callback callback,
+    //                                  void          *callback_data);
+    // io/event.c:
+    //     eventloop_process(...) {
+    //          ...
+    //          for (event *e = ...) {
+    //              if (e->type == event_type_subprocess)
+    //          }
+    //          ...
+    //     }
     struct pollfd *pollfds = calloc(num_io_pending + have_non_io_tasks, sizeof *pollfds);
     unsigned p = 0,
              p_bgevent = 0 /* at the very end of `pollfds` */;
@@ -458,7 +579,7 @@ static void eventloop_poll(eventloop *loop,
                 pending = NULL;
             }
             ++p;
-        } else if (pending->type == event_type_bg_task) {
+        } else if (pending->type == event_type_bg_task || pending->type == event_type_subprocess) {
             // (have_non_io_tasks == true)
             if ((pollfds[p_bgevent].revents & POLLIN) && event_is_ready(pending)) {
                 eventloop_remove(loop, pending, prev);
@@ -505,7 +626,7 @@ bool eventloop_process(eventloop *loop,
             pending = NULL;
         } else if (pending->type == event_type_io_read || pending->type == event_type_io_write) {
             num_io_pending++;
-        } else if (pending->type == event_type_bg_task) {
+        } else if (pending->type == event_type_bg_task || pending->type == event_type_subprocess) {
             have_non_io_tasks = true;
         }
 
@@ -559,6 +680,7 @@ void eventloop_destroy(eventloop *loop)
 #else
     close(loop->bg_eventfd);
     close(loop->bg_signalfd);
+    mtx_destroy(&loop->monitoring_lock);
 #endif
 
     free(loop);

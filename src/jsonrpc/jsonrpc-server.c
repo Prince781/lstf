@@ -889,8 +889,12 @@ static void jsonrpc_server_handle_request(jsonrpc_server *server,
             (jsonrpc_notification_handler)cl->func_ptr;
         notif_handler(server, method_name, params, cl->user_data);
     } else {
-        jsonrpc_debug(
-            fprintf(stderr, "warning: method \"%s\" not found\n", method_name));
+        jsonrpc_debug({
+            fprintf(stderr, "warning: method \"%s\" not found\n", method_name);
+            char *params_str = json_node_to_string(params, true);
+            fprintf(stderr, "params: %s\n", params_str);
+            free(params_str);
+        });
     }
 }
 

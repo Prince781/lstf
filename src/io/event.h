@@ -1,5 +1,7 @@
 #pragma once
 
+#include "data-structures/array.h"
+#include "io/io-common.h"
 #include "lstf-common.h"
 #include <errno.h>
 #include <stdbool.h>
@@ -13,42 +15,66 @@ typedef void (*background_proc)(event *ev);
 typedef struct _eventloop eventloop;
 
 enum _event_type {
-    /**
-     * An event. Use `event_return()` or `event_cancel()` to trigger the event.
-     */
-    event_type_default,
+  /**
+   * An event. Use `event_return()` or `event_cancel()` to trigger the event.
+   */
+  event_type_default,
 
-    /**
-     * An event triggered by the completion of a task in a background thread.
-     * Use `event_return()` or `event_cancel()` to trigger the event from the
-     * background thread.
-     */
-    event_type_bg_task,
+  /**
+   * An event triggered by the completion of a task in a background thread.
+   * Use `event_return()` or `event_cancel()` to trigger the event from the
+   * background thread.
+   */
+  event_type_bg_task,
 
-    /**
-     * An event triggered by a file descriptor becoming ready for reading.
-     */
-    event_type_io_read,
+  /**
+   * An event triggered by a subprocess completing or terminating.
+   */
+  event_type_subprocess,
 
-    /**
-     * An event triggered by a file descriptor becoming ready for writing.
-     */
-    event_type_io_write
+  /**
+   * An event triggered by a file descriptor becoming ready for reading.
+   */
+  event_type_io_read,
+
+  /**
+   * An event triggered by a file descriptor becoming ready for writing.
+   */
+  event_type_io_write
 } __attribute__((packed));
 typedef enum _event_type event_type;
 
 struct _event {
-    int fd;
     event_type type;
     atomic_bool is_canceled;
-    atomic_bool is_ready;           // can be set to avoid poll()ing
-    atomic_int io_errno;            // relevant if the I/O operation failed
-    thrd_t thread;                  // reference to the background thread (if relevant)
-    background_proc thread_proc;    // procedure that is executed in the background thread (if relevant)
-    void *thread_data;              // reference to data used by the background thread procedure (if relevant)
+    atomic_bool is_ready;               // can be set to avoid poll()ing
+    atomic_int io_errno;                // relevant if the I/O operation failed
+
+    /**
+     * Handles to resources if this event is triggered by file changes,
+     * completion of a thread, or process termination.
+     */
+    union {
+        int fd;                         // file descriptor
+
+        /**
+         * Holds data for background threads.
+         */
+        struct {
+            thrd_t thread;              // reference to the background thread
+            background_proc thread_proc;// procedure that is executed in the
+                                        // background thread
+            void *thread_data;          // reference to data used by the background thread
+                                        // procedure
+        };
+
+        io_process process;             // process ID/handle
+    };
+
     async_callback callback;
     void *callback_data;
-    eventloop *loop;
+
+    eventloop *loop;                    // a reference to the parent loop
     void *result;
     struct _event *next;
 };
@@ -123,6 +149,10 @@ struct _eventloop {
     event *pending_events_tail;
     atomic_bool is_running;
 
+#if !(defined(_WIN32) || defined(_WIN64))
+    atomic_bool monitoring_thread_running;
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
     /**
      * An event handle (created with CreateEvent()) to wait on/signal for when
@@ -133,23 +163,44 @@ struct _eventloop {
     HANDLE bg_eventh;
 #else
     /**
-     * A file descriptor to poll for when background (thread) tasks are ready.
+     * A file descriptor to poll() for when background (thread) tasks are ready.
      * This is needed so that we can wait for tasks that are not I/O-bound
-     * without being busy.
+     * without being busy. The background thread writes to bg_signalfd,
+     * triggering an event on bg_eventfd.
      *
      * @see eventloop_signal()
      */
     int bg_eventfd;
 
     /**
-     * A file descriptor to write to, to signal that a background task may be
+     * A file descriptor to write() to, to signal that a background task may be
      * ready.
      *
      * @see eventloop_signal()
      */
     int bg_signalfd;
+
+    /**
+     * Thread to monitor subprocesses.
+     *
+     * @see eventloop_add_subprocess()
+     */
+    thrd_t monitoring_thread;
+
+    mtx_t monitoring_lock;
 #endif
 
+    /**
+     * Background processes that are ready.
+     */
+    array(io_procstat) ready_processes;
+
+    /**
+     * Background processes that are not ready. We need to keep track of exactly
+     * which processes are managed to avoid confusion if there are unmanaged
+     * children.
+     */
+    array(io_process) processes;
 };
 
 eventloop *eventloop_new(void);
@@ -188,6 +239,16 @@ event *eventloop_add_bgtask(eventloop      *loop,
                             void           *task_data,
                             async_callback  callback,
                             void           *callback_data);
+
+/**
+ * Adds a new process identifier for a live (running or dead but not-yet-reaped)
+ * process to the event loop. This event will complete on its own when the
+ * process finishes.
+ */
+event *eventloop_add_subprocess(eventloop     *loop, 
+                                io_process     process,
+                                async_callback callback,
+                                void          *callback_data);
 
 /**
  * Process all ready events. May block if all events are busy, unless

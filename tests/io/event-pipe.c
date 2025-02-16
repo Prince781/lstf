@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
     inputstream *child_stdout = NULL;
     if (!io_communicate(argv[0], (const char *[]){argv[0], "-subprocess", NULL},
                         /*in_stream=*/NULL, &child_stdout,
-                        /*err_stream=*/NULL)) {
+                        /*err_stream=*/NULL, /*subprocess=*/NULL)) {
         fprintf(stderr, "[parent] failed to launch subprocess: %s\n",
                 strerror(errno));
         inputstream_unref(child_stdout);
