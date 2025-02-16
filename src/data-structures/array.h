@@ -69,7 +69,7 @@ do {\
 
 #define array_destroy(container) \
 do {\
-    array_generic *_a_ = (array_generic *)container;\
+    array_generic *_a_ = (array_generic *)(container);\
     free(_a_->elements);\
     if (!_a_->nofree)\
         free(_a_);\
@@ -81,7 +81,7 @@ do {\
     array_generic *_a_ = (array_generic *)(container);\
     if (_a_->length >= _a_->bufsiz)\
         array_resize__internal(_a_, sizeof (container)->elements[0]);\
-    (container)->elements[_a_->length++] = element;\
+    (container)->elements[_a_->length++] = (element);\
 } while (0)
 
 #define array_remove(container, index) \
@@ -99,4 +99,10 @@ do {\
     }\
     if (_a_->length <= _a_->bufsiz / 2)\
         array_resize__internal(_a_, _a_->elemsz);\
+} while (0)
+
+#define array_pop(container) \
+do {\
+    array_generic *_apop_ = (array_generic *)(container); \
+    array_remove(_apop_, _apop_->length - 1u); \
 } while (0)

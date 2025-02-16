@@ -695,6 +695,9 @@ static void jsonrpc_server_parse_header_async(jsonrpc_server *server,
                                               async_callback  callback,
                                               void           *user_data)
 {
+    if (!server->is_listening)
+        return;
+
     event *header_parsed_ev = eventloop_add(loop, callback, user_data);
 
     struct parse_content_length_ctx *ctx;
@@ -889,8 +892,12 @@ static void jsonrpc_server_handle_request(jsonrpc_server *server,
             (jsonrpc_notification_handler)cl->func_ptr;
         notif_handler(server, method_name, params, cl->user_data);
     } else {
-        jsonrpc_debug(
-            fprintf(stderr, "warning: method \"%s\" not found\n", method_name));
+        jsonrpc_debug({
+            fprintf(stderr, "warning: method \"%s\" not found\n", method_name);
+            char *params_str = json_node_to_string(params, true);
+            fprintf(stderr, "params: %s\n", params_str);
+            free(params_str);
+        });
     }
 }
 
