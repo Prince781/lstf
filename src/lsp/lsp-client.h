@@ -76,9 +76,10 @@ typedef struct _lsp_client lsp_client;
  *
  * @param loop the event loop to process requests and responses on
  */
-lsp_client *lsp_client_new(inputstream  *istream, 
+lsp_client *lsp_client_new(eventloop    *loop,
+                           inputstream  *istream,
                            outputstream *ostream,
-                           eventloop    *loop);
+                           io_process    process);
 
 void lsp_client_destroy(lsp_client *server);
 

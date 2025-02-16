@@ -3,6 +3,7 @@
 #include "io/inputstream.h"
 #include "io/outputstream.h"
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -297,7 +298,8 @@ bool io_communicate(const char    *path,
                     const char   **args,
                     outputstream **in_stream,
                     inputstream  **out_stream,
-                    inputstream  **err_stream)
+                    inputstream  **err_stream,
+                    io_process    *subprocess)
 {
     assert((in_stream || out_stream || err_stream) && "at least one stream must be specified");
     int saved_errno = 0;
@@ -305,8 +307,8 @@ bool io_communicate(const char    *path,
     // create three pipes
     union pipe_info {
         struct {
-          int read_fd;
-          int write_fd;
+            int read_fd;
+            int write_fd;
         };
         int fds[2];
     };
@@ -314,12 +316,21 @@ bool io_communicate(const char    *path,
     union pipe_info stdout_pipe = {.fds = {-1, -1}};
     union pipe_info stderr_pipe = {.fds = {-1, -1}};
     pid_t child_pid = -1;
-    if (in_stream && pipe(stdin_pipe.fds) != 0)
-        goto cleanup_on_error;
-    if (out_stream && pipe(stdout_pipe.fds) != 0)
-        goto cleanup_on_error;
-    if (err_stream && pipe(stderr_pipe.fds) != 0)
-        goto cleanup_on_error;
+    if (in_stream)
+        if (pipe(stdin_pipe.fds) != 0 ||
+                fcntl(stdin_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
+                fcntl(stdin_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+            goto cleanup_on_error;
+    if (out_stream)
+        if (pipe(stdout_pipe.fds) != 0 ||
+                fcntl(stdout_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
+                fcntl(stdout_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+            goto cleanup_on_error;
+    if (err_stream)
+        if (pipe(stderr_pipe.fds) != 0 ||
+                fcntl(stderr_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
+                fcntl(stderr_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+            goto cleanup_on_error;
 
     // fork
     if ((child_pid = fork()) == -1) {
@@ -362,6 +373,8 @@ bool io_communicate(const char    *path,
             }
         }
         argv[argv_i] = NULL;
+
+        // start the subprocess!
         if (execvp(path, argv) != 0) {
             fprintf(stderr, "error: could not launch process `%s': %s\n", path, strerror(errno));
             exit(EXIT_FAILURE);
@@ -375,6 +388,10 @@ bool io_communicate(const char    *path,
             goto cleanup_on_error;
         if (err_stream && !(*err_stream = inputstream_new_from_fd(stderr_pipe.read_fd, true)))
             goto cleanup_on_error;
+
+        // save process
+        if (subprocess)
+            *subprocess = child_pid;
         return true;
     }
 

@@ -113,9 +113,29 @@ lsp_client_handle_publish_diagnostics(jsonrpc_server *server,
     }
 }
 
-lsp_client *lsp_client_new(inputstream  *istream, 
+static void lsp_client_server_disconnected(const event *disconnect_ev,
+                                           void        *user_data)
+{
+    lsp_client *client = user_data;
+    void *result = NULL;
+
+    if (event_get_result(disconnect_ev, &result)) {
+        int status_code = (int)(intptr_t)result;
+        fprintf(stderr, "%s: process %d exited with status code %d\n", __func__,
+                disconnect_ev->process, status_code);
+    } else {
+        fprintf(stderr, "%s: process %d terminated\n", __func__,
+                disconnect_ev->process);
+    }
+    fprintf(stderr, "%s: disconnecting ...\n", __func__);
+    // TODO: track and cancel all outstanding LSP events
+    super(client)->is_listening = false;
+}
+
+lsp_client *lsp_client_new(eventloop    *loop,
+                           inputstream  *istream, 
                            outputstream *ostream,
-                           eventloop    *loop)
+                           io_process    process)
 {
     lsp_client *client = calloc(1, sizeof *client);
 
@@ -136,6 +156,9 @@ lsp_client *lsp_client_new(inputstream  *istream,
             lsp_client_handle_publish_diagnostics, NULL, NULL);
 
     jsonrpc_server_listen(super(client), loop);
+
+    eventloop_add_subprocess(loop, process, lsp_client_server_disconnected,
+                             client);
 
     return client;
 }

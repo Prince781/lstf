@@ -90,6 +90,7 @@ lstf_vm_vmcall_connect_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     outputstream *stdin_os = NULL;
     inputstream *stdout_is = NULL;
     inputstream *stderr_is = NULL;
+    io_process process = {0};
 
     if ((status = lstf_vm_stack_pop_string(cr->stack, &path)))
         return status;
@@ -102,7 +103,7 @@ lstf_vm_vmcall_connect_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     // start the server and connect
     if (!io_communicate(path->buffer, (const char *[]){path->buffer, NULL},
-                        &stdin_os, &stdout_is, &stderr_is)) {
+                        &stdin_os, &stdout_is, &stderr_is, &process)) {
         char stderr_buf[1024] = {0};
         if (stderr_is &&
             inputstream_read(stderr_is, stderr_buf, sizeof(stderr_buf) - 1)) {
@@ -117,7 +118,7 @@ lstf_vm_vmcall_connect_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     }
 
     // now create the language client
-    vm->client = lsp_client_new(stdout_is, stdin_os, vm->event_loop);
+    vm->client = lsp_client_new(vm->event_loop, stdout_is, stdin_os, process);
 
     // now initialize the client
     server_data *data;
