@@ -88,13 +88,16 @@ class IOEventPrinter:
             threadproc = self.val['thread_proc']
             threaddata = self.val['thread_data']
             return f'event<on finish thread: {threadproc}({threaddata}), callback: {callback}({userdata}){status}>'
+        if str(self.val['type']) == 'event_type_subprocess':
+            process_id = self.val['process']
+            return f'event<on finish process: PID {process_id}, callback: {callback}({userdata}){status}>'
         if str(self.val['type']) == 'event_type_io_read':
             fd = self.val['fd']
             return f'event<on readable fd: {fd}, callback: {callback}({userdata}){status}>'
         if str(self.val['type']) == 'event_type_io_write':
             fd = self.val['fd']
             return f'event<on writable fd: {fd}, callback: {callback}({userdata}){status}>'
-        return f'[unknown event type] {self.val}'
+        return '[unknown event type] @ 0x%x'.format(int(self.val))
 
     def display_hint(self):
         return None
@@ -213,9 +216,9 @@ def lookup_pointer_printer(value):
     if value.type.code == gdb.TYPE_CODE_STRUCT and is_lstf_array(value):
         return ArrayPrinter(value)
     if value.type.code == gdb.TYPE_CODE_PTR:
-        if str(value.type) == 'event *':
+        if str(value.type) == 'event *' or str(value.type) == 'const event *':
             return IOEventListPrinter(value)
-        if str(value.type) == 'json_node *':
+        if str(value.type) == 'json_node *' or str(value.type) == 'const json_node *':
             return JSONNodePrinter(value)
 
 pp = gdb.printing.RegexpCollectionPrettyPrinter('lstf')
