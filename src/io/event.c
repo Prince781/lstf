@@ -277,7 +277,7 @@ static int eventloop_monitor_subprocesses(void *user_data)
     // TODO: We want a way to monitor only exactly those processes that are part
     // of the event loop, without busy-waiting, conforming to POSIX. Is this
     // possible? Or maybe we have to busy-wait? Or perhaps we have to drop POSIX?
-    while (true) {
+    while (loop->monitoring_thread_running) {
         // first, look in our queue for previously unmanaged processes
         mtx_lock(&loop->monitoring_lock);
         for (unsigned i = 0; i < loop->ready_processes.length; ) {
@@ -304,7 +304,11 @@ static int eventloop_monitor_subprocesses(void *user_data)
         int   child_status = 0;
         pid_t child_pid    = -1;
         while ((child_pid = wait(&child_status)) == (pid_t)-1) {
-            assert(errno != ECHILD && "expected processes to reap!");
+            if (errno == ECHILD) {
+                // no child processes. wait for .2 s.
+                thrd_sleep(&(struct timespec){.tv_nsec = 200000000}, NULL);
+                break;
+            }
             if (errno != EAGAIN) {
                 fprintf(stderr, "%s: unhandled error with wait(): %s\n",
                         __func__, strerror(errno));
@@ -312,25 +316,27 @@ static int eventloop_monitor_subprocesses(void *user_data)
             }
         }
 
-        bool is_monitored = false;
+        if (child_pid != -1) {
+            bool is_monitored = false;
 
-        // check if this child is a managed process
-        eventloop_pending_events_foreach(loop, pending, prev, {
-            (void)prev;
-            if (pending->type == event_type_subprocess &&
-                pending->process == child_pid) {
-                event_return(pending, (void *)(intptr_t)child_status);
-                eventloop_signal(loop);
-                is_monitored = true;
+            // check if this child is a managed process
+            eventloop_pending_events_foreach(loop, pending, prev, {
+                (void)prev;
+                if (pending->type == event_type_subprocess &&
+                    pending->process == child_pid) {
+                    event_return(pending, (void *)(intptr_t)child_status);
+                    eventloop_signal(loop);
+                    is_monitored = true;
+                }
+            });
+
+            if (!is_monitored) {
+                // child not managed. save the process for a later event
+                mtx_lock(&loop->monitoring_lock);
+                array_add(&loop->ready_processes,
+                          ((io_procstat){child_pid, child_status}));
+                mtx_unlock(&loop->monitoring_lock);
             }
-        });
-
-        if (!is_monitored) {
-            // child not managed. save the process for a later event
-            mtx_lock(&loop->monitoring_lock);
-            array_add(&loop->ready_processes,
-                      ((io_procstat){child_pid, child_status}));
-            mtx_unlock(&loop->monitoring_lock);
         }
     }
 
@@ -348,6 +354,7 @@ event *eventloop_add_subprocess(eventloop     *loop,
     ev->process = process;
     event *prev = eventloop_add_event(loop, ev);
 
+    mtx_lock(&loop->monitoring_lock);
 #if !(defined(_WIN32) || defined(_WIN64))
     // There is no OS primitive on POSIX for monitoring both file descriptors
     // and subprocesses at the same time (alas, we can't use Linux's pidfds). So
@@ -355,14 +362,19 @@ event *eventloop_add_subprocess(eventloop     *loop,
     // [loop->bg_signalfd] when a subprocess is done. See
     // eventloop_monitor_subprocesses() for more details.
     array_add(&loop->processes, process);
-    if (!loop->monitoring_thread_running &&
-        thrd_create(&loop->monitoring_thread, eventloop_monitor_subprocesses,
-                    loop) != thrd_success) {
-        eventloop_remove(loop, ev, prev);
-        free(ev);
-        return NULL;
+    if (!loop->monitoring_thread_running) {
+        loop->monitoring_thread_running = true;
+        if (thrd_create(&loop->monitoring_thread,
+                        eventloop_monitor_subprocesses, loop) != thrd_success) {
+            mtx_unlock(&loop->monitoring_lock);
+            eventloop_remove(loop, ev, prev);
+            free(ev);
+            return NULL;
+        }
     }
+    thrd_detach(loop->monitoring_thread);
 #endif
+    mtx_unlock(&loop->monitoring_lock);
 
     return ev;
 }
@@ -646,6 +658,7 @@ bool eventloop_process(eventloop *loop,
 void eventloop_quit(eventloop *loop)
 {
     loop->is_running = false;
+    loop->monitoring_thread_running = false;
 }
 
 void eventloop_destroy(eventloop *loop)
