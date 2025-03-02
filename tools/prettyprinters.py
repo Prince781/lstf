@@ -191,16 +191,21 @@ class JSONNodePrinter:
             key_type = gdb.lookup_type('char').pointer()
             val_type = gdb.lookup_type('json_node').pointer()
             object_node = self._as(type_name)
-            list_node = try_deref_members(object_node, 'members', 'entries_list', 'head')
+            list_head = try_deref_members(object_node, 'members', 'entries_list', 'head')
             list_tail = try_deref_members(object_node, 'members', 'entries_list', 'tail')
-            while list_node and int(list_node):
+            list_node = list_head
+            seen_head = False
+            while (
+                list_node
+                and int(list_node) != 0
+                and (not seen_head or int(list_node) != int(list_head))
+            ):
                 hashmap_node = list_node.referenced_value()['data'].cast(keyval_type)
                 key = hashmap_node.referenced_value()['key'].cast(key_type)
                 val = hashmap_node.referenced_value()['value'].cast(val_type)
                 yield f'[{key}]', val
                 list_node = list_node.referenced_value()['next']
-                if int(list_node) == int(list_tail):
-                    break
+                seen_head = True
 
         return None
 
