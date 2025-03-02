@@ -381,12 +381,24 @@ bool io_communicate(const char    *path,
         }
     } else {
         // --- parent ---
+
+        // close the ends of the pipes we opened for the child
+        if (in_stream && close(stdin_pipe.read_fd) != 0)
+            goto cleanup_on_error;
+        if (out_stream && close(stdout_pipe.write_fd) != 0)
+            goto cleanup_on_error;
+        if (err_stream && close(stderr_pipe.write_fd) != 0)
+            goto cleanup_on_error;
+
         // setup streams
-        if (in_stream && !(*in_stream = outputstream_new_from_fd(stdin_pipe.write_fd, true)))
+        if (in_stream &&
+            !(*in_stream = outputstream_new_from_fd(stdin_pipe.write_fd, true)))
             goto cleanup_on_error;
-        if (out_stream && !(*out_stream = inputstream_new_from_fd(stdout_pipe.read_fd, true)))
+        if (out_stream &&
+            !(*out_stream = inputstream_new_from_fd(stdout_pipe.read_fd, true)))
             goto cleanup_on_error;
-        if (err_stream && !(*err_stream = inputstream_new_from_fd(stderr_pipe.read_fd, true)))
+        if (err_stream &&
+            !(*err_stream = inputstream_new_from_fd(stderr_pipe.read_fd, true)))
             goto cleanup_on_error;
 
         // save process
