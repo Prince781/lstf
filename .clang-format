@@ -1,0 +1,8 @@
+Language:        Cpp
+IndentWidth: 4
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+BinPackParameters: false
+AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: true
