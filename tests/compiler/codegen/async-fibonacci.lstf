@@ -1,0 +1,28 @@
+async fun fibonacci(n: int): future<int> {
+    if (n < 0) return 0;
+    if (n < 2) return n;
+    let left = await fibonacci(n - 1);
+    let right = await fibonacci(n - 2);
+    return left + right;
+}
+
+async fun task(n: int): future<void> {
+    print(await fibonacci(n) /* wait for it to complete */);
+}
+
+print("fibonacci() for n = 10,15,20,23,27");
+
+// The order we're launching these in is jumbled, but since they're async and
+// have different amounts of computation, they should complete in the order of
+// increasing [n].
+
+// fibonacci(20) = 6765
+task(20);
+// fibonacci(15) = 610
+task(15);
+// fibonacci(23) = 28657
+task(23);
+// fibonacci(10) = 55
+task(10);
+// fibonacci(27) = 196418
+task(27);
