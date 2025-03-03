@@ -6,6 +6,10 @@ test('codegen-assert', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/assert.lstf',
     '-expect', 'success\n'])
 
+test('codegen-async-fibonacci', lstf, suite: 'compiler',
+  args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/async-fibonacci.lstf',
+         '-expect', 'fibonacci() for n = 10,15,20,23,27\n55\n610\n6765\n28657\n196418\n'])
+
 test('codegen-async-lambda', lstf, suite: 'compiler',
   args: ['-no-lsp', meson.project_source_root() + '/tests/compiler/codegen/async-lambda.lstf',
     '-expect', '42\n'])
