@@ -695,8 +695,10 @@ static void jsonrpc_server_parse_header_async(jsonrpc_server *server,
                                               async_callback  callback,
                                               void           *user_data)
 {
-    if (!server->is_listening)
+    if (!server->is_listening) {
+        // TODO: create and cancel the event for (callback, user_data)
         return;
+    }
 
     event *header_parsed_ev = eventloop_add(loop, callback, user_data);
 
@@ -948,8 +950,6 @@ jsonrpc_server_listen_parse_node_after_header_cb(const event *node_parsed_ev,
                 return;
               }
             });
-            json_node_unref(parsed_node);       // discard the array
-            return;
         } else {
             // invalid JSON node - bail out
             char *representation = json_node_to_string(parsed_node, true);
@@ -961,6 +961,10 @@ jsonrpc_server_listen_parse_node_after_header_cb(const event *node_parsed_ev,
             json_node_unref(parsed_node);
             return;
         }
+
+        // discard the results
+        json_node_unref(parsed_node);
+        parsed_node = NULL;
 
         // we want to continue parsing - loop
         jsonrpc_server_parse_header_async(

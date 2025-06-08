@@ -328,3 +328,60 @@ json_node *lsp_client_wait_for_diagnostics_finish(const event *ev, int *error)
 
     return result;
 }
+
+/**
+ * Deserializes data for all user-defined notification handlers.
+ */
+static void lsp_client_handle_notification_typed(jsonrpc_server *server,
+                                                 const char     *method,
+                                                 json_node      *parameters,
+                                                 void           *user_data)
+{
+    lsp_client *client = (lsp_client *)server;
+    closure *cl = user_data;
+    json_serialization_status status = json_serialization_status_continue;
+
+    // For each call to lsp_client_register_typed_notification_handler(), we
+    // must have a case here.
+    if (strcmp(method, "window/showMessage") == 0) {
+        lsp_showmessageparams params = {0};
+        if ((status = json_deserialize(lsp_showmessageparams, &params, parameters))) {
+            // TODO: handle error explicitly here
+        } else {
+            closure_vinvoke(cl, lsp_handler_window_show_message, client,
+                            &params);
+            free(params.message);
+        }
+    } else {
+        fprintf(stderr, "%s: registered to handle `%s' but not handled!\n",
+                __func__, method);
+        abort();
+    }
+
+    if (status) {
+        fprintf(stderr, "[notification::%s] LSP client failed to deserialize params\n", method);
+    }
+}
+
+static void 
+lsp_client_register_typed_notification_handler(lsp_client             *client,
+                                               const char             *method,
+                                               closure_func            handler,
+                                               void                   *user_data,
+                                               closure_data_unref_func user_data_unref_func)
+{
+    jsonrpc_server_handle_notification(
+        super(client), method, lsp_client_handle_notification_typed,
+        closure_new(handler, user_data, user_data_unref_func),
+        (closure_data_unref_func)closure_destroy);
+}
+
+void lsp_client_on_window_show_message(lsp_client                     *client,
+                                       lsp_handler_window_show_message handler,
+                                       void                           *user_data,
+                                       closure_data_unref_func         user_data_unref_func)
+{
+    lsp_client_register_typed_notification_handler(
+        client, "window/showMessage", (closure_func)handler, user_data,
+        user_data_unref_func);
+}

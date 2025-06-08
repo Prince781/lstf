@@ -7,6 +7,39 @@
 
 #define LSTF_VM_CONTENT_URI_FMT "content:///buffer/%zu"
 
+// handlers for server notifications
+static void lstf_vm_handle_window_show_message(
+    lsp_client *client, const lsp_showmessageparams *params, void *user_data)
+{
+    (void) client;
+    lstf_virtualmachine *vm = user_data;
+    (void) vm;
+    const char *domain;
+
+    switch (params->type) {
+    case lsp_message_type_error:
+        domain = "ERROR";
+        break;
+    case lsp_message_type_warning:
+        domain = "WARNING";
+        break;
+    case lsp_message_type_info:
+        domain = "INFO";
+        break;
+    case lsp_message_type_log:
+        domain = "LOG";
+        break;
+    default:
+        fprintf(stderr, "%s: unreachable code (unexpected type %u)\n", __func__,
+                params->type);
+        abort();
+    }
+
+    fprintf(stderr, "SERVER %s: %s\n", domain, params->message);
+}
+
+// handlers for server calls and VM calls
+
 static lstf_vm_status
 lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
@@ -119,6 +152,10 @@ lstf_vm_vmcall_connect_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     // now create the language client
     vm->client = lsp_client_new(vm->event_loop, stdout_is, stdin_os, process);
+
+    // setup notification handlers
+    lsp_client_on_window_show_message(
+        vm->client, lstf_vm_handle_window_show_message, vm, NULL);
 
     // now initialize the client
     server_data *data;

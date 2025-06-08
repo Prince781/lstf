@@ -7,6 +7,7 @@
 #include "json/json-serializable.h"
 #include "lsp-textdocument.h"
 #include "lsp-diagnostic.h"
+#include "lsp-window.h"
 #include <stdbool.h>
 
 /**
@@ -52,7 +53,7 @@ lsp_publishdiagnosticsparams_clear(lsp_publishdiagnosticsparams *params)
     array_destroy(&params->diagnostics);
 }
 
-struct _lsp_client {
+typedef struct {
     jsonrpc_server parent_struct;
 
     lsp_initializeparams initialize_params;
@@ -67,8 +68,7 @@ struct _lsp_client {
      * @see lsp_client_wait_for_diagnostics_async
      */
     array(event *) diagnostics_waiters;
-};
-typedef struct _lsp_client lsp_client;
+} lsp_client;
 
 /**
  * Creates a new JSON-RPC server listening on [istream] and sending messages
@@ -136,3 +136,19 @@ void lsp_client_wait_for_diagnostics_async(lsp_client    *client,
  * object that must be destroyed.
  */
 json_node *lsp_client_wait_for_diagnostics_finish(const event *ev, int *error);
+
+/**
+ * A typed handler for the `window/showMessage` notification.
+ */
+typedef void (*lsp_handler_window_show_message)(lsp_client                  *client,
+                                                const lsp_showmessageparams *params,
+                                                void                        *user_data);
+
+/**
+ * Registers an event handler for the `window/showMessage` notification from the
+ * server.
+ */
+void lsp_client_on_window_show_message(lsp_client                     *client,
+                                       lsp_handler_window_show_message handler,
+                                       void                           *user_data,
+                                       closure_data_unref_func         user_data_unref_func);

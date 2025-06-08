@@ -96,3 +96,11 @@ static inline void *iterator_get_item(iterator it)
 #define iterator_of(element_name) element_name##_it
 
 #define index_of(element_name) ((unsigned long)((element_name##_it).counter))
+
+#define foreach(iter_begin, elem, type, statements)                            \
+    for (iterator iterator_of(elem) = (iter_begin);                            \
+         iterator_of(elem).has_next;                                           \
+         iterator_of(elem) = iterator_next(iterator_of(elem))) {               \
+        type elem = (type)iterator_get_item(iterator_of(elem));                \
+        statements;                                                            \
+    }

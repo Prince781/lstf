@@ -77,6 +77,7 @@ lsp_lib = static_library('lsp',
     'lsp/lsp-position.c',
     'lsp/lsp-range.c',
     'lsp/lsp-textdocument.c',
+    'lsp/lsp-window.c',
     version_h
   ],
   include_directories: include_dirs,

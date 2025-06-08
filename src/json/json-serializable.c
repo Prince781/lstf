@@ -35,13 +35,30 @@ json_serialization_status json_deserialize_from_node(const json_serializable_vta
             if ((status = vtable->deserialize_property(instance, property_name, property_node)))
                 return status;
         }
-    } else {
+    } else if (vtable->list_elements) {
         // deserialize array
-        if (node->node_type != json_node_type_array)
+        json_array *jarr = json_node_cast(node, array);
+        if (!jarr)
             return json_serialization_status_invalid_type;
-        for (unsigned i = 0; i < ((json_array *)node)->num_elements; i++)
-            if ((status = vtable->deserialize_element(instance, (void *)(intptr_t)i, ((json_array *)node)->elements[i])))
+        for (unsigned i = 0; i < jarr->num_elements; i++)
+            if ((status = vtable->deserialize_element(instance, (void *)(intptr_t)i, jarr->elements[i])))
                 return status;
+    } else if (vtable->list_enum_values) {
+        // deserialize an enum
+        json_integer *jint = json_node_cast(node, integer);
+        if (!jint)
+            return json_serialization_status_invalid_type;
+        // check for a valid value
+        foreach(vtable->list_enum_values(), enum_val, intptr_t, {
+            if (jint->value == (int64_t)enum_val) {
+                *((int *)instance) = (int)enum_val;
+                return json_serialization_status_continue;
+            }
+        });
+        return json_serialization_status_invalid_type;
+    } else {
+        fprintf(stderr, "%s: unhandled type!\n", __func__);
+        abort();
     }
 
     return status;
@@ -73,12 +90,14 @@ json_serialization_status json_serialize_to_node(const json_serializable_vtable 
 
             if (property_node)
                 json_object_set_member(object, property_name, property_node);
-            else
-                assert(is_optional && "serialize_property() did not initialize non-optional property node");
+            else {
+                json_node_unref(object);
+                return json_serialization_status_missing_property;
+            }
         }
 
         *node = object;
-    } else {
+    } else if (vtable->list_elements) {
         // serialize array
         json_node *array = json_array_new();
 
@@ -96,7 +115,21 @@ json_serialization_status json_serialize_to_node(const json_serializable_vtable 
         }
 
         *node = array;
+    } else if (vtable->list_enum_values) {
+        // serialize enum
+        const int *instance_int = instance;
+        // check for a valid value
+        foreach(vtable->list_enum_values(), enum_val, intptr_t, {
+            if (*instance_int == (int)enum_val) {
+                *node = json_integer_new(*instance_int);
+                return json_serialization_status_continue;
+            }
+        });
+        return json_serialization_status_invalid_type;
+    } else {
+        fprintf(stderr, "%s: unhandled type!\n", __func__);
+        abort();
     }
 
-    return json_serialization_status_continue;
+    return status;
 }

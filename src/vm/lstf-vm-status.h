@@ -140,7 +140,12 @@ enum _lstf_vm_status {
     /**
      * Invalid document ID used with the language server
      */
-    lstf_vm_status_invalid_document_id
+    lstf_vm_status_invalid_document_id,
+
+    /**
+     * The server failed for some unspecified reason
+     */
+    lstf_vm_status_server_error
 };
 typedef enum _lstf_vm_status lstf_vm_status;
 
@@ -226,6 +231,9 @@ lstf_vm_status_to_string(lstf_vm_status status)
             break;
         case lstf_vm_status_invalid_document_id:
             exception_message = "invalid document ID for language server";
+            break;
+        case lstf_vm_status_server_error:
+            exception_message = "language server encountered an error";
             break;
         }
 
