@@ -147,7 +147,7 @@ static bool jsonrpc_server_send_message(jsonrpc_server *server, json_node *node)
     bool success = false;
     char *serialized_message = json_node_to_string(node, false);
     char *content_length_header = string_destroy(
-        string_newf("Content-Length: %zu\r\n", strlen(serialized_message)));
+        string_newf("Content-Length: %zu\r\n", strlen(serialized_message) + 2));
 
     // header field
     if (outputstream_write_string(server->output_stream, content_length_header) != strlen(content_length_header))
