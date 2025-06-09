@@ -122,7 +122,7 @@ json_serialization_status json_serialize_to_node(const json_serializable_vtable 
         const int *instance_int = instance;
         // check for a valid value
         foreach (vtable->list_enum_values(), enum_val, intptr_t, {
-            if (*instance_int == (int)enum_val) {
+            if (*instance_int == enum_val) {
                 *node = json_integer_new(*instance_int);
                 return json_serialization_status_continue;
             }

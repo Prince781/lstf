@@ -24,4 +24,6 @@ typedef enum {
     lsp_textdocumentsynckind_incremental
 } lsp_textdocumentsynckind;
 
+json_serializable_decl_as_enum(lsp_textdocumentsynckind);
+
 void lsp_document_dtor(lsp_textdocument *doc);

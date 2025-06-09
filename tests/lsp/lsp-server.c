@@ -37,19 +37,10 @@ static json_serialization_status lsp_servercapabilities_deserialize_property(lsp
                                                                              json_node              *property_node)
 {
     if (strcmp(property_name, "textDocumentSync") == 0) {
-        if (property_node->node_type != json_node_type_integer)
-            return json_serialization_status_invalid_type;
-        switch (((json_integer *)property_node)->value) {
-            case lsp_textdocumentsynckind_none:
-            case lsp_textdocumentsynckind_full:
-            case lsp_textdocumentsynckind_incremental:
-                self->text_document_sync = ((json_integer *)property_node)->value;
-                break;
-            default:
-                return json_serialization_status_invalid_type;
-        }
+        return json_deserialize(lsp_textdocumentsynckind,
+                                &self->text_document_sync, property_node);
     } else {
-        // ignore unknown property
+        json_serializable_fail_with_unhandled_property(property_name);
     }
     return json_serialization_status_continue;
 }
@@ -81,15 +72,17 @@ static json_serialization_status lsp_serverinfo_deserialize_property(lsp_serveri
                                                                      json_node      *property_node)
 {
     if (strcmp(property_name, "name") == 0) {
-        if (property_node->node_type != json_node_type_string)
+        json_string *jstr = json_node_cast(property_node, string);
+        if (!jstr)
             return json_serialization_status_invalid_type;
-        self->name = strdup(((json_string *)property_node)->value);
+        self->name = strdup(jstr->value);
     } else if (strcmp(property_name, "version") == 0) {
-        if (property_node->node_type != json_node_type_string)
+        json_string *jstr = json_node_cast(property_node, string);
+        if (!jstr)
             return json_serialization_status_invalid_type;
-        self->version = strdup(((json_string *)property_node)->value);
+        self->version = strdup(jstr->value);
     } else {
-        // ignore unknown property
+        json_serializable_fail_with_unhandled_property(property_name);
     }
     return json_serialization_status_continue;
 }
