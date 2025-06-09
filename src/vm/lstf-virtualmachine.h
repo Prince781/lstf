@@ -16,7 +16,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 
-struct _lstf_virtualmachine {
+typedef struct {
     lstf_vm_program *program;           // the code and data of the program
     lstf_vm_status last_status;         // status of the last-executed instruction
     int return_code;                    // the return code (if the virtual machine has exited)
@@ -32,8 +32,7 @@ struct _lstf_virtualmachine {
     bool debug;                         // whether the virtual machine is in debug mode
     uint8_t *next_stop;                 // where the virtual machine should stop on the next iteration
     lsp_client *client;                 // a handle to the LSP client communicating with the remote server
-};
-typedef struct _lstf_virtualmachine lstf_virtualmachine;
+} lstf_virtualmachine;
 
 /**
  * Creates a new virtual machine.

@@ -1,5 +1,7 @@
 server_path = option('server-path');
 
+print("opening text document ...");
+
 let f = file(`
 void main() {
     print ("GLib is a string");
@@ -7,6 +9,8 @@ void main() {
 `);
 
 project_files = [ f ];
+
+print("...done");
 
 print("awaiting diagnostics ...");
 
@@ -23,3 +27,5 @@ assert {
         ...
     ]
 } <=> await diagnostics(f);
+
+print("...done");

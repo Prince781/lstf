@@ -90,3 +90,6 @@ static inline bool ptr_list_is_empty(const ptr_list *list)
  * data.
  */
 iterator ptr_list_iterator_create(ptr_list *list);
+
+#define ptr_list_foreach(list, elem, elem_type, statements)                    \
+    foreach(ptr_list_iterator_create(list), elem, elem_type, statements)

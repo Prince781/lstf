@@ -1389,7 +1389,9 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
             // Windows). However, since the run queue is empty (all coroutines
             // are blocked on I/O) we want to make as much progress as possible.
             unsigned processed = 0;
-            while (eventloop_process(vm->event_loop, false, &processed)) {
+            bool have_ready_cr = false;
+            while (!have_ready_cr &&
+                   eventloop_process(vm->event_loop, false, &processed)) {
                 // errors can be raised inside event handlers
                 if (vm->last_status != lstf_vm_status_continue)
                     return vm->last_status == lstf_vm_status_hit_breakpoint;
@@ -1397,6 +1399,15 @@ lstf_virtualmachine_run(lstf_virtualmachine *vm)
                 // avoid busy waiting if nothing was processed. sleep for .2s
                 if (processed == 0)
                     thrd_sleep(&(struct timespec){.tv_nsec = 200000000}, NULL);
+                else {
+                    // check if any coroutines were unblocked
+                    ptr_list_foreach(vm->suspended_list, sus_cr, lstf_vm_coroutine *, {
+                        if (sus_cr->outstanding_io == 0) {
+                            have_ready_cr = true;
+                            break;
+                        }
+                    });
+                }
             }
         }
 
