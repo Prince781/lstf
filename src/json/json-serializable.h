@@ -26,7 +26,7 @@ typedef struct {
 
     /**
      * Returns an iterator over all the elements of `self`, if we are an array.
-     * This must be NULL if we are an object.
+     * This must be NULL if we are an object. Only called when serializing.
      */
     iterator (*list_elements)(const void *self);
 

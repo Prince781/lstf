@@ -109,7 +109,7 @@ static json_serialization_status lsp_initializeresult_serialize_property(const l
                                                                          const char                 *property_name,
                                                                          json_node                 **property_node)
 {
-    if(strcmp(property_name, "capabilities") == 0) {
+    if (strcmp(property_name, "capabilities") == 0) {
         return json_serialize(lsp_servercapabilities, &self->capabilities, property_node);
     } else if (strcmp(property_name, "serverInfo") == 0) {
         return json_serialize(lsp_serverinfo, &self->server_info, property_node);
