@@ -120,14 +120,17 @@ static inline json_node *json_node_typecheck(json_node *node, json_node_type nod
 
 #define json_array_foreach(array, element, statements)                         \
     {                                                                          \
-      json_array *_tmp_array = (json_array *)json_node_typecheck(              \
-          (json_node *)array, json_node_type_array);                           \
-      assert(_tmp_array && "not a JSON array!");                               \
-      for (unsigned i = 0; i < _tmp_array->num_elements; ++i) {                \
-        json_node *element = _tmp_array->elements[i];                          \
-        statements;                                                            \
-      }                                                                        \
+        json_array *_tmp_array = (json_array *)json_node_typecheck(            \
+            (json_node *)array, json_node_type_array);                         \
+        assert(_tmp_array && "not a JSON array!");                             \
+        for (unsigned element##_i = 0; element##_i < _tmp_array->num_elements; \
+             ++element##_i) {                                                  \
+            json_node *element = _tmp_array->elements[element##_i];            \
+            statements;                                                        \
+        }                                                                      \
     }
+
+#define json_array_element_idx(element) (element ## _i)
 
 #define json_object_member_name(member) ((const char *)member->key)
 #define json_object_member_node(member) ((json_node *)member->value)

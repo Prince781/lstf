@@ -25,12 +25,6 @@ typedef struct {
     iterator (*list_properties)(void);
 
     /**
-     * Returns an iterator over all the elements of `self`, if we are an array.
-     * This must be NULL if we are an object. Only called when serializing.
-     */
-    iterator (*list_elements)(const void *self);
-
-    /**
      * Returns an iterator over all of the enum members of this type.
      */
     iterator (*list_enum_values)(void);
@@ -44,14 +38,6 @@ typedef struct {
         json_serialization_status (*deserialize_property)(void       *self,
                                                           const char *property_name,
                                                           json_node  *property_node);
-
-        /**
-         * This handles deserialization of each element of the container.  Should
-         * only be set if we are an array.
-         */
-        json_serialization_status (*deserialize_element)(void      *self,
-                                                         void      *element,
-                                                         json_node *element_node);
     };
 
     // --- serialization
@@ -66,14 +52,6 @@ typedef struct {
         json_serialization_status (*serialize_property)(const void *self,
                                                         const char *property_name,
                                                         json_node **property_node);
-
-        /**
-         * This handles serialization of each element of the container. Should only
-         * be set if we are an array.
-         */
-        json_serialization_status (*serialize_element)(const void *self,
-                                                       void       *element,
-                                                       json_node **element_node);
     };
 } json_serializable_vtable;
 

@@ -36,16 +36,8 @@ json_serialization_status json_deserialize_from_node(const json_serializable_vta
                                                        property_node)))
                 return status;
         });
-    } else if (vtable->list_elements) {
-        // deserialize array
-        json_array *jarr = json_node_cast(node, array);
-        if (!jarr)
-            return json_serialization_status_invalid_type;
-        for (unsigned i = 0; i < jarr->num_elements; i++)
-            if ((status = vtable->deserialize_element(instance, (void *)(intptr_t)i, jarr->elements[i])))
-                return status;
     } else if (vtable->list_enum_values) {
-        // deserialize an enum
+        // deserialize enum
         json_integer *jint = json_node_cast(node, integer);
         if (!jint)
             return json_serialization_status_invalid_type;
@@ -98,25 +90,6 @@ json_serialization_status json_serialize_to_node(const json_serializable_vtable 
         });
 
         *node = object;
-    } else if (vtable->list_elements) {
-        // serialize array
-        json_node *array = json_array_new();
-
-        foreach (vtable->list_elements(instance), element, void *, {
-            json_node *element_node = NULL;
-
-            if ((status = vtable->serialize_element(instance, element,
-                                                    &element_node))) {
-                json_node_unref(array);
-                return status;
-            }
-
-            assert(element_node &&
-                   "serialize_element() did not initialize element node");
-            json_array_add_element(array, element_node);
-        });
-
-        *node = array;
     } else if (vtable->list_enum_values) {
         // serialize enum
         const int *instance_int = instance;

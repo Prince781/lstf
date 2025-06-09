@@ -885,14 +885,13 @@ static void jsonrpc_server_handle_request(jsonrpc_server *server,
     if (id &&
         (handler_entry = ptr_hashmap_get(server->call_handlers, method_name))) {
         closure *cl = handler_entry->value;
-        jsonrpc_call_handler call_handler = (jsonrpc_call_handler)cl->func_ptr;
-        call_handler(server, method_name, id, params, cl->user_data);
+        closure_vinvoke(cl, jsonrpc_call_handler, server, method_name, id,
+                        params);
     } else if (!id && (handler_entry = ptr_hashmap_get(server->notif_handlers,
                                                        method_name))) {
         closure *cl = handler_entry->value;
-        jsonrpc_notification_handler notif_handler =
-            (jsonrpc_notification_handler)cl->func_ptr;
-        notif_handler(server, method_name, params, cl->user_data);
+        closure_vinvoke(cl, jsonrpc_notification_handler, server, method_name,
+                        params);
     } else {
         jsonrpc_debug({
             fprintf(stderr, "warning: method \"%s\" not found\n", method_name);
