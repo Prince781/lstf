@@ -43,10 +43,12 @@ void lstf_file_create_builtins(lstf_file *file)
     lstf_function_add_statement(file->main_function,
             lstf_declaration_new_from_type_alias(&src, docuri_alias));
 
-    // fun file(contents: string): DocumentUri
+    // fun file(type: string, contents: string): DocumentUri
     lstf_function *file_fn = (lstf_function *)
         lstf_function_new_for_opcode(&src, "file", docuri_alias->aliased_type, false, 
                 lstf_vm_op_vmcall, lstf_vm_vmcall_memory);
+    lstf_function_add_parameter(file_fn, (lstf_variable *)
+            lstf_variable_new(&src, "type", lstf_stringtype_new(&src), NULL, true));
     lstf_function_add_parameter(file_fn, (lstf_variable *)
             lstf_variable_new(&src, "contents", lstf_stringtype_new(&src), NULL, true));
     lstf_function_add_statement(file->main_function,

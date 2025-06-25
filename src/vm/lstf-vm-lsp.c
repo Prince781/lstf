@@ -45,26 +45,31 @@ static lstf_vm_status
 lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 {
     lstf_vm_status status = lstf_vm_status_continue;
+    string *filetype = NULL;
     string *content = NULL;
 
     if (!vm->client)
         return lstf_vm_status_not_connected;
 
     if ((status = lstf_vm_stack_pop_string(cr->stack, &content)))
-        return status;
+        goto cleanup;
+
+    if ((status = lstf_vm_stack_pop_string(cr->stack, &filetype)))
+        goto cleanup;
 
     // associate the content with a new URI
     string *uri =
         string_newf(LSTF_VM_CONTENT_URI_FMT, (size_t)vm->client->docs.length);
     lsp_textdocument document = {.uri  = strdup(uri->buffer),
-                                 // TODO: support user-provided language IDs
-                                 .language_id = "plain",
+                                 .language_id = strdup(filetype->buffer),
                                  .text = string_ref(content)};
 
     array_add(&vm->client->docs, document);
     if ((status = lstf_vm_stack_push_string(cr->stack, uri)))
         string_unref(uri);
 
+cleanup:
+    string_unref(filetype);
     string_unref(content);
     return status;
 }

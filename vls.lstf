@@ -1,6 +1,6 @@
 server_path = option('server-path');
 
-let f = file(`
+let f = file("vala", `
 void main() {
     print ("GLib is a string");
 }

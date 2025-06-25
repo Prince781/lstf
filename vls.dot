@@ -5,7 +5,7 @@ digraph G {
         "main_bb_entry";
         "main_bb_entry" -> "main_bb_1";
 
-        "main_bb_1" [label="%0 = constant \"server-path\"\n%1 = call @option, %0\ncall @lsp.connect, %1\n%3 = constant \"\\nvoid main() {\\n    print (\\\"GLib is a string\\\");\\n}\\n\"\n%4 = call @file, %3\n%5 = alloc var %4\n%6 = constant []\n%7 = load *%6\n%8 = load *%5\nappend %7, %8\ncall @lsp.textDocument.didOpen, %6\n%11 = constant {}\n%12 = load *%11\n%13 = constant \"diagnostics\"\n%14 = constant []\n%15 = load *%14\n%16 = constant ...\nappend %15, %16\n%18 = load *%14\n%19 = constant {}\n%20 = load *%19\n%21 = constant \"range\"\n%22 = constant {\"start\": {\"line\": 3, \"character\": 5}, \"end\": {\"line\": 3, \"character\": 16}}\nset %20, %21, %22\n%24 = load *%19\n%25 = constant \"severity\"\n%26 = constant 1\nset %24, %25, %26\nappend %18, %19\n%29 = load *%14\n%30 = constant ...\nappend %29, %30\nset %12, %13, %14\n%33 = load *%5\n%34 = call @diagnostics, %33\n%35 = eq, %11, %34\nassert %35\nreturn\n"];
+        "main_bb_1" [label="%0 = constant \"server-path\"\n%1 = call @option, %0\ncall @lsp.connect, %1\n%3 = constant \"vala\"\n%4 = constant \"\\nvoid main() {\\n    print (\\\"GLib is a string\\\");\\n}\\n\"\n%5 = call @file, %3, %4\n%6 = alloc var %5\n%7 = constant []\n%8 = load *%7\n%9 = load *%6\nappend %8, %9\ncall @lsp.textDocument.didOpen, %7\n%12 = constant {\"diagnostics\": [..., {\"range\": {\"start\": {\"line\": 3, \"character\": 5}, \"end\": {\"line\": 3, \"character\": 16}}, \"severity\": 1}, ...]}\n%13 = load *%6\n%14 = call @diagnostics, %13\n%15 = eq, %12, %14\nassert %15\nreturn\n"];
         "main_bb_1" -> "main_bb_exit";
 
         "main_bb_exit";

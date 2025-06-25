@@ -3,19 +3,18 @@
     <0x002> load json "server-path"
     <0x011> getopt
     <0x012> vmcall lsp.connect
-    <0x014> load json "\nvoid main() {\n    print (\"GLib is a string\");\n}\n"
-    <0x04f> vmcall memory
-    <0x051> load json []
-    <0x055> load [fp + 0x1]
-    <0x05e> load [fp + 0]
-    <0x067> append
-    <0x068> vmcall lsp.textDocument.didOpen
-    <0x06a> load json "awaiting diagnostics ..."
-    <0x086> print
-    <0x087> load json {"diagnostics": [..., {"range": {"start": {"line": 3, "character": 5}, "end": {"line": 3, "character": 16}}, "severity": 1}, ...]}
-    <0x10b> load [fp + 0]
-    <0x114> vmcall lsp.diagnostics
-    <0x116> eq
-    <0x117> assert
-    <0x118> pop
-    <0x119> return
+    <0x014> load json "vala"
+    <0x01c> load json "\nvoid main() {\n    print (\"GLib is a string\");\n}\n"
+    <0x057> vmcall memory
+    <0x059> load json []
+    <0x05d> load [fp + 0x1]
+    <0x066> load [fp + 0]
+    <0x06f> append
+    <0x070> vmcall lsp.textDocument.didOpen
+    <0x072> load json {"diagnostics": [..., {"range": {"start": {"line": 3, "character": 5}, "end": {"line": 3, "character": 16}}, "severity": 1}, ...]}
+    <0x0f6> load [fp + 0]
+    <0x0ff> vmcall lsp.diagnostics
+    <0x101> eq
+    <0x102> assert
+    <0x103> pop
+    <0x104> return
