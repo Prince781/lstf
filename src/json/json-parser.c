@@ -480,11 +480,8 @@ static void json_parser_scanner_next_cb(const event *ev, void *user_data)
         json_node *array = json_array_new();
 
         struct parse_array_ctx *parse_array_ctx;
-        box(struct parse_array_ctx, parse_array_ctx) {
-            parser,
-            array,
-            node_parsed_ev
-        };
+        box(struct parse_array_ctx, parse_array_ctx, parser, array,
+            node_parsed_ev);
         json_parser_parse_node_async(parser, node_parsed_ev->loop, json_parser_parse_array_element_cb, parse_array_ctx);
     }   break;
 
@@ -493,15 +490,9 @@ static void json_parser_scanner_next_cb(const event *ev, void *user_data)
         json_node *object = json_object_new();
 
         struct parse_object_entry_ctx *parse_ctx;
-        box(struct parse_object_entry_ctx, parse_ctx) {
-            parser,
-            object,
-            node_parsed_ev,
-            NULL,   /* member_name */
-            false,
-            false,
-            false
-        };
+        box(struct parse_object_entry_ctx, parse_ctx, parser, object,
+            node_parsed_ev, .member_name = NULL, .has_colon = false,
+            .has_member_value = false, .has_trailing_comma = false);
         json_scanner_next_async(parser->scanner, node_parsed_ev->loop, json_parser_parse_object_entry_cb, parse_ctx);
     }   break;
 
@@ -524,7 +515,7 @@ void json_parser_parse_node_async(json_parser   *parser,
     event *node_parsed_ev = eventloop_add(loop, callback, user_data);
 
     struct next_token_ctx *ctx;
-    box(struct next_token_ctx, ctx) { parser, node_parsed_ev };
+    box(struct next_token_ctx, ctx, parser, node_parsed_ev);
     json_scanner_next_async(parser->scanner, loop, json_parser_scanner_next_cb, ctx);
 }
 

@@ -298,14 +298,18 @@ void lsp_client_wait_for_diagnostics_async(lsp_client    *client,
                                            async_callback callback,
                                            void          *callback_data)
 {
+    assert(lsp_client_is_initialized(client) &&
+           "waiting for diagnostic results with uninitialized server!");
+
     event *diagnostics_ready_ev = eventloop_add(loop, callback, callback_data);
     array_add(&client->diagnostics_waiters, diagnostics_ready_ev);
 
+    // drain container of diagnostics
+    // NOTE: can't use foreach() here because we have an extra condition check
     for (iterator it = ptr_list_iterator_create(client->diagnostics_results);
          it.has_next && client->diagnostics_waiters.length > 0;
          it = iterator_next(it)) {
         json_node *params_json = iterator_get_item(it); // FIXME: should we return ptr_list_node instead?
-        // drain container of diagnostics
         for (unsigned j = client->diagnostics_waiters.length; j > 0; --j) {
             // return the parameter JSON
             event_return(client->diagnostics_waiters.elements[j-1], params_json);

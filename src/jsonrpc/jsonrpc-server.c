@@ -217,11 +217,8 @@ static void jsonrpc_server_send_message_async(jsonrpc_server *server,
     event *send_message_ev = eventloop_add(loop, callback, user_data);
 
     struct ostream_ready_ctx *ctx = NULL;
-    box(struct ostream_ready_ctx, ctx) {
-        server,
-        json_node_ref(message),
-        send_message_ev
-    };
+    box(struct ostream_ready_ctx, ctx, server, json_node_ref(message),
+        send_message_ev);
 
     // TODO: handle outputstream backed by a buffer
     jsonrpc_debug({
@@ -703,11 +700,8 @@ static void jsonrpc_server_parse_header_async(jsonrpc_server *server,
     event *header_parsed_ev = eventloop_add(loop, callback, user_data);
 
     struct parse_content_length_ctx *ctx;
-    box(struct parse_content_length_ctx, ctx) {
-        server,
-        header_parsed_ev,
-        .state = parse_content_length_state_skipping_spaces
-    };
+    box(struct parse_content_length_ctx, ctx, server, header_parsed_ev,
+        .state = parse_content_length_state_skipping_spaces);
     json_scanner_reset(server->parser->scanner);
 
     // 1. skip the response header beginning
@@ -792,11 +786,8 @@ void jsonrpc_server_call_remote_async(jsonrpc_server *server,
     event *response_ev = eventloop_add(loop, callback, user_data);
 
     struct send_request_ctx *ctx;
-    box(struct send_request_ctx, ctx) {
-        server,
-        json_node_ref(request_id),
-        response_ev
-    };
+    box(struct send_request_ctx, ctx, server, json_node_ref(request_id),
+        response_ev);
 
     jsonrpc_debug({
       fprintf(

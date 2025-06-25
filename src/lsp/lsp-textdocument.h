@@ -3,11 +3,25 @@
 #include "data-structures/string-builder.h"
 #include "json/json-serializable.h"
 
+/**
+ * `interface TextDocumentItem`
+ */
 json_serializable_decl_as_object(lsp_textdocument, {
     /**
      * Fully unescaped URI
      */
     char *uri;
+
+    /**
+     * The text document's language identifier.
+     */
+    char *language_id;
+
+    /**
+     * The version number of this document. Increases after each change,
+     * including undo/redo.
+     */
+    int64_t version;
 
     /**
      * Full content of the text document.

@@ -23,9 +23,10 @@ typedef long int off_t;
 /**
  * Take a pointer variable and initialize it on the heap. Will abort on failure.
  */
-#define box(type, ptrvar) \
-if (!((ptrvar) = calloc(1, sizeof *(ptrvar)))) { \
-    fprintf(stderr, "error: failed to box " #type ": %s\n", strerror(errno)); \
-    abort(); \
-} \
-*ptrvar = (type)
+#define box(type, ptrvar, ...)                                                 \
+    if (!((ptrvar) = calloc(1, sizeof *(ptrvar)))) {                           \
+        fprintf(stderr, "error: failed to box " #type ": %s\n",                \
+                strerror(errno));                                              \
+        abort();                                                               \
+    }                                                                          \
+    *ptrvar = (type) { __VA_ARGS__ }

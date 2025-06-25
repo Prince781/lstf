@@ -3,6 +3,7 @@
 #include "lstf-vm-lsp.h"
 #include "lstf-vm-opcodes.h"
 #include "vm/lstf-vm-stack.h"
+#include "json/json.h"
 #include <stdio.h>
 
 #define LSTF_VM_CONTENT_URI_FMT "content:///buffer/%zu"
@@ -46,6 +47,9 @@ lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     lstf_vm_status status = lstf_vm_status_continue;
     string *content = NULL;
 
+    if (!vm->client)
+        return lstf_vm_status_not_connected;
+
     if ((status = lstf_vm_stack_pop_string(cr->stack, &content)))
         return status;
 
@@ -53,6 +57,8 @@ lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     string *uri =
         string_newf(LSTF_VM_CONTENT_URI_FMT, (size_t)vm->client->docs.length);
     lsp_textdocument document = {.uri  = strdup(uri->buffer),
+                                 // TODO: support user-provided language IDs
+                                 .language_id = "plain",
                                  .text = string_ref(content)};
 
     array_add(&vm->client->docs, document);
@@ -65,7 +71,7 @@ lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
 typedef struct {
     lstf_virtualmachine *vm;
-    lstf_vm_coroutine *cr;
+    lstf_vm_coroutine   *cr;
     union {
         // for initialize_server_cb()
         string *server_path;
@@ -159,11 +165,7 @@ lstf_vm_vmcall_connect_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     // now initialize the client
     server_data *data;
-    box(server_data, data) {
-        .vm = vm,
-        .cr = cr,
-        .server_path = path
-    };
+    box(server_data, data, vm, cr, .server_path = path);
     path = NULL;
     // set outstanding I/O to suspend the coroutine
     ++cr->outstanding_io;
@@ -230,9 +232,9 @@ lstf_vm_vmcall_td_open_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
         goto cleanup_on_error;
     }
 
-    json_array *array = json_node_cast(uri_array, array);
-    for (unsigned i = 0; i < array->num_elements; ++i) {
-        json_string *uri = json_node_cast(array->elements[i], string);
+    json_array_foreach(uri_array, element, {
+        json_string *uri = json_node_cast(element, string);
+
         if (!uri) {
             status = lstf_vm_status_invalid_operand_type;
             goto cleanup_on_error;
@@ -241,18 +243,15 @@ lstf_vm_vmcall_td_open_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
         // communicate with server...
         size_t doc_idx = -1;
         if (sscanf(uri->value, LSTF_VM_CONTENT_URI_FMT, &doc_idx) != 1 ||
-            doc_idx >= array->num_elements) {
+            doc_idx >= json_node_cast(uri_array, array)->num_elements) {
             status = lstf_vm_status_invalid_document_id;
             goto cleanup_on_error;
         }
 
         // 1. save server data
         server_data *data;
-        box(server_data, data) {
-            .vm = vm,
-            .cr = cr,
-            .text_document_uri = json_node_ref(super(uri))
-        };
+        box(server_data, data, vm, cr,
+            .text_document_uri = json_node_ref(element));
 
         // 2. set outstanding I/O to suspend the coroutine
         ++cr->outstanding_io;
@@ -263,7 +262,7 @@ lstf_vm_vmcall_td_open_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
                                             vm->event_loop,
                                             lstf_vm_vmcall_td_open_exec_td_open_cb,
                                             data);
-    }
+    });
 
     return status;
 
@@ -309,10 +308,7 @@ lstf_vm_vmcall_diagnostics_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     // 1. save server data
     server_data *data;
-    box(server_data, data) {
-        .vm = vm,
-        .cr = cr,
-    };
+    box(server_data, data, .vm = vm, .cr = cr);
 
     // 2. set outstanding I/O to suspend the coroutine
     ++cr->outstanding_io;

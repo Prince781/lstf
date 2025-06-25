@@ -811,12 +811,8 @@ void json_scanner_next_async(json_scanner  *scanner,
     event *token_read_ev = eventloop_add(loop, callback, user_data);
 
     struct token_read_ctx *ctx;
-    box(struct token_read_ctx, ctx) {
-        scanner,
-        token_read_ev,
-        token_read_state_skip_spaces,
-        /* init_state= */ true
-    };
+    box(struct token_read_ctx, ctx, scanner, token_read_ev,
+        token_read_state_skip_spaces, .is_init_state = true);
 
     json_scanner_stream_wait_async(scanner, loop, json_scanner_stream_ready_cb, ctx);
 }
