@@ -6,7 +6,9 @@
 #include "json/json.h"
 #include <stdio.h>
 
-#define LSTF_VM_CONTENT_URI_FMT "content:///buffer/%zu"
+// FIXME: What schema to use for in-memory buffers? See discussion:
+// https://github.com/microsoft/language-server-protocol/issues/1676
+#define LSTF_VM_CONTENT_URI_FMT "untitled:///buffer%zu"
 
 // handlers for server notifications
 static void lstf_vm_handle_window_show_message(
@@ -57,9 +59,11 @@ lstf_vm_vmcall_memory_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     if ((status = lstf_vm_stack_pop_string(cr->stack, &filetype)))
         goto cleanup;
 
-    // associate the content with a new URI
+    // Associate the content with a new URI.
+    // For example, a Vala document may be "file:///tmp/0.vala"
     string *uri =
-        string_newf(LSTF_VM_CONTENT_URI_FMT, (size_t)vm->client->docs.length);
+        string_newf(LSTF_VM_CONTENT_URI_FMT ".%s",
+                    (size_t)vm->client->docs.length, filetype->buffer);
     lsp_textdocument document = {.uri  = strdup(uri->buffer),
                                  .language_id = strdup(filetype->buffer),
                                  .text = string_ref(content)};
@@ -294,6 +298,9 @@ static void lstf_vm_vmcall_diagnostics_exec_cb(const event *ev, void *user_data)
         if ((status = lstf_vm_stack_push_json(cr->stack, params)))
             lstf_virtualmachine_raise(vm, status);
     }
+
+    // the coroutine is done
+    --cr->outstanding_io;
 }
 
 static lstf_vm_status
