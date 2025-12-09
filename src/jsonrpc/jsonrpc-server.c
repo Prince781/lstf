@@ -223,10 +223,13 @@ static void jsonrpc_server_send_message_async(jsonrpc_server *server,
     // TODO: handle outputstream backed by a buffer
     jsonrpc_debug({
       int outfd = outputstream_get_fd(server->output_stream);
+      char *message_str = json_node_to_string(message, true);
       fprintf(stderr,
               "await can write to fd %d\n"
+              "will send this message:\n---\n%s\n---\n"
               "callback: => jsonrpc_server_outputstream_ready_cb();\n",
-              outfd);
+              outfd, message_str);
+      free(message_str);
     });
     eventloop_add_fd(loop, outputstream_get_fd(server->output_stream), false,
                      jsonrpc_server_send_message_outputstream_ready_cb, ctx);
@@ -524,7 +527,7 @@ static void jsonrpc_server_wait_stream_async(jsonrpc_server *server,
 {
     int fd = inputstream_get_fd(server->parser->scanner->stream);
     if (fd == -1 || inputstream_ready(server->parser->scanner->stream)) {
-        jsonrpc_debug(fprintf(stderr, "input stream is ready\n"));
+        jsonrpc_debug(fprintf(stderr, "input stream %d is ready\n", fd));
         event tmp = { .loop = loop };
         event_return(&tmp, NULL);
         callback(&tmp, user_data);
@@ -555,6 +558,31 @@ struct parse_content_length_ctx {
     unsigned i;
     char numbuf[20];
 };
+
+#ifdef JSONRPC_DEBUG
+static char *
+parse_content_length_ctx_to_string(const struct parse_content_length_ctx *ctx)
+{
+    static char buffer[512];
+    const char *state_str = NULL;
+
+#define HANDLE_STATE(s) case s: state_str = #s; break
+    switch (ctx->state) {
+    HANDLE_STATE(parse_content_length_state_skipping_spaces);
+    HANDLE_STATE(parse_content_length_state_skipping_text);
+    HANDLE_STATE(parse_content_length_state_reading_length);
+    HANDLE_STATE(parse_content_length_state_parse_newlines);
+    }
+#undef HANDLE_STATE
+
+    int numlen = 0;
+    if (ctx->state == parse_content_length_state_reading_length)
+        numlen = ctx->i > 20 ? 20 : (int)ctx->i;
+    snprintf(buffer, sizeof buffer, "{.state = %s, .i = %u, .numbuf = \"%*s\"}",
+             state_str, ctx->i, numlen, ctx->numbuf);
+    return buffer;
+}
+#endif  // JSONRPC_DEBUG
 
 static void jsonrpc_server_parse_content_length_cb(const event *ev,
                                                    void        *user_data)
@@ -637,7 +665,7 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
                 sscanf(ctx->numbuf, "%zu", &content_length);
 
                 jsonrpc_debug(fprintf(
-                    stderr, "done reading 'Content-Length: ', size = %zu\n",
+                    stderr, "done reading 'Content-Length: '; size = %zu\n",
                     content_length));
                 event_return(ctx->header_parsed_ev,
                              (void *)(uintptr_t)content_length);
@@ -650,9 +678,12 @@ static void jsonrpc_server_parse_content_length_cb(const event *ev,
             break;
         }
 
-        jsonrpc_debug(fprintf(
-            stderr, "await jsonrpc_server_wait_stream_async();\n"
-                    "callback: => jsonrpc_server_parse_content_length_cb\n"));
+        jsonrpc_debug(
+            fprintf(stderr,
+                    "current state: %s\n"
+                    "await jsonrpc_server_wait_stream_async();\n"
+                    "callback: => jsonrpc_server_parse_content_length_cb\n",
+                    parse_content_length_ctx_to_string(ctx)));
         jsonrpc_server_wait_stream_async(ctx->server, ev->loop,
                                          jsonrpc_server_parse_content_length_cb,
                                          user_data);
@@ -881,6 +912,9 @@ static void jsonrpc_server_handle_request(jsonrpc_server *server,
     } else if (!id && (handler_entry = ptr_hashmap_get(server->notif_handlers,
                                                        method_name))) {
         closure *cl = handler_entry->value;
+        jsonrpc_debug(fprintf(
+            stderr, "invoking closure to handle notification \"%s\"...\n",
+            method_name));
         closure_vinvoke(cl, jsonrpc_notification_handler, server, method_name,
                         params);
     } else {
@@ -903,6 +937,11 @@ jsonrpc_server_listen_parse_node_after_header_cb(const event *node_parsed_ev,
     int error = 0;
 
     if ((parsed_node = json_parser_parse_node_finish(node_parsed_ev, &error))) {
+        jsonrpc_debug({
+            char *node_str = json_node_to_string(parsed_node, true);
+            fprintf(stderr, "finished parsing node:\n---\n%s\n---\n", node_str);
+            free(node_str);
+        });
         // is this a request object, a response object, or a batch of requests?
         const char *reason = NULL;
         if (jsonrpc_verify_is_request_object(parsed_node, &reason)) {
