@@ -3,21 +3,26 @@ server_path = option('server-path');
 let f = file("vala", `
 void main() {
     print ("GLib is a string");
-}
+'}
 `);
 
 project_files = [ f ];
+
+let x = await diagnostics(f);
+
+print(x);
 
 assert {
     diagnostics: [
         ...,
         {
             range: {
-                start: { line: 3, character: 5 },
-                end: { line: 3, character: 16 }
+                start: { line: 3, character: 3 },
+                end: { line: 3, character: 4 }
             },
-            severity: DiagnosticSeverity.Error
+            severity: DiagnosticSeverity.Error,
+            message: "invalid character literal"
         },
         ...
     ]
-} <=> await diagnostics(f);
+} <=> x;

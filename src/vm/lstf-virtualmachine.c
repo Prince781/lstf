@@ -999,7 +999,7 @@ lstf_vm_op_equal_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
                 break;
             case lstf_vm_value_type_string:
                 status = lstf_vm_stack_push_boolean(cr->stack,
-                                string_is_equal_to(operand1.data.string, operand2.data.string));
+                                string_equal_to(operand1.data.string, operand2.data.string));
                 break;
             case lstf_vm_value_type_closure:
                 status = lstf_vm_stack_push_boolean(cr->stack,

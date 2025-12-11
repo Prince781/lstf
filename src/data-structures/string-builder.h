@@ -70,9 +70,22 @@ static inline bool string_hash(const string *sb) {
     return strhash(sb->const_buffer);
 }
 
-static inline bool string_is_equal_to(const string *sb1, const string *sb2) {
+static inline bool string_equal_to_string(const string *sb1, const string *sb2)
+{
     return strcmp(sb1->const_buffer, sb2->const_buffer) == 0;
 }
+
+static inline bool string_equal_to_raw(const string *sb1, const char *s2)
+{
+    return strcmp(sb1->const_buffer, s2) == 0;
+}
+
+#define string_equal_to(s1, s2)                                                \
+    _Generic((s2),                                                             \
+        const string *: string_equal_to_string,                                \
+        string *: string_equal_to_string,                                      \
+        const char *: string_equal_to_raw,                                     \
+        char *: string_equal_to_raw)(s1, s2)
 
 string *string_clear(string *sb);
 

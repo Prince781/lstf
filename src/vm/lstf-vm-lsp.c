@@ -84,8 +84,8 @@ typedef struct {
     union {
         // for initialize_server_cb()
         string *server_path;
-        // for td_open_cb()
-        json_node *text_document_uri;
+        // for td_open_cb(), diagnostics_exec_cb()
+        string *text_document_uri;
     };
 } server_data;
 
@@ -199,13 +199,12 @@ cleanup_on_error:
     return status;
 }
 
-static void
-lstf_vm_vmcall_td_open_exec_td_open_cb(const event *ev, void *user_data)
+static void lstf_vm_vmcall_td_open_exec_cb(const event *ev, void *user_data)
 {
     server_data *data = user_data;
     lstf_virtualmachine *vm = data->vm;
     lstf_vm_coroutine *cr = data->cr;
-    json_node *text_document_uri = data->text_document_uri;
+    string *text_document_uri = data->text_document_uri;
 
     free(data);
     data = NULL;
@@ -214,7 +213,7 @@ lstf_vm_vmcall_td_open_exec_td_open_cb(const event *ev, void *user_data)
 
     if (!lsp_client_text_document_open_finish(ev, &errnum)) {
         fprintf(stderr, "error: could not open text document `%s': %s\n",
-                json_node_cast(text_document_uri, string)->value, strerror(errnum));
+                text_document_uri->const_buffer, strerror(errnum));
         lstf_virtualmachine_raise(vm, lstf_vm_status_could_not_communicate);
     } else {
         // success: the text document open request was sent, but this may not be open
@@ -224,7 +223,7 @@ lstf_vm_vmcall_td_open_exec_td_open_cb(const event *ev, void *user_data)
     --cr->outstanding_io;
 
     // cleanup
-    json_node_unref(text_document_uri);
+    string_unref(text_document_uri);
 }
 
 static lstf_vm_status
@@ -260,7 +259,7 @@ lstf_vm_vmcall_td_open_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
         // 1. save server data
         server_data *data;
         box(server_data, data, vm, cr,
-            .text_document_uri = json_node_ref(element));
+            .text_document_uri = string_new_copy_data(uri->value));
 
         // 2. set outstanding I/O to suspend the coroutine
         ++cr->outstanding_io;
@@ -269,7 +268,7 @@ lstf_vm_vmcall_td_open_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
         lsp_client_text_document_open_async(vm->client,
                                             &vm->client->docs.elements[doc_idx],
                                             vm->event_loop,
-                                            lstf_vm_vmcall_td_open_exec_td_open_cb,
+                                            lstf_vm_vmcall_td_open_exec_cb,
                                             data);
     });
 
@@ -285,22 +284,33 @@ static void lstf_vm_vmcall_diagnostics_exec_cb(const event *ev, void *user_data)
     server_data *data = user_data;
     lstf_virtualmachine *vm = data->vm;
     lstf_vm_coroutine *cr = data->cr;
+    string *text_document_uri = data->text_document_uri;
     int errnum = 0;
 
     json_node *params = lsp_client_wait_for_diagnostics_finish(ev, &errnum);
+    json_node *uri = params ? json_object_get_member(params, "uri") : NULL;
     if (errnum) {
         fprintf(stderr, "error: could not deserialize diagnostics: %s\n",
                 strerror(errnum));
         lstf_virtualmachine_raise(vm, lstf_vm_status_could_not_communicate);
-    } else {
+    } else if (string_equal_to(text_document_uri,
+                               json_node_cast(uri, string)->value)) {
         // success. now add the result to the stack
         lstf_vm_status status = lstf_vm_status_continue;
         if ((status = lstf_vm_stack_push_json(cr->stack, params)))
             lstf_virtualmachine_raise(vm, status);
-    }
 
-    // the coroutine is done
-    --cr->outstanding_io;
+        // resume the coroutine
+        --cr->outstanding_io;
+
+        // cleanup
+        string_unref(text_document_uri);
+    } else {
+        // continue waiting for diagnostics for our text document
+        lsp_client_wait_for_diagnostics_async(
+            vm->client, vm->event_loop, lstf_vm_vmcall_diagnostics_exec_cb,
+            data);
+    }
 }
 
 static lstf_vm_status
@@ -320,7 +330,8 @@ lstf_vm_vmcall_diagnostics_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
 
     // 1. save server data
     server_data *data;
-    box(server_data, data, .vm = vm, .cr = cr);
+    box(server_data, data, .vm = vm, .cr = cr,
+        .text_document_uri = string_ref(text_document_uri));
 
     // 2. set outstanding I/O to suspend the coroutine
     ++cr->outstanding_io;
