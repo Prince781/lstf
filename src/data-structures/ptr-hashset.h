@@ -55,4 +55,6 @@ ptr_hashset_num_elements(const ptr_hashset *set)
  */
 iterator ptr_hashset_iterator_create(ptr_hashset *set);
 
+#define ptr_hashset_foreach(set, elem, elem_type, statements)                  \
+    foreach (ptr_hashset_iterator_create(set), elem, elem_type, statements)
 void ptr_hashset_destroy(ptr_hashset *set);

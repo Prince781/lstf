@@ -123,29 +123,26 @@ static inline json_node *json_node_typecheck(json_node *node, json_node_type nod
         json_array *_tmp_array = (json_array *)json_node_typecheck(            \
             (json_node *)array, json_node_type_array);                         \
         assert(_tmp_array && "not a JSON array!");                             \
-        for (unsigned element##_i = 0; element##_i < _tmp_array->num_elements; \
-             ++element##_i) {                                                  \
-            json_node *element = _tmp_array->elements[element##_i];            \
+        for (unsigned element##_it = 0;                                        \
+             element##_it < _tmp_array->num_elements; ++element##_it) {        \
+            json_node *element = _tmp_array->elements[element##_it];           \
             statements;                                                        \
         }                                                                      \
     }
 
-#define json_array_element_idx(element) (element ## _i)
-
-#define json_object_member_name(member) ((const char *)member->key)
-#define json_object_member_node(member) ((json_node *)member->value)
-
+/**
+ * A macro to iterate over all object members. The second argument is the prefix
+ * of the key and value names used in the body of the foreach, so that "member"
+ * corresponds to "member_name" and "member_value".
+ */
 #define json_object_foreach(object, member, statements)                        \
     {                                                                          \
-      json_object *_tmp_object = (json_object *)json_node_typecheck(           \
-          (json_node *)object, json_node_type_object);                         \
-      assert(_tmp_object && "not a JSON object!");                             \
-      for (iterator member##_it =                                              \
-               ptr_hashmap_iterator_create(_tmp_object->members);              \
-           member##_it.has_next; member##_it = iterator_next(member##_it)) {   \
-        ptr_hashmap_entry *member = iterator_get_item(member##_it);            \
-        statements;                                                            \
-      }                                                                        \
+        json_object *_tmp_object = (json_object *)json_node_typecheck(         \
+            (json_node *)object, json_node_type_object);                       \
+        assert(_tmp_object && "not a JSON object!");                           \
+        ptr_hashmap_foreach_explicit(_tmp_object->members, member,             \
+                                     member##_name, const char *,              \
+                                     member##_value, json_node *, statements); \
     }
 
 /**

@@ -105,4 +105,13 @@ static inline iterator ptr_hashmap_iterator_create(ptr_hashmap *map)
     return ptr_list_iterator_create(map->entries_list);
 }
 
+#define ptr_hashmap_foreach_explicit(map, pair_name, key_name, key_type,       \
+                                     val_name, val_type, statements)           \
+    foreach (ptr_hashmap_iterator_create(map), pair_name, ptr_hashmap_entry *, \
+             {                                                                 \
+                 key_type key_name = (key_type)(uintptr_t)pair_name->key;      \
+                 val_type val_name = (val_type)(uintptr_t)pair_name->value;    \
+                 statements;                                                   \
+             })
+
 void ptr_hashmap_destroy(ptr_hashmap *map);

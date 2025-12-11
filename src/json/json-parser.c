@@ -226,7 +226,7 @@ json_node *json_parser_parse_node(json_parser *parser)
 
         if (object->is_pattern) {
             json_object_foreach(object, member, {
-                json_node *member_value = json_object_member_node(member);
+                (void)member_name;
                 member_value->is_pattern = true;
             });
         }

@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <stdint.h>
 
 struct _iterator;
 typedef struct _iterator iterator;
@@ -101,6 +102,6 @@ static inline void *iterator_get_item(iterator it)
     for (iterator iterator_of(elem) = (iter_begin);                            \
          iterator_of(elem).has_next;                                           \
          iterator_of(elem) = iterator_next(iterator_of(elem))) {               \
-        type elem = (type)iterator_get_item(iterator_of(elem));                \
+        type elem = (type)(uintptr_t)iterator_get_item(iterator_of(elem));     \
         statements;                                                            \
     }
