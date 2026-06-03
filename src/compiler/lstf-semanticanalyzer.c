@@ -1016,8 +1016,8 @@ lstf_semanticanalyzer_visit_lambda_expression(lstf_codevisitor *visitor, lstf_la
             .found_returns = ptr_list_new((collection_item_ref_func) lstf_codenode_ref,
                     (collection_item_unref_func) lstf_codenode_unref)
         };
-        lstf_codevisitor_construct((lstf_codevisitor *)&lambda_visitor, &lambdavisitor_vtable);
-        lstf_codevisitor_visit_block((lstf_codevisitor *)&lambda_visitor, expr->statements_body);
+        lstf_codevisitor_construct(super(&lambda_visitor), &lambdavisitor_vtable);
+        lstf_codevisitor_visit_block(super(&lambda_visitor), expr->statements_body);
 
         if (ptr_list_is_empty(lambda_visitor.found_returns)) {
             return_type = lstf_voidtype_new(&lstf_codenode_cast(expr)->source_reference);

@@ -513,9 +513,8 @@ lstf_symbolresolver_visit_type_alias(lstf_codevisitor *visitor, lstf_typealias *
     static const lstf_codevisitor_vtable temp_visitor_vtable = {
         .visit_data_type = temp_codevisitor_visit_data_type
     };
-    lstf_codevisitor_construct((lstf_codevisitor *)&temp_visitor,
-            &temp_visitor_vtable);
-    lstf_codenode_accept(alias->aliased_type, (lstf_codevisitor *)&temp_visitor);
+    lstf_codevisitor_construct(super(&temp_visitor), &temp_visitor_vtable);
+    lstf_codenode_accept(alias->aliased_type, super(&temp_visitor));
 
     if (temp_visitor.encountered_unresolved_type) {
         lstf_report_error(&lstf_codenode_cast(alias)->source_reference,

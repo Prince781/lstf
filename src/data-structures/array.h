@@ -39,25 +39,25 @@ static inline void *array_new(void)
     return a;
 }
 
-static inline void array_resize__internal(array_generic *a, size_t element_size)
-{
-    const size_t array_minbufsiz = 1;
-    a->elemsz = element_size;
-    if (a->length < a->bufsiz) {
-        if (a->bufsiz / 2 >= array_minbufsiz && a->length < a->bufsiz / 2)
-            a->bufsiz /= 2;
-        else
-            return;
-    } else {
-        a->bufsiz = a->bufsiz ? a->bufsiz * 2 : array_minbufsiz;
-    }
-    void *new_elements = realloc(a->elements, a->elemsz * a->bufsiz);
-    if (!new_elements) {
-        perror("could not resize array");
-        abort();
-    }
-    a->elements = new_elements;
-}
+#define array_resize__internal(container) \
+do {\
+    const size_t array_minbufsiz = 1;\
+    (container)->elemsz = sizeof((container)->elements[0]);\
+    if ((container)->length < (container)->bufsiz) {\
+        if ((container)->bufsiz / 2 >= array_minbufsiz && (container)->length < (container)->bufsiz / 2)\
+            (container)->bufsiz /= 2;\
+        else\
+            break;\
+    } else {\
+        (container)->bufsiz = (container)->bufsiz ? (container)->bufsiz * 2 : array_minbufsiz;\
+    }\
+    void *new_elements = realloc((container)->elements, (container)->elemsz * (container)->bufsiz);\
+    if (!new_elements) {\
+        perror("could not resize array");\
+        abort();\
+    }\
+    (container)->elements = new_elements;\
+} while (0)
 
 #define array_init(container) \
 do {\
@@ -69,40 +69,36 @@ do {\
 
 #define array_destroy(container) \
 do {\
-    array_generic *_a_ = (array_generic *)(container);\
-    free(_a_->elements);\
-    if (!_a_->nofree)\
-        free(_a_);\
+    free((container)->elements);\
+    if (!(container)->nofree)\
+        free(container);\
 } while (0)
 
 #define array_add(container, element) \
 do {\
     /* XXX: (container) evaluated two times */\
-    array_generic *_a_ = (array_generic *)(container);\
-    if (_a_->length >= _a_->bufsiz)\
-        array_resize__internal(_a_, sizeof (container)->elements[0]);\
-    (container)->elements[_a_->length++] = (element);\
+    if ((container)->length >= (container)->bufsiz)\
+        array_resize__internal(container);\
+    (container)->elements[(container)->length++] = (element);\
 } while (0)
 
 #define array_remove(container, index) \
 do {\
-    array_generic *_a_ = (array_generic *)(container);\
     size_t _i_ = index;\
-    assert(_i_ < _a_->length && "array_remove(): index out of bounds");\
-    if (_i_ == _a_->length - 1u) {\
-        _a_->length--;\
+    assert(_i_ < (container)->length && "array_remove(): index out of bounds");\
+    if (_i_ == (container)->length - 1u) {\
+        (container)->length--;\
     } else {\
-        memmove((char *)_a_->elements + _i_ * _a_->elemsz,\
-                (char *)_a_->elements + (_i_+1) * _a_->elemsz,\
-                _a_->elemsz * (_a_->length - (_i_+1)));\
-        _a_->length--;\
+        memmove((char *)(container)->elements + _i_ * (container)->elemsz,\
+                (char *)(container)->elements + (_i_+1) * (container)->elemsz,\
+                (container)->elemsz * ((container)->length - (_i_+1)));\
+        (container)->length--;\
     }\
-    if (_a_->length <= _a_->bufsiz / 2)\
-        array_resize__internal(_a_, _a_->elemsz);\
+    if ((container)->length <= (container)->bufsiz / 2)\
+        array_resize__internal(container);\
 } while (0)
 
 #define array_pop(container) \
 do {\
-    array_generic *_apop_ = (array_generic *)(container); \
-    array_remove(_apop_, _apop_->length - 1u); \
+    array_remove(container, (container)->length - 1u); \
 } while (0)
