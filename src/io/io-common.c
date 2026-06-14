@@ -318,24 +318,24 @@ bool io_communicate(const char    *path,
     pid_t child_pid = -1;
     if (in_stream)
         if (pipe(stdin_pipe.fds) != 0 ||
-                fcntl(stdin_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
-                fcntl(stdin_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+                fcntl(stdin_pipe.fds[0], F_SETFD, FD_CLOEXEC) != 0 ||
+                fcntl(stdin_pipe.fds[1], F_SETFD, FD_CLOEXEC) != 0)
             goto cleanup_on_error;
     if (out_stream)
         if (pipe(stdout_pipe.fds) != 0 ||
-                fcntl(stdout_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
-                fcntl(stdout_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+                fcntl(stdout_pipe.fds[0], F_SETFD, FD_CLOEXEC) != 0 ||
+                fcntl(stdout_pipe.fds[1], F_SETFD, FD_CLOEXEC) != 0)
             goto cleanup_on_error;
     if (err_stream)
         if (pipe(stderr_pipe.fds) != 0 ||
-                fcntl(stderr_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
-                fcntl(stderr_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+                fcntl(stderr_pipe.fds[0], F_SETFD, FD_CLOEXEC) != 0 ||
+                fcntl(stderr_pipe.fds[1], F_SETFD, FD_CLOEXEC) != 0)
             goto cleanup_on_error;
 
     // create another pipe for communicating child exec() status
     if (pipe(communicate_pipe.fds) != 0 ||
-            fcntl(communicate_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
-            fcntl(communicate_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+            fcntl(communicate_pipe.fds[0], F_SETFD, FD_CLOEXEC) != 0 ||
+            fcntl(communicate_pipe.fds[1], F_SETFD, FD_CLOEXEC) != 0)
         goto cleanup_on_error;
 
     // fork
