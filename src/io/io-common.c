@@ -301,7 +301,6 @@ bool io_communicate(const char    *path,
                     inputstream  **err_stream,
                     io_process    *subprocess)
 {
-    assert((in_stream || out_stream || err_stream) && "at least one stream must be specified");
     int saved_errno = 0;
 
     // create three pipes
@@ -315,6 +314,7 @@ bool io_communicate(const char    *path,
     union pipe_info stdin_pipe = {.fds = {-1, -1}};
     union pipe_info stdout_pipe = {.fds = {-1, -1}};
     union pipe_info stderr_pipe = {.fds = {-1, -1}};
+    union pipe_info communicate_pipe = {.fds = {-1, -1}};
     pid_t child_pid = -1;
     if (in_stream)
         if (pipe(stdin_pipe.fds) != 0 ||
@@ -331,6 +331,12 @@ bool io_communicate(const char    *path,
                 fcntl(stderr_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
                 fcntl(stderr_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
             goto cleanup_on_error;
+
+    // create another pipe for communicating child exec() status
+    if (pipe(communicate_pipe.fds) != 0 ||
+            fcntl(communicate_pipe.fds[0], F_SETFD, O_CLOEXEC) != 0 ||
+            fcntl(communicate_pipe.fds[1], F_SETFD, O_CLOEXEC) != 0)
+        goto cleanup_on_error;
 
     // fork
     if ((child_pid = fork()) == -1) {
@@ -376,6 +382,8 @@ bool io_communicate(const char    *path,
 
         // start the subprocess!
         if (execvp(path, argv) != 0) {
+            // we failed. propagate errno to parent
+            write(communicate_pipe.write_fd, &errno, sizeof(errno));
             fprintf(stderr, "error: could not launch process `%s': %s\n", path, strerror(errno));
             exit(EXIT_FAILURE);
         }
@@ -389,6 +397,8 @@ bool io_communicate(const char    *path,
             goto cleanup_on_error;
         if (err_stream && close(stderr_pipe.write_fd) != 0)
             goto cleanup_on_error;
+        if (close(communicate_pipe.write_fd) != 0)
+            goto cleanup_on_error;
 
         // setup streams
         if (in_stream &&
@@ -399,6 +409,19 @@ bool io_communicate(const char    *path,
             goto cleanup_on_error;
         if (err_stream &&
             !(*err_stream = inputstream_new_from_fd(stderr_pipe.read_fd, true)))
+            goto cleanup_on_error;
+
+        // if child failed to exec(), we will receive a message here
+        int child_errno;
+        if (read(communicate_pipe.read_fd, &child_errno, sizeof child_errno) ==
+            sizeof(child_errno)) {
+            // propagate errno from child's exec()
+            errno = child_errno;
+            goto cleanup_on_error;
+        }
+
+        // cleanup
+        if (close(communicate_pipe.read_fd) != 0)
             goto cleanup_on_error;
 
         // save process
@@ -415,6 +438,8 @@ cleanup_on_error:
     close(stdout_pipe.write_fd);
     close(stderr_pipe.read_fd);
     close(stderr_pipe.write_fd);
+    close(communicate_pipe.read_fd);
+    close(communicate_pipe.write_fd);
     if (child_pid != -1) {
         // end child process
         if (kill(child_pid, SIGTERM) == -1) {

@@ -17,3 +17,13 @@ event_pipe = executable('event-pipe',
 )
 
 test('event-pipe', event_pipe, timeout: 2, suite: 'io')
+
+subprocess = executable('subprocess',
+  dependencies: [io],
+  include_directories: include_dirs,
+  c_args: c_args,
+  sources: ['subprocess.c'],
+  install: false
+)
+
+test('subprocess', subprocess, timeout: 2, suite: 'io')

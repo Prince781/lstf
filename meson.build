@@ -52,6 +52,7 @@ else
       '-Wmissing-declarations',
       '-Wno-free-nonheap-object',
       '-Wshadow=compatible-local',
+      '-Wsometimes-uninitialized',
       '-Wstrict-aliasing',
       '-Wstrict-overflow',
       '-Wstringop-overflow',

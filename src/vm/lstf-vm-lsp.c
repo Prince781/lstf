@@ -152,14 +152,16 @@ lstf_vm_vmcall_connect_exec(lstf_virtualmachine *vm, lstf_vm_coroutine *cr)
     // start the server and connect
     if (!io_communicate(path->buffer, (const char *[]){path->buffer, NULL},
                         &stdin_os, &stdout_is, &stderr_is, &process)) {
+        int saved_errno = errno;
         char stderr_buf[1024] = {0};
         if (stderr_is &&
             inputstream_read(stderr_is, stderr_buf, sizeof(stderr_buf) - 1)) {
-          // print child's stderr
-          fprintf(stderr, "error: child `%s' failed with message:\n%s\n",
-                  path->buffer, stderr_buf);
+            // print child's stderr
+            fprintf(stderr, "error: child `%s' failed with message:\n%s\n",
+                    path->buffer, stderr_buf);
         } else {
-          fprintf(stderr, "error: could not launch child `%s'\n", path->buffer);
+            fprintf(stderr, "error: could not launch child `%s': %s\n",
+                    path->buffer, strerror(saved_errno));
         }
         status = lstf_vm_status_could_not_connect;
         goto cleanup_on_error;
