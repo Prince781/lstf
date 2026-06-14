@@ -109,7 +109,7 @@ outputstream *outputstream_new_from_buffer(void *buffer, size_t initial_size, bo
 
     stream->stream_type = outputstream_type_buffer;
     stream->floating = true;
-    stream->close_or_free_on_destruction = free_on_destroy;
+    stream->close_or_free_on_destruction = free_on_destroy || created_buffer;
     stream->buffer = buffer;
     stream->buffer_size = initial_size;
 

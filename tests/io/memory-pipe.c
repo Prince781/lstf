@@ -31,5 +31,6 @@ int main(void)
     }
 
     inputstream_unref(istream);
+    outputstream_unref(ostream);
     return retval;
 }

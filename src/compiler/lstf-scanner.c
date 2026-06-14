@@ -703,7 +703,7 @@ char *lstf_scanner_get_current_string(const lstf_scanner *scanner) {
         char *buffer = NULL;
         size_t buflen = 0;
         for (char *j = NULL; (j = strchr(i, '\\')); i = j + 2) {
-            if (!buffer && !(buffer = calloc(1, end.pos - begin.pos + 1))) {
+            if (!buffer && !(buffer = calloc(1, end.pos - begin.pos + 2))) {
                 perror("failed to create buffer for token string");
                 abort();
             }
