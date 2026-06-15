@@ -2,6 +2,7 @@
 
 #include "data-structures/array.h"
 #include "io/io-common.h"
+#include "io/io-process.h"
 #include "lstf-common.h"
 #include <errno.h>
 #include <stdbool.h>

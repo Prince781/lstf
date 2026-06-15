@@ -29,6 +29,7 @@ io_lib = static_library('io',
     'io/event.c',
     'io/inputstream.c',
     'io/io-common.c',
+    'io/io-process.c',
     'io/outputstream.c'
   ],
   include_directories: include_dirs,
