@@ -65,6 +65,7 @@ do {\
     (container)->nofree = true;\
     (container)->bufsiz = 0;\
     (container)->elemsz = sizeof((container)->elements[0]);\
+    (container)->elements = NULL; \
 } while (0)
 
 #define array_destroy(container) \

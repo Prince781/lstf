@@ -8,10 +8,6 @@ void main() {
 
 project_files = [ f ];
 
-let x = await diagnostics(f);
-
-print(x);
-
 assert {
     diagnostics: [
         ...,
@@ -25,4 +21,4 @@ assert {
         },
         ...
     ]
-} <=> x;
+} <=> await diagnostics(f);

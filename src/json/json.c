@@ -1,4 +1,5 @@
 #include "json.h"
+#include "data-structures/array.h"
 #include "data-structures/iterator.h"
 #include "data-structures/ptr-hashmap.h"
 #include "data-structures/ptr-hashset.h"
@@ -289,19 +290,15 @@ bool json_node_equal_to(json_node *node1, json_node *node2)
         node1->visiting = true;
         node2->visiting = true;
         if (node1->is_pattern || node2->is_pattern) {
-            // ptr_hashset<unsigned>
-            ptr_hashset *states1 = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
-            // ptr_hashset<unsigned>
-            ptr_hashset *states2 = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
+            struct state {
+                unsigned i;
+                unsigned j;
+            };
+            array(struct state) states;
+            array_init(&states);
 
-            // initial states are 0
-            if (array1->num_elements > 0)
-                ptr_hashset_insert(states1, 0);
-            if (array2->num_elements > 0)
-                ptr_hashset_insert(states2, 0);
-
-            ptr_hashset *states1_new = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
-            ptr_hashset *states2_new = ptr_hashset_new(ptrhash, NULL, NULL, NULL);
+            // initial state of (0, 0)
+            array_add(&states, ((struct state){0, 0}));
 
             bool reached_end1 = false;
             bool reached_end2 = false;
@@ -309,74 +306,34 @@ bool json_node_equal_to(json_node *node1, json_node *node2)
             // NFA-style matching of arrays that may contain the ellipsis
             // node '...'. The comparison should terminate in a finite number
             // of steps.
-            for (unsigned steps = 0;
-                    steps < (array1->num_elements > array2->num_elements ? array1->num_elements : array2->num_elements) &&
-                    !ptr_hashset_is_empty(states1) && !ptr_hashset_is_empty(states2) &&
-                    !(reached_end1 && reached_end2);
-                    steps++) {
+            for (unsigned n = 0; n < states.length && !(reached_end1 && reached_end2); ++n) {
+                // must copy `s` as [elements] may be resized later
+                struct state s = states.elements[n];
+
                 reached_end1 = false;
                 reached_end2 = false;
-                ptr_hashset_foreach(states1, i, unsigned, {
-                    // if at an ellipsis node, we can transition to two
-                    // states simultaneously: at indices i and i + 1
-                    if (array1->elements[i]->node_type == json_node_type_ellipsis) {
-                        ptr_hashset_insert(states1_new, (void *)(uintptr_t)i);
-                        if (i + 1 < array1->num_elements)
-                            ptr_hashset_insert(states1_new, (void *)(uintptr_t)(i + 1));
-                        else
-                            reached_end1 = true;
-                    }
+                if (array1->elements[s.i]->node_type == json_node_type_ellipsis ||
+                    array2->elements[s.j]->node_type == json_node_type_ellipsis) {
+                    if (s.i + 1 < array1->num_elements)
+                        array_add(&states, ((struct state){s.i + 1, s.j}));
+                    if (s.j + 1 < array2->num_elements)
+                        array_add(&states, ((struct state){s.i, s.j + 1}));
+                }
 
-                    ptr_hashset_foreach(states2, j, unsigned, {
-                        // if at an ellipsis node, we can transition to two
-                        // states simultaneously: at indices j and j + 1
-                        if (array2->elements[j]->node_type == json_node_type_ellipsis) {
-                            ptr_hashset_insert(states2_new, (void *)(uintptr_t)j);
-                            if (j + 1 < array2->num_elements)
-                                ptr_hashset_insert(states2_new, (void *)(uintptr_t)(j + 1));
-                            else
-                                reached_end2 = true;
-                        }
-
-                        // if there is a match, we can also transition indices
-                        // for each array: i -> (i + 1) and j -> (j + 1)
-                        if (json_node_equal_to(array1->elements[i], array2->elements[j]) ||
-                                array1->elements[i]->node_type == json_node_type_ellipsis ||
-                                array2->elements[j]->node_type == json_node_type_ellipsis) {
-                            if (i + 1 < array1->num_elements)
-                                ptr_hashset_insert(states1_new, (void *)(uintptr_t)(i + 1));
-                            else
-                                reached_end1 = true;
-                            if (j + 1 < array2->num_elements)
-                                ptr_hashset_insert(states2_new, (void *)(uintptr_t)(j + 1));
-                            else
-                                reached_end2 = true;
-                        }
-                    });
-                });
-
-                ptr_hashset_clear(states1);
-                ptr_hashset_clear(states2);
-
-                // copy new states
-                ptr_hashset_foreach(states1_new, state, unsigned, {
-                    ptr_hashset_insert(states1, (void *)(uintptr_t)state);
-                });
-                ptr_hashset_foreach(states2_new, state, unsigned, {
-                    ptr_hashset_insert(states2, (void *)(uintptr_t)state);
-                });
-
-                ptr_hashset_clear(states1_new);
-                ptr_hashset_clear(states2_new);
+                if (json_node_equal_to(array1->elements[s.i],
+                                       array2->elements[s.j]) ||
+                    array1->elements[s.i]->node_type == json_node_type_ellipsis ||
+                    array2->elements[s.j]->node_type == json_node_type_ellipsis) {
+                    if (s.i + 1 < array1->num_elements && s.j + 1 < array2->num_elements)
+                        array_add(&states, ((struct state){s.i + 1, s.j + 1}));
+                    reached_end1 = s.i == array1->num_elements - 1;
+                    reached_end2 = s.j == array2->num_elements - 1;
+                }
             }
-            ptr_hashset_destroy(states1_new);
-            ptr_hashset_destroy(states2_new);
-
-            ptr_hashset_destroy(states1);
-            ptr_hashset_destroy(states2);
 
             node1->visiting = false;
             node2->visiting = false;
+            array_destroy(&states);
             return reached_end1 && reached_end2;
         } else {
             if (array1->num_elements != array2->num_elements) {
